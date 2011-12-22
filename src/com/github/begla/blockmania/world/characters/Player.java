@@ -295,7 +295,7 @@ public final class Player extends Character {
             boolean state,
             boolean repeatEvent) {
         switch (key) {
-            case Keyboard.KEY_E:
+            case Keyboard.KEY_R:
                 if (state && !repeatEvent) {
                     placeBlock(_selectedBlockType);
                 }
@@ -316,6 +316,7 @@ public final class Player extends Character {
                 }
                 break;
             case Keyboard.KEY_SPACE:
+            case Keyboard.KEY_BACK:
                 if (!repeatEvent && state) {
                     jump();
                 }
@@ -390,16 +391,16 @@ public final class Player extends Character {
         yaw(dx * MOUSE_SENS);
         pitch(dy * MOUSE_SENS);
 
-        if (Keyboard.isKeyDown(Keyboard.KEY_W)) {
+        if (Keyboard.isKeyDown(Keyboard.KEY_E)) {
             walkForward();
         }
-        if (Keyboard.isKeyDown(Keyboard.KEY_S)) {
+        if (Keyboard.isKeyDown(Keyboard.KEY_D)) {
             walkBackwards();
         }
-        if (Keyboard.isKeyDown(Keyboard.KEY_A)) {
+        if (Keyboard.isKeyDown(Keyboard.KEY_S)) {
             strafeLeft();
         }
-        if (Keyboard.isKeyDown(Keyboard.KEY_D)) {
+        if (Keyboard.isKeyDown(Keyboard.KEY_F)) {
             strafeRight();
         }
 

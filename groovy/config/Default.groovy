@@ -46,7 +46,7 @@ Graphics {
     animatedWaterAndGrass = true
 
     pixelFormat = new PixelFormat().withDepthBits(24)
-    displayMode = new DisplayMode(1280, 720)
+    displayMode = new DisplayMode(800, 450)//1280, 720)
 
     aspectRatio = 16.0d / 9.0d
 
@@ -84,7 +84,7 @@ Controls {
 
 Player {
 
-    bobbing = true
+    bobbing = false
 
     maxGravity = 0.7d
     maxGravitySwimming = 0.01d
@@ -95,8 +95,8 @@ Player {
     friction = 0.08d
 
     walkingSpeed = 0.03d
-    runningFactor = 1.8d
-    jumpIntensity = 0.125d
+    runningFactor = 2.5d//1.8d
+    jumpIntensity = 0.2d//0.16d
 
 }
 

@@ -1,4 +1,4 @@
 #!/bin/bash
-cd "$(dirname "$0")"
+cd out/artifacts/Blockmania
 java -Xms128m -Xmx1024m -jar Blockmania.jar
 
