@@ -49,10 +49,19 @@ import java.util.List;
  */
 public final class UIMenuConfigControls extends UIWindow {
 
-    // TODO: Much of this can be derived from the register bind button annotations, more generic input screen?
+    /**
+     * Convenience class used to quickly instantiate buttons without having to repeat code.  Stores all the interesting
+     * information about the button: its bind ID, text (to display), and group (where to draw it).
+     *
+     * TODO: Much of this can be derived from the register bind button annotations, more generic input screen?
+     */
     private static class ButtonDefinition {
         public String bindId;
+
+        /** Text to display on the button. */
         public String displayText;
+
+        /** Visual group this button will be drawn in (e.g., a column). */
         public int group;
 
         public ButtonDefinition(String bindId, String displayText, int group) {
