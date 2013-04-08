@@ -62,10 +62,11 @@ public class UIMenuConfigVideo extends UIWindow {
         public void click(UIDisplayElement element, int button) {
             UIStateButton b = (UIStateButton) element;
 
-            if (button == 0)
+            if (button == 0) {
                 b.nextState();
-            else if (button == 1)
+            } else if (button == 1) {
                 b.previousState();
+            }
         }
     };
 
@@ -262,10 +263,11 @@ public class UIMenuConfigVideo extends UIWindow {
                 UIStateButton button = (UIStateButton) element;
                 TerasologyEngine te = (TerasologyEngine) CoreRegistry.get(GameEngine.class);
 
-                if (button.getState() == 0)
+                if (button.getState() == 0) {
                     te.setFullscreen(false);
-                else
+                } else {
                     te.setFullscreen(true);
+                }
             }
         };
         fullscreenButton.addState("Fullscreen: Off", fullscreenStateAction);
@@ -308,37 +310,19 @@ public class UIMenuConfigVideo extends UIWindow {
         viewingDistanceButton.setState(config.getRendering().getActiveViewDistanceMode());
         blurIntensityButton.setState(config.getRendering().getBlurIntensity());
 
-        if (config.getRendering().isDynamicShadows())
+        if (config.getRendering().isDynamicShadows()) {
             graphicsQualityButton.setState(3);
-        else if (config.getRendering().isLightShafts())
+        } else if (config.getRendering().isLightShafts()) {
             graphicsQualityButton.setState(2);
-        else if (config.getRendering().isBloom())
+        } else if  (config.getRendering().isBloom()) {
             graphicsQualityButton.setState(1);
-        else
+        } else {
             graphicsQualityButton.setState(0);
-
-        if (config.getRendering().isAnimateGrass()) {
-            animateGrassButton.setState(1);
-        } else {
-            animateGrassButton.setState(0);
         }
 
-        if (config.getRendering().isReflectiveWater()) {
-            reflectiveWaterButton.setState(1);
-        } else {
-            reflectiveWaterButton.setState(0);
-        }
-
-        if (config.getRendering().isCameraBobbing()) {
-            bobbingButton.setState(1);
-        } else {
-            bobbingButton.setState(0);
-        }
-
-        if (config.getRendering().isFullscreen()) {
-            fullscreenButton.setState(1);
-        } else {
-            fullscreenButton.setState(0);
-        }
+        animateGrassButton.setState(config.getRendering().isAnimateGrass() ? 1 : 0);
+        reflectiveWaterButton.setState(config.getRendering().isReflectiveWater() ? 1 : 0);
+        bobbingButton.setState(config.getRendering().isCameraBobbing() ? 1 : 0);
+        fullscreenButton.setState(config.getRendering().isFullscreen() ? 1 : 0);
     }
 }
