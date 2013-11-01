@@ -20,16 +20,18 @@ import org.terasology.config.Config;
 import org.terasology.config.ModConfig;
 import org.terasology.game.CoreRegistry;
 import org.terasology.game.Timer;
-import org.terasology.game.types.GameType;
+import org.terasology.game.types.GameTypeManager;
 import org.terasology.logic.mod.Mod;
 import org.terasology.logic.mod.ModManager;
 import org.terasology.math.Region3i;
 import org.terasology.math.TeraMath;
 import org.terasology.math.Vector3i;
+import org.terasology.utilities.PerlinNoise;
 import org.terasology.world.block.Block;
 import org.terasology.world.block.management.BlockManager;
 import org.terasology.world.chunks.Chunk;
-import org.terasology.world.chunks.ChunkProvider;
+import org.terasology.world.chunks.provider.ChunkProvider;
+import org.terasology.world.generator.MapGeneratorUri;
 import org.terasology.world.lighting.LightPropagator;
 import org.terasology.world.lighting.LightingUtil;
 import org.terasology.world.lighting.PropagationComparison;
@@ -43,14 +45,16 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
 
     private String title;
     private String seed;
-    private String[] chunkGenerators;
+    private MapGeneratorUri mapGeneratorUri;
 
     private WorldBiomeProvider biomeProvider;
     private ChunkProvider chunkProvider;
 
+    private PerlinNoise fogNoise;
+
     private long timeOffset;
 
-    public WorldProviderCoreImpl(String title, String seed, long time, String[] chunkGenerators, ChunkProvider chunkProvider) {
+    public WorldProviderCoreImpl(String title, String seed, long time, MapGeneratorUri mapGeneratorUri, ChunkProvider chunkProvider) {
         if (seed == null || seed.isEmpty()) {
             throw new IllegalArgumentException("No seed provided.");
         }
@@ -60,14 +64,17 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
 
         this.title = title;
         this.seed = seed;
-        this.chunkGenerators = chunkGenerators;
+        this.mapGeneratorUri = mapGeneratorUri;
         this.biomeProvider = new WorldBiomeProviderImpl(seed);
         this.chunkProvider = chunkProvider;
+        this.fogNoise = new PerlinNoise(seed.hashCode() + 42*42);
+        this.fogNoise.setOctaves(8);
+
         setTime(time);
     }
 
     public WorldProviderCoreImpl(WorldInfo info, ChunkProvider chunkProvider) {
-        this(info.getTitle(), info.getSeed(), info.getTime(), info.getChunkGenerators(), chunkProvider);
+        this(info.getTitle(), info.getSeed(), info.getTime(), info.getMapGeneratorUri(), chunkProvider);
     }
 
     @Override
@@ -86,7 +93,7 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
         for (Mod mod : CoreRegistry.get(ModManager.class).getActiveMods()) {
             modConfig.addMod(mod.getModInfo().getId());
         }
-        WorldInfo worldInfo = new WorldInfo(title, seed, getTime(), chunkGenerators, CoreRegistry.get(GameType.class).getClass().toString(), modConfig);
+        WorldInfo worldInfo = new WorldInfo(title, seed, getTime(), mapGeneratorUri, CoreRegistry.get(GameTypeManager.class).getActiveGameType().uri(), modConfig);
         worldInfo.setBlockIdMap(BlockManager.getInstance().getBlockIdMap());
         return worldInfo;
     }
@@ -249,6 +256,11 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
     @Override
     public void setTimeInDays(float time) {
         setTime((long) (time * DAY_NIGHT_LENGTH_IN_MS));
+    }
+
+    @Override
+    public float getFog(float x, float z) {
+        return (float) TeraMath.clamp(TeraMath.fastAbs(fogNoise.fBm(getTimeInDays() * 0.1f, 0.01f, 0.01f) * 2.0f)) * biomeProvider.getFogAt(x, z);
     }
 
     @Override

@@ -51,7 +51,7 @@ public final class TeraMath {
     }
 
     /**
-     * Returns the absolute value.
+     * Returns the absolute value (float variant).
      *
      * @param d
      * @return the absolute value
@@ -61,7 +61,7 @@ public final class TeraMath {
     }
 
     /**
-     * Returns the absolute value.
+     * Returns the absolute value (double variant).
      *
      * @param d
      * @return
@@ -70,11 +70,24 @@ public final class TeraMath {
         return (d >= 0) ? d : -d;
     }
 
+
+    /**
+     * Fast floor function (double variant).
+     *
+     * @param d
+     * @return
+     */
     public static double fastFloor(double d) {
         int i = (int) d;
         return (d < 0 && d != i) ? i - 1 : i;
     }
 
+    /**
+     * Fast floor function (float variant).
+     *
+     * @param d
+     * @return
+     */
     public static float fastFloor(float d) {
         int i = (int) d;
         return (d < 0 && d != i) ? i - 1 : i;
@@ -82,6 +95,9 @@ public final class TeraMath {
 
     /**
      * Clamps a given value to be an element of [0..1].
+     *
+     * @param value
+     * @return
      */
     public static double clamp(double value) {
         if (value > 1.0)
@@ -91,6 +107,14 @@ public final class TeraMath {
         return value;
     }
 
+    /**
+     * Clamps a given value to be an element of [min..max].
+     *
+     * @param value
+     * @param min
+     * @param max
+     * @return
+     */
     public static double clamp(double value, double min, double max) {
         if (value > max)
             return max;
@@ -99,6 +123,14 @@ public final class TeraMath {
         return value;
     }
 
+    /**
+     * Clamps a given value to be an element of [min..max].
+     *
+     * @param value
+     * @param min
+     * @param max
+     * @return
+     */
     public static float clamp(float value, float min, float max) {
         if (value > max)
             return max;
@@ -107,6 +139,14 @@ public final class TeraMath {
         return value;
     }
 
+    /**
+     * Clamps a given value to be an element of [min..max].
+     *
+     * @param value
+     * @param min
+     * @param max
+     * @return
+     */
     public static int clamp(int value, int min, int max) {
         if (value > max)
             return max;
@@ -131,10 +171,16 @@ public final class TeraMath {
         return ((x2 - x) / (x2 - x1)) * q00 + ((x - x1) / (x2 - x1)) * q01;
     }
 
+    /**
+     * Linear interpolation.
+     */
     public static double lerp(double x1, double x2, double p) {
         return x1 * (1.0 - p) + x2 * p;
     }
 
+    /**
+     * Linear interpolation.
+     */
     public static float lerpf(float x1, float x2, float p) {
         return x1 * (1.0f - p) + x2 * p;
     }
@@ -241,6 +287,12 @@ public final class TeraMath {
         return (z >> chunkPowerZ);
     }
 
+    /**
+     * Returns the chunk position of a given coordinate.
+     *
+     * @param z The Z-coordinate of the block
+     * @return The Z-coordinate of the chunk
+     */
     public static int calcChunkPosZ(int z) {
         return calcChunkPosZ(z, Chunk.POWER_Z);
     }
@@ -437,11 +489,8 @@ public final class TeraMath {
         return m;
     }
 
-    public static Matrix4f createPerspectiveProjectionMatrix(float fov, float zNear, float zFar) {
+    public static Matrix4f createPerspectiveProjectionMatrix(float fovY, float aspectRatio, float zNear, float zFar) {
         Matrix4f m = new Matrix4f();
-
-        float aspectRatio = (float) Display.getWidth() / Display.getHeight();
-        float fovY = (float) (2 * Math.atan2(Math.tan(0.5 * fov * TeraMath.DEG_TO_RAD), aspectRatio));
 
         float f = 1.0f / (float) Math.tan(fovY * 0.5f);
 
@@ -455,13 +504,21 @@ public final class TeraMath {
         return m;
     }
 
+    public static Matrix4f createPerspectiveProjectionMatrix(float fov, float zNear, float zFar) {
+        float aspectRatio = (float) Display.getWidth() / Display.getHeight();
+        float fovY = (float) (2 * Math.atan2(Math.tan(0.5 * fov * TeraMath.DEG_TO_RAD), aspectRatio));
+
+        return createPerspectiveProjectionMatrix(fovY, aspectRatio, zNear, zFar);
+    }
+
     public static Matrix4f calcViewProjectionMatrix(Matrix4f vm, Matrix4f p) {
         Matrix4f result = new Matrix4f(); result.mul(p, vm);
         return result;
     }
 
     public static Matrix4f calcModelViewMatrix(Matrix4f m, Matrix4f vm) {
-        Matrix4f result = new Matrix4f(); result.mul(m, vm);
+        Matrix4f result = new Matrix4f(); 
+        result.mul(m, vm);
         return result;
     }
 
@@ -477,10 +534,66 @@ public final class TeraMath {
         result.m12 = mv.m12;
         result.m22 = mv.m22;
 
-        result.invert(); result.transpose();
+        result.invert();
+        result.transpose();
         return result;
     }
 
+    /**
+     * Copies the given matrix into a newly allocated FloatBuffer.
+     * The order of the elements is such that the buffer can be used for
+     * OpenGL functions, column major.
+     * So the translation components are at index 12, 13 and 14.
+     * The first row has the following indexes: 0, 4, 8 and 12.
+     * @param m the matrix to copy
+     * @return A new FloatBuffer that
+     */
+    public static FloatBuffer matrixToFloatBuffer(Matrix4f m) {
+        FloatBuffer buffer = BufferUtils.createFloatBuffer(16);
+        matrixToFloatBuffer(m, buffer);
+        return buffer;
+    }
+
+    /**
+     * Copies the given matrix into a newly allocated FloatBuffer.
+     * The order of the elements is such that the buffer can be used for
+     * OpenGL functions, column major.
+     * So the first row has the following indexes: 0, 3 and 6
+     * @param m the matrix to copy
+     * @return A new FloatBuffer that
+     */
+    public static FloatBuffer matrixToFloatBuffer(Matrix3f m) {
+        FloatBuffer buffer = BufferUtils.createFloatBuffer(9);
+        matrixToFloatBuffer(m, buffer);
+        return buffer;
+    }
+
+    public static void matrixToFloatBuffer(Matrix3f m, FloatBuffer fb) {
+        Matrix3f tempMatrix = new Matrix3f();
+        tempMatrix.transpose(m);
+
+        fb.put(tempMatrix.m00);
+        fb.put(tempMatrix.m01);
+        fb.put(tempMatrix.m02);
+        fb.put(tempMatrix.m10);
+        fb.put(tempMatrix.m11);
+        fb.put(tempMatrix.m12);
+        fb.put(tempMatrix.m20);
+        fb.put(tempMatrix.m21);
+        fb.put(tempMatrix.m22);
+
+        fb.flip();
+    }
+
+    /**
+     * Copies the given matrix into the given FloatBuffer.
+     * The order of the elements is such that the buffer can be used for
+     * OpenGL functions, column major.
+     * So the translation components are at index 12, 13 and 14.
+     * The first row has the following indexes: 0, 4, 8 and 12.
+     * @param m the matrix to copy
+     * @param fb the buffer to copy the matrix into.
+     */
     public static void matrixToFloatBuffer(Matrix4f m, FloatBuffer fb) {
         Matrix4f tempMatrix = new Matrix4f();
         tempMatrix.transpose(m);
@@ -505,35 +618,14 @@ public final class TeraMath {
         fb.flip();
     }
 
-    public static FloatBuffer matrixToFloatBuffer(Matrix4f m) {
-        FloatBuffer buffer = BufferUtils.createFloatBuffer(16);
-        matrixToFloatBuffer(m, buffer);
-        return buffer;
-    }
-
-    public static FloatBuffer matrixToFloatBuffer(Matrix3f m) {
-        FloatBuffer buffer = BufferUtils.createFloatBuffer(9);
-        matrixToFloatBuffer(m, buffer);
-        return buffer;
-    }
-
-    public static void matrixToFloatBuffer(Matrix3f m, FloatBuffer fb) {
-        Matrix3f tempMatrix = new Matrix3f();
-        tempMatrix.transpose(m);
-
-        fb.put(tempMatrix.m00);
-        fb.put(tempMatrix.m01);
-        fb.put(tempMatrix.m02);
-        fb.put(tempMatrix.m10);
-        fb.put(tempMatrix.m11);
-        fb.put(tempMatrix.m12);
-        fb.put(tempMatrix.m20);
-        fb.put(tempMatrix.m21);
-        fb.put(tempMatrix.m22);
-
-        fb.flip();
-    }
-
+    /**
+     * Copies the given matrix into the given FloatBuffer.
+     * The order of the elements is such that the buffer can be used for
+     * OpenGL functions, column major.
+     * So the first row has the following indexes: 0, 3 and 6
+     * @param m the matrix to copy
+     * @param fb the buffer to copy the matrix into.
+     */
     public static Matrix4f calcReflectionMatrix(float planeHeight, float playerHeight) {
         Matrix4f result = new Matrix4f();
         result.setIdentity();
@@ -542,5 +634,23 @@ public final class TeraMath {
         result.m11 = -1.0f;
 
         return result;
+    }
+
+    /**
+     * Creates a 32 bit color representation of the color specified by
+     * the parameters.
+     * @param r red
+     * @param g green
+     * @param b blue
+     * @param a alpha
+     * @return 
+     */
+    public static int packColor(float r, float g, float b, float a) {
+        int iR = (int) (TeraMath.clamp(r, 0.0f, 1.0f) * 255.0f);
+        int iG = (int) (TeraMath.clamp(g, 0.0f, 1.0f) * 255.0f);
+        int iB = (int) (TeraMath.clamp(b, 0.0f, 1.0f) * 255.0f);
+        int iA = (int) (TeraMath.clamp(a, 0.0f, 1.0f) * 255.0f);
+
+        return iA << 24 | iB << 16 | iG << 8 | iR;
     }
 }

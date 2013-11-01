@@ -45,7 +45,10 @@ public class LocalPlayer {
     }
 
     public boolean isValid() {
-        return entity.exists() && entity.hasComponent(LocationComponent.class) && entity.hasComponent(LocalPlayerComponent.class) && entity.hasComponent(PlayerComponent.class);
+        return entity.exists() && entity.hasComponent(LocationComponent.class)
+                && entity.hasComponent(LocalPlayerComponent.class)
+                && entity.hasComponent(PlayerComponent.class)
+                && entity.hasComponent(LightComponent.class);
     }
 
     public Vector3f getPosition() {
@@ -54,6 +57,18 @@ public class LocalPlayer {
             return new Vector3f();
         }
         return location.getWorldPosition();
+    }
+    
+    public Vector3f getPosition(Vector3f output) {
+        LocationComponent location = entity.getComponent(LocationComponent.class);
+        if (location == null) {
+            output.x = 0;
+            output.y = 0;
+            output.z = 0;
+        } else {
+            location.getWorldPosition(output);
+        }
+        return output;
     }
 
     public Quat4f getViewRotation() {
