@@ -1,0 +1,12 @@
+{
+    "DisplayName" : {
+        "name" : "Unknown"
+    },
+    "Item" : {
+        "damageType" : "engine:physicalDamage",
+        "pickupPrefab" : "engine:itemPickup"
+    },
+    "Network" : {
+        "replicateMode" : "RELEVANT"
+    }
+}

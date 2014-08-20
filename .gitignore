@@ -1,62 +1,76 @@
-# Ignore Gradle
-/.gradle/
-/build/
-
-# Ignore IntelliJ IDEA
-*.iml
-*.ipr
-*.iws
-.idea/
-/out/
-
-# Ignore Eclipse
-.project
-.metadata
-.settings/
-.checkstyle
-.classpath
-*.bak
-/bin/
-
-# Ignore Linux
-.*
+# Ignore general
+/.*
 !.gitignore
 *~
-
-# Ignore OSX
-.DS_Store
-.DS_Store?
-.AppleDouble
-.LSOverride
-Icon
-Icon?
 ._*
-.Spotlight-V100
-.Trashes
+*.bak
 
-# Ignore Windows
-Thumbs.db
+# Ignore Gradle
+/.gradle/
+build/
+
+# Ignore IntelliJ - could use "/**/*.iml" to catch all .iml files, but that requires a somewhat recent Git version
+/out/
+modules/Core/Core.iml
+facades/PC/PC.iml
+engine/engine.iml
+engine-tests/engine-tests.iml
+/*.iml
+/*.ipr
+/*.iws
+
+# Ignore Eclipse
+.checkstyle
+.project
+.classpath
+.settings/
+bin/
+facades/PC/Terasology.launch
+
+# Ignore Linux
+*.directory
+
+#Ignore OSX
+Icon
+
+
+#Ignore Windows
 ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
+Thumbs.db
 
-# Ignore output stuff
+# Ignore Terasology output
 *.log
-/SAVED_WORLDS/
-/worlds/
-/screenshots/
-/screens/
 /saves/
+/screenshots/
 /logs/
-/dev/
-/unittesthome/
+/terasology-server/
 config.cfg
 entityDump.txt
+
+# Historical Output
+/SAVED_WORLDS/
+/worlds/
+/screens/
+/unittesthome/
 
 # Ignore natives (extracted to project root during setup)
 /natives/
 
-# Ignore project stuff, output, etc for mods
-/mods/*/classes/
-/mods/*/testClasses/
-/mods/*/build/
+# Ignore subdirs with their own Git roots. PC Facade and Core module are bundled with the main repo.
+extensions
+/facades/*
+!/facades/PC
+!/facades/subprojects.gradle
+/modules/*
+!/modules/Core
+!/modules/subprojects.gradle
+/meta/*
+!/meta/subprojects.gradle
+/libs/*
+!/libs/subprojects.gradle
+
+# Ignore weird stuff that might be obsolete
+.DS_Store
+.DS_Store?
+.Spotlight-V100
+.Trashes

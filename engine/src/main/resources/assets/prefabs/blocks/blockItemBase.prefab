@@ -1,0 +1,13 @@
+{
+    "parent" : "engine:itemBase",
+    "Item" : {
+        "consumedOnUse" : true,
+        "usage" : "ON_BLOCK",
+        "pickupPrefab" : "engine:blockItemPickup"
+    },
+    "BlockItem" : {
+    },
+    "Network" : {
+        "replicateMode" : "RELEVANT"
+    }
+}

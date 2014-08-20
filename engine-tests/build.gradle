@@ -1,0 +1,79 @@
+// Engine tests are split out due to otherwise quirky project dependency issues with module tests extending engine tests
+
+// Grab all the common stuff like plugins to use, artifact repositories, code analysis config
+apply from: "$rootDir/config/gradle/common.gradle"
+apply from: "$rootDir/config/gradle/artifactory.gradle"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Java Section                                                                                                      //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// This module/project is solely for engine tests - no normal java dir
+sourceSets {
+    test {
+        java {
+            output.classesDir 'build/testClasses'
+            output.resourcesDir 'build/testClasses'
+        }
+    }
+}
+
+// Base the engine tests on the same version number as the engine
+version = project(':engine').version
+println "ENGINE TESTS VERSION: $version"
+
+// Jenkins-Artifactory integration catches on to this as part of the Maven-type descriptor
+group = 'org.terasology.engine'
+
+// Primary dependencies definition
+dependencies {
+
+    // Dependency on the engine itself
+    compile project(':engine')
+
+    // Test lib dependencies
+    testCompile group: 'junit', name: 'junit', version: '4.10'
+    testCompile group: 'org.mockito', name: 'mockito-all', version: '1.9.0'
+    testCompile group: 'org.jboss.shrinkwrap', name: 'shrinkwrap-depchain-java7', version: '1.1.3'
+
+    // For reading logback.groovy when running unit tests. Excessive just for a config file?
+    testRuntime group: 'org.codehaus.groovy', name: 'groovy', version: '2.1.7'
+}
+
+// Instructions for packaging a jar file for the engine tests
+jar {
+    duplicatesStrategy = 'exclude'
+
+    // Copy in test stuff, which isn't included by default
+    from sourceSets.test.output
+}
+
+// A configuration for publishing artifacts
+configurations {
+    published
+}
+
+// Define the artifacts we want to publish (the .pom will also be included since the Maven plugin is active)
+artifacts {
+    published jar
+    published sourceJar
+    published javadocJar
+}
+
+// Technically the plain "jar" both here and above is included automatically, but leaving it explicit for clarity
+artifactoryPublish {
+    dependsOn jar, sourceJar, javadocJar
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// General IDE customization                                                                                         //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+idea {
+    module {
+        // Change around the output a bit
+        inheritOutputDirs = false
+        outputDir = file('build/classes')
+        testOutputDir = file('build/testClasses')
+    }
+}
