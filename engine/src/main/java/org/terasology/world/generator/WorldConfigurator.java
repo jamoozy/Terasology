@@ -20,14 +20,19 @@ import java.util.Map;
 import org.terasology.entitySystem.Component;
 
 /**
- * Allows for configuration
- * @author Martin Steiger
+ * Allows for configuration of world generators.
  */
 public interface WorldConfigurator  {
 
     /**
      * The values are supposed to be annotated with {@link org.terasology.rendering.nui.properties.Property}
-     * @return a map (label->object)
+     * @return a map (label to object)
      */
     Map<String, Component> getProperties();
+
+    /**
+     * @param key the name of the configuration
+     * @param comp the configuration component
+     */
+    void setProperty(String key, Component comp);
 }

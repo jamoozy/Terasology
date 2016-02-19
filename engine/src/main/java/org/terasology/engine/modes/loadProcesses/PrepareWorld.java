@@ -16,22 +16,23 @@
 
 package org.terasology.engine.modes.loadProcesses;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.context.Context;
 import org.terasology.engine.EngineTime;
 import org.terasology.engine.Time;
 import org.terasology.engine.modes.LoadProcess;
 import org.terasology.rendering.world.WorldRenderer;
 
 /**
- * @author Immortius
  */
 public class PrepareWorld implements LoadProcess {
-    private static final Logger logger = LoggerFactory.getLogger(PrepareWorld.class);
 
+    private final Context context;
     private long startTime;
     private WorldRenderer worldRenderer;
+
+    public PrepareWorld(Context context) {
+        this.context = context;
+    }
 
     @Override
     public String getMessage() {
@@ -43,16 +44,16 @@ public class PrepareWorld implements LoadProcess {
         if (worldRenderer.pregenerateChunks()) {
             return true;
         }
-        EngineTime time = (EngineTime) CoreRegistry.get(Time.class);
-        long totalTime = time.getRawTimeInMs() - startTime;
+        EngineTime time = (EngineTime) context.get(Time.class);
+        long totalTime = time.getRealTimeInMs() - startTime;
         return totalTime > 5000;
     }
 
     @Override
     public void begin() {
-        worldRenderer = CoreRegistry.get(WorldRenderer.class);
-        EngineTime time = (EngineTime) CoreRegistry.get(Time.class);
-        startTime = time.getRawTimeInMs();
+        worldRenderer = context.get(WorldRenderer.class);
+        EngineTime time = (EngineTime) context.get(Time.class);
+        startTime = time.getRealTimeInMs();
     }
 
     @Override

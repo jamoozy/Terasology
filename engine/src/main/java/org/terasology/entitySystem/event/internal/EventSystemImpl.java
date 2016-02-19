@@ -41,6 +41,7 @@ import org.terasology.entitySystem.event.ReceiveEvent;
 import org.terasology.entitySystem.metadata.EventLibrary;
 import org.terasology.entitySystem.metadata.EventMetadata;
 import org.terasology.entitySystem.systems.ComponentSystem;
+import org.terasology.monitoring.PerformanceMonitor;
 import org.terasology.network.BroadcastEvent;
 import org.terasology.network.Client;
 import org.terasology.network.NetworkComponent;
@@ -51,7 +52,6 @@ import org.terasology.network.OwnerEvent;
 import org.terasology.network.ServerEvent;
 import org.terasology.world.block.BlockComponent;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -67,7 +67,6 @@ import java.util.concurrent.BlockingQueue;
 /**
  * An implementation of the EventSystem.
  *
- * @author Immortius <immortius@gmail.com>
  */
 public class EventSystemImpl implements EventSystem {
 
@@ -93,6 +92,7 @@ public class EventSystemImpl implements EventSystem {
         this.networkSystem = networkSystem;
     }
 
+    @Override
     public void process() {
         for (PendingEvent event = pendingEvents.poll(); event != null; event = pendingEvents.poll()) {
             if (event.getComponent() != null) {
@@ -165,7 +165,8 @@ public class EventSystemImpl implements EventSystem {
                     componentParams.add((Class<? extends Component>) types[i]);
                 }
 
-                ByteCodeEventHandlerInfo handlerInfo = new ByteCodeEventHandlerInfo(handler, method, receiveEventAnnotation.priority(), requiredComponents, componentParams);
+                ByteCodeEventHandlerInfo handlerInfo = new ByteCodeEventHandlerInfo(handler, method, receiveEventAnnotation.priority(),
+                        receiveEventAnnotation.activity(), requiredComponents, componentParams);
                 addEventHandler((Class<? extends Event>) types[0], handlerInfo, requiredComponents);
             }
         }
@@ -224,7 +225,7 @@ public class EventSystemImpl implements EventSystem {
 
     @Override
     public <T extends Event> void registerEventReceiver(EventReceiver<T> eventReceiver, Class<T> eventClass, int priority, Class<? extends Component>... componentTypes) {
-        EventHandlerInfo info = new ReceiverEventHandlerInfo<T>(eventReceiver, priority, componentTypes);
+        EventHandlerInfo info = new ReceiverEventHandlerInfo<>(eventReceiver, priority, componentTypes);
         addEventHandler(eventClass, info, Arrays.asList(componentTypes));
     }
 
@@ -232,7 +233,7 @@ public class EventSystemImpl implements EventSystem {
     public <T extends Event> void unregisterEventReceiver(EventReceiver<T> eventReceiver, Class<T> eventClass, Class<? extends Component>... componentTypes) {
         SetMultimap<Class<? extends Component>, EventHandlerInfo> eventHandlerMap = componentSpecificHandlers.get(eventClass);
         if (eventHandlerMap != null) {
-            ReceiverEventHandlerInfo testReceiver = new ReceiverEventHandlerInfo<T>(eventReceiver, 0, componentTypes);
+            ReceiverEventHandlerInfo testReceiver = new ReceiverEventHandlerInfo<>(eventReceiver, 0, componentTypes);
             for (Class<? extends Component> c : componentTypes) {
                 eventHandlerMap.remove(c, testReceiver);
                 for (Class<? extends Event> childType : childEvents.get(eventClass)) {
@@ -417,6 +418,7 @@ public class EventSystemImpl implements EventSystem {
             this.priority = priority;
         }
 
+        @Override
         public boolean isValidFor(EntityRef entity) {
             for (Class<? extends Component> component : filterComponents) {
                 if (!entity.hasComponent(component)) {
@@ -426,6 +428,7 @@ public class EventSystemImpl implements EventSystem {
             return true;
         }
 
+        @Override
         public void invoke(EntityRef entity, Event event) {
             try {
                 Object[] params = new Object[2 + componentParams.size()];
@@ -435,15 +438,12 @@ public class EventSystemImpl implements EventSystem {
                     params[i + 2] = entity.getComponent(componentParams.get(i));
                 }
                 method.invoke(handler, params);
-            } catch (IllegalAccessException ex) {
-                logger.error("Failed to invoke event", ex);
-            } catch (IllegalArgumentException ex) {
-                logger.error("Failed to invoke event", ex);
-            } catch (InvocationTargetException ex) {
+            } catch (Exception ex) {
                 logger.error("Failed to invoke event", ex);
             }
         }
 
+        @Override
         public int getPriority() {
             return priority;
         }
@@ -456,6 +456,7 @@ public class EventSystemImpl implements EventSystem {
 
     private static class ByteCodeEventHandlerInfo implements EventHandlerInfo {
         private ComponentSystem handler;
+        private String activity;
         private MethodAccess methodAccess;
         private int methodIndex;
         private ImmutableList<Class<? extends Component>> filterComponents;
@@ -465,11 +466,13 @@ public class EventSystemImpl implements EventSystem {
         public ByteCodeEventHandlerInfo(ComponentSystem handler,
                                         Method method,
                                         int priority,
+                                        String activity,
                                         Collection<Class<? extends Component>> filterComponents,
                                         Collection<Class<? extends Component>> componentParams) {
 
 
             this.handler = handler;
+            this.activity = activity;
             this.methodAccess = MethodAccess.get(handler.getClass());
             methodIndex = methodAccess.getIndex(method.getName(), method.getParameterTypes());
             this.filterComponents = ImmutableList.copyOf(filterComponents);
@@ -477,6 +480,7 @@ public class EventSystemImpl implements EventSystem {
             this.priority = priority;
         }
 
+        @Override
         public boolean isValidFor(EntityRef entity) {
             for (Class<? extends Component> component : filterComponents) {
                 if (!entity.hasComponent(component)) {
@@ -486,6 +490,7 @@ public class EventSystemImpl implements EventSystem {
             return true;
         }
 
+        @Override
         public void invoke(EntityRef entity, Event event) {
             try {
                 Object[] params = new Object[2 + componentParams.size()];
@@ -494,12 +499,22 @@ public class EventSystemImpl implements EventSystem {
                 for (int i = 0; i < componentParams.size(); ++i) {
                     params[i + 2] = entity.getComponent(componentParams.get(i));
                 }
-                methodAccess.invoke(handler, methodIndex, params);
-            } catch (IllegalArgumentException ex) {
+                if (!activity.isEmpty()) {
+                    PerformanceMonitor.startActivity(activity);
+                }
+                try {
+                    methodAccess.invoke(handler, methodIndex, params);
+                } finally {
+                    if (!activity.isEmpty()) {
+                        PerformanceMonitor.endActivity();
+                    }
+                }
+            } catch (Exception ex) {
                 logger.error("Failed to invoke event", ex);
             }
         }
 
+        @Override
         public int getPriority() {
             return priority;
         }

@@ -15,7 +15,8 @@
  */
 package org.terasology.logic.characters;
 
-import com.bulletphysics.linearmath.QuaternionUtil;
+import java.math.RoundingMode;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terasology.entitySystem.entity.EntityRef;
@@ -28,16 +29,15 @@ import org.terasology.logic.characters.events.VerticalCollisionEvent;
 import org.terasology.logic.location.LocationComponent;
 import org.terasology.math.TeraMath;
 import org.terasology.math.Vector3fUtil;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.physics.engine.CharacterCollider;
 import org.terasology.physics.engine.PhysicsEngine;
 import org.terasology.physics.engine.SweepCallback;
 import org.terasology.physics.events.MovedEvent;
 import org.terasology.world.WorldProvider;
 import org.terasology.world.block.Block;
-
-import javax.vecmath.AxisAngle4f;
-import javax.vecmath.Vector3f;
 
 /**
  * Calculates character movement using a physics-engine provided CharacterCollider.
@@ -50,25 +50,25 @@ import javax.vecmath.Vector3f;
  * <li>If an slope is hit, slide up it</li>
  * <li>Finally sweep downwards to undo any stepping, and for falling</li>
  * </ol>
- * <p/>
+ * <br><br>
  * TODO: Refactor to allow additional movement modes.
  * TODO: Detect entry and exit from water while ghosting.
  *
- * @author Immortius
  */
 public class KinematicCharacterMover implements CharacterMover {
 
-    public static final float CLIMB_GRAVITY = 0f;
-    public static final float GHOST_INERTIA = 4f;
     public static final float GRAVITY = 28.0f;
     public static final float TERMINAL_VELOCITY = 64.0f;
-    public static final float UNDERWATER_GRAVITY = 0.25f;
-    public static final float UNDERWATER_INERTIA = 2.0f;
 
     /**
      * The amount of horizontal penetration to allow.
      */
-    private static final float HORIZONTAL_PENETRATION = 0.03f;
+    public static final float HORIZONTAL_PENETRATION = 0.03f;
+
+    /**
+     * The amount of vertical penetration to allow.
+     */
+    public static final float VERTICAL_PENETRATION = 0.04f;
 
     /**
      * The amount of extra distance added to horizontal movement to allow for penetration.
@@ -76,17 +76,12 @@ public class KinematicCharacterMover implements CharacterMover {
     private static final float HORIZONTAL_PENETRATION_LEEWAY = 0.04f;
 
     /**
-     * The amount of vertical penetration to allow.
-     */
-    private static final float VERTICAL_PENETRATION = 0.04f;
-
-    /**
      * The amount of extra distance added to vertical movement to allow for penetration.
      */
     private static final float VERTICAL_PENETRATION_LEEWAY = 0.05f;
     private static final float CHECK_FORWARD_DIST = 0.05f;
 
-    private final Logger logger = LoggerFactory.getLogger(KinematicCharacterMover.class);
+    private static final Logger logger = LoggerFactory.getLogger(KinematicCharacterMover.class);
     private boolean stepped;
 
     // Processing state variables
@@ -108,7 +103,10 @@ public class KinematicCharacterMover implements CharacterMover {
             updatePosition(characterMovementComponent, result, input, entity);
 
             if (input.isFirstRun()) {
-                checkBlockEntry(entity, new Vector3i(initial.getPosition(), 0.5f), new Vector3i(result.getPosition(), 0.5f), characterMovementComponent.height);
+                checkBlockEntry(entity,
+                        new Vector3i(initial.getPosition(), RoundingMode.HALF_UP),
+                        new Vector3i(result.getPosition(), RoundingMode.HALF_UP),
+                        characterMovementComponent.height);
             }
 
             if (result.getMode() != MovementMode.GHOSTING && result.getMode() != MovementMode.NONE) {
@@ -123,8 +121,8 @@ public class KinematicCharacterMover implements CharacterMover {
         return result;
     }
 
-    private float getMaxSpeed(EntityRef character, MovementMode movementMode, float baseMaxSpeed) {
-        GetMaxSpeedEvent speedEvent = new GetMaxSpeedEvent(baseMaxSpeed, movementMode);
+    private float getMaxSpeed(EntityRef character, CharacterMovementComponent characterMovement) {
+        GetMaxSpeedEvent speedEvent = new GetMaxSpeedEvent(characterMovement.mode.maxSpeed, characterMovement.mode);
         character.send(speedEvent);
         return Math.max(0, speedEvent.getResultValue());
     }
@@ -138,7 +136,7 @@ public class KinematicCharacterMover implements CharacterMover {
         if (!oldPosition.equals(newPosition)) {
             // get the old position's blocks
             Block[] oldBlocks = new Block[(int) Math.ceil(characterHeight)];
-            Vector3i currentPosition = oldPosition.clone();
+            Vector3i currentPosition = new Vector3i(oldPosition);
             for (int currentHeight = 0; currentHeight < oldBlocks.length; currentHeight++) {
                 oldBlocks[currentHeight] = worldProvider.getBlock(currentPosition);
                 currentPosition.add(0, 1, 0);
@@ -146,7 +144,7 @@ public class KinematicCharacterMover implements CharacterMover {
 
             // get the new position's blocks
             Block[] newBlocks = new Block[(int) Math.ceil(characterHeight)];
-            currentPosition = newPosition.clone();
+            currentPosition = new Vector3i(newPosition);
             for (int currentHeight = 0; currentHeight < characterHeight; currentHeight++) {
                 newBlocks[currentHeight] = worldProvider.getBlock(currentPosition);
                 currentPosition.add(0, 1, 0);
@@ -162,7 +160,7 @@ public class KinematicCharacterMover implements CharacterMover {
     /**
      * Checks whether a character should change movement mode (from being underwater or in a ladder). A higher and lower point of the
      * character is tested for being in water, only if both points are in water does the character count as swimming.
-     * <p/>
+     * <br><br>
      * Sends the OnEnterLiquidEvent and OnLeaveLiquidEvent events.
      *
      * @param movementComp The movement component of the character.
@@ -171,53 +169,59 @@ public class KinematicCharacterMover implements CharacterMover {
     private void checkMode(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
                            final CharacterStateEvent oldState, EntityRef entity, boolean firstRun) {
         //If we are ghosting or we can't move, the mode cannot be changed.
-        if (state.getMode() == MovementMode.GHOSTING || state.getMode() == MovementMode.NONE) {
+        if (!state.getMode().respondToEnvironment) {
             return;
         }
 
         Vector3f worldPos = state.getPosition();
         Vector3f top = new Vector3f(worldPos);
         Vector3f bottom = new Vector3f(worldPos);
-        top.y += 0.25f * movementComp.height;
-        bottom.y -= 0.25f * movementComp.height;
+        top.y += 0.5f * movementComp.height;
+        bottom.y -= 0.5f * movementComp.height;
 
         final boolean topUnderwater = worldProvider.getBlock(top).isLiquid();
         final boolean bottomUnderwater = worldProvider.getBlock(bottom).isLiquid();
 
-        final boolean newSwimming = topUnderwater && bottomUnderwater;
+        final boolean newSwimming = !topUnderwater && bottomUnderwater;
+        final boolean newDiving = topUnderwater && bottomUnderwater;
         boolean newClimbing = false;
 
-        //TODO: refactor this knot of if-else statements into something easy to read. Some sub-methods and switch statements would be nice.
-        if (!newSwimming) {
-            Vector3f[] sides = {new Vector3f(worldPos), new Vector3f(worldPos), new Vector3f(worldPos), new Vector3f(
-                    worldPos), new Vector3f(worldPos)};
-            float factor = 0.18f;
-            sides[0].x += factor * movementComp.radius;
-            sides[1].x -= factor * movementComp.radius;
-            sides[2].z += factor * movementComp.radius;
-            sides[3].z -= factor * movementComp.radius;
-            sides[4].y -= movementComp.height;
-            for (Vector3f side : sides) {
-                if (worldProvider.getBlock(side).isClimbable()) {
-                    //If any of our sides are near a climbable block, climb!
-                    newClimbing = true;
-                    break;
-                }
+        if (isClimbingAllowed(newSwimming, newDiving)) {
+            Vector3i finalDir;
+            finalDir = findClimbable(movementComp, worldPos, newSwimming, newDiving);
+            if (finalDir != null) {
+                newClimbing = true;
+                state.setClimbDirection(finalDir);
             }
         }
 
-        if (newSwimming) {
-            //Note that you cannot climb under water!
+        updateMode(state, newSwimming, newDiving, newClimbing);
+    }
+
+    /**
+     * Updates a character's movement mode and changes his vertical velocity accordingly.
+     * @param state The current state of the character.
+     * @param newSwimming True if the top of the character's body isn't in a liquid block but his bottom is.
+     * @param newDiving True if the character's body is fully inside liquid blocks.
+     * @param newClimbing True if the character has a climbable block near him and is in conditions to climb it (not swimming or diving).
+     */
+    static void updateMode(CharacterStateEvent state, boolean newSwimming, boolean newDiving, boolean newClimbing) {
+        if (newDiving) {
+            if (state.getMode() != MovementMode.DIVING) {
+                state.setMode(MovementMode.DIVING);
+            }
+        } else if (newSwimming) {
             if (state.getMode() != MovementMode.SWIMMING) {
                 state.setMode(MovementMode.SWIMMING);
             }
-        } else if (state.getMode() == MovementMode.SWIMMING) {
+            state.getVelocity().y += 0.02;
+        } else if (state.getMode() == MovementMode.SWIMMING || state.getMode() == MovementMode.DIVING) {
             if (newClimbing) {
                 state.setMode(MovementMode.CLIMBING);
                 state.getVelocity().y = 0;
             } else {
                 if (state.getVelocity().y > 0) {
-                    state.getVelocity().y += 8;
+                    state.getVelocity().y += 4;
                 }
                 state.setMode(MovementMode.WALKING);
             }
@@ -226,6 +230,56 @@ public class KinematicCharacterMover implements CharacterMover {
             state.getVelocity().y = 0;
             state.setMode((newClimbing) ? MovementMode.CLIMBING : MovementMode.WALKING);
         }
+    }
+
+    private Vector3i findClimbable(CharacterMovementComponent movementComp, Vector3f worldPos, boolean swimming, boolean diving) {
+        Vector3i finalDir = null;
+        Vector3f[] sides = {new Vector3f(worldPos), new Vector3f(worldPos), new Vector3f(worldPos), new Vector3f(
+                worldPos), new Vector3f(worldPos)};
+        float factor = 1.0f;
+        sides[0].x += factor * movementComp.radius;
+        sides[1].x -= factor * movementComp.radius;
+        sides[2].z += factor * movementComp.radius;
+        sides[3].z -= factor * movementComp.radius;
+        sides[4].y -= movementComp.height;
+
+        float distance = 100f;
+
+        for (Vector3f side : sides) {
+            Block block = worldProvider.getBlock(side);
+            if (block.isClimbable()) {
+                //If any of our sides are near a climbable block, check if we are near to the side
+                Vector3i myPos = new Vector3i(worldPos, RoundingMode.HALF_UP);
+                Vector3i climbBlockPos = new Vector3i(side, RoundingMode.HALF_UP);
+                Vector3i dir = new Vector3i(block.getDirection().getVector3i());
+                float currentDistance = 10f;
+
+                if (dir.x != 0 && Math.abs(worldPos.x - climbBlockPos.x + dir.x * .5f) < movementComp.radius + 0.1f) {
+                    if (myPos.x < climbBlockPos.x) {
+                        dir.x = -dir.x;
+                    }
+                    currentDistance = Math.abs(climbBlockPos.z - worldPos.z);
+
+                } else if (dir.z != 0 && Math.abs(worldPos.z - climbBlockPos.z + dir.z * .5f) < movementComp.radius + 0.1f) {
+                    if (myPos.z < climbBlockPos.z) {
+                        dir.z = -dir.z;
+                    }
+                    currentDistance = Math.abs(climbBlockPos.z - worldPos.z);
+                }
+
+                // if there are multiple climb blocks, choose the nearest one. This can happen when there are two
+                // adjacent ledges around a corner.
+                if (currentDistance < distance) {
+                    distance = currentDistance;
+                    finalDir = dir;
+                }
+            }
+        }
+        return finalDir;
+    }
+
+    private boolean isClimbingAllowed(boolean swimming, boolean diving) {
+        return !swimming && !diving;
     }
 
     /**
@@ -254,69 +308,6 @@ public class KinematicCharacterMover implements CharacterMover {
         return false;
     }
 
-    private void climb(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
-                       CharacterMoveInputEvent input, EntityRef entity) {
-        Vector3f desiredVelocity = new Vector3f(input.getMovementDirection());
-        float lengthSquared = desiredVelocity.lengthSquared();
-        if (lengthSquared > 1) {
-            desiredVelocity.normalize();
-        }
-        float maxSpeed = getMaxSpeed(entity, MovementMode.CLIMBING, movementComp.maxClimbSpeed);
-        if (input.isRunning()) {
-            maxSpeed *= movementComp.runFactor;
-        }
-        desiredVelocity.scale(maxSpeed);
-        desiredVelocity.y -= CLIMB_GRAVITY;
-        Vector3f velocityDiff = new Vector3f(desiredVelocity);
-        velocityDiff.sub(state.getVelocity());
-        velocityDiff.scale(Math.min(movementComp.groundFriction * input.getDelta(), 1.0f));
-        Vector3f endVelocity = new Vector3f(state.getVelocity());
-        endVelocity.x += velocityDiff.x;
-        endVelocity.y += velocityDiff.y;
-        endVelocity.z += velocityDiff.z;
-        Vector3f moveDelta = new Vector3f(endVelocity);
-        moveDelta.scale(input.getDelta());
-        CharacterCollider collider = physics.getCharacterCollider(entity);
-        MoveResult moveResult = move(state.getPosition(), moveDelta, 0, movementComp.slopeFactor, collider);
-        Vector3f distanceMoved = new Vector3f(moveResult.getFinalPosition());
-        distanceMoved.sub(state.getPosition());
-        state.getPosition().set(moveResult.getFinalPosition());
-        if (input.isFirstRun() && distanceMoved.length() > 0) {
-            entity.send(new MovedEvent(distanceMoved, state.getPosition()));
-        }
-
-        if (moveResult.isBottomHit()) {
-            if (!state.isGrounded()) {
-                if (input.isFirstRun()) {
-                    Vector3f landVelocity = new Vector3f(state.getVelocity());
-                    landVelocity.y += (distanceMoved.y / moveDelta.y) * (endVelocity.y - state.getVelocity().y);
-                    entity.send(new VerticalCollisionEvent(state.getPosition(), landVelocity));
-                }
-                state.setGrounded(true);
-            }
-            endVelocity.y = 0;
-        } else {
-            if (moveResult.isTopHit() && endVelocity.y > 0) {
-                endVelocity.y = 0;
-            }
-            state.setGrounded(false);
-        }
-        state.getVelocity().set(endVelocity);
-        if (input.isFirstRun() && moveResult.isHorizontalHit()) {
-            entity.send(new HorizontalCollisionEvent(state.getPosition(), state.getVelocity()));
-        }
-        if (state.isGrounded()) {
-            state.setFootstepDelta(
-                    state.getFootstepDelta() + distanceMoved.length() / movementComp.distanceBetweenFootsteps);
-            if (state.getFootstepDelta() > 1) {
-                state.setFootstepDelta(state.getFootstepDelta() - 1);
-                if (input.isFirstRun()) {
-                    entity.send(new FootstepEvent());
-                }
-            }
-        }
-    }
-
     private Vector3f extractResidualMovement(Vector3f hitNormal, Vector3f direction) {
         return extractResidualMovement(hitNormal, direction, 1f);
     }
@@ -329,8 +320,8 @@ public class KinematicCharacterMover implements CharacterMover {
             reflectDir.normalize();
             Vector3f perpendicularDir = Vector3fUtil.getPerpendicularComponent(reflectDir, hitNormal, new Vector3f());
             if (normalMag != 0.0f) {
-                Vector3f perpComponent = new Vector3f();
-                perpComponent.scale(normalMag * movementLength, perpendicularDir);
+                Vector3f perpComponent = new Vector3f(perpendicularDir);
+                perpComponent.scale(normalMag * movementLength);
                 direction.set(perpComponent);
             }
         }
@@ -344,34 +335,6 @@ public class KinematicCharacterMover implements CharacterMover {
             velocity.sub(state.getPosition());
             state.getVelocity().set(velocity);
             state.getPosition().set(locationComponent.getWorldPosition());
-        }
-    }
-
-    private void ghost(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
-                       CharacterMoveInputEvent input, EntityRef entity) {
-        Vector3f desiredVelocity = new Vector3f(input.getMovementDirection());
-        float lengthSquared = desiredVelocity.lengthSquared();
-        if (lengthSquared > 1) {
-            desiredVelocity.normalize();
-        }
-        float maxSpeed = getMaxSpeed(entity, MovementMode.GHOSTING, movementComp.maxGhostSpeed);
-        if (input.isRunning()) {
-            maxSpeed *= movementComp.runFactor;
-        }
-        desiredVelocity.scale(maxSpeed);
-
-        // Modify velocity towards desired, up to the maximum rate determined by friction
-        Vector3f velocityDiff = new Vector3f(desiredVelocity);
-        velocityDiff.sub(state.getVelocity());
-        velocityDiff.scale(Math.min(GHOST_INERTIA * input.getDelta(), 1.0f));
-        state.getVelocity().add(velocityDiff);
-
-        // No collision, so just do the move
-        Vector3f deltaPos = new Vector3f(state.getVelocity());
-        deltaPos.scale(input.getDelta());
-        state.getPosition().add(deltaPos);
-        if (input.isFirstRun() && deltaPos.length() > 0) {
-            entity.send(new MovedEvent(deltaPos, state.getPosition()));
         }
     }
 
@@ -406,6 +369,11 @@ public class KinematicCharacterMover implements CharacterMover {
     }
 
     private boolean moveDown(float dist, float slopeFactor, CharacterCollider collider, Vector3f position) {
+        if (collider == null) {
+            position.y += dist;
+            return false;
+        }
+
         float remainingDist = -dist;
         Vector3f targetPos = new Vector3f(position);
         targetPos.y -= remainingDist + VERTICAL_PENETRATION_LEEWAY;
@@ -453,7 +421,8 @@ public class KinematicCharacterMover implements CharacterMover {
                         }
                         normalizedDir.set(expectedMove);
                         expectedMove.scale(-remainingDist / expectedMove.y + HORIZONTAL_PENETRATION_LEEWAY);
-                        targetPos.add(position, expectedMove);
+                        targetPos.set(position);
+                        targetPos.add(expectedMove);
                     } else {
                         hit = true;
                         break;
@@ -481,6 +450,14 @@ public class KinematicCharacterMover implements CharacterMover {
         }
         boolean horizontalHit = false;
         Vector3f normalizedDir = Vector3fUtil.safeNormalize(horizMove, new Vector3f());
+
+        if (collider == null) {
+            // ignore collision
+            normalizedDir.scale(dist);
+            position.add(normalizedDir);
+            return false;
+        }
+
         Vector3f targetPos = new Vector3f(normalizedDir);
         targetPos.scale(dist + HORIZONTAL_PENETRATION_LEEWAY);
         targetPos.add(position);
@@ -559,81 +536,22 @@ public class KinematicCharacterMover implements CharacterMover {
 
     private float moveUp(float riseAmount, CharacterCollider collider, Vector3f position) {
         Vector3f to = new Vector3f(position.x, position.y + riseAmount + VERTICAL_PENETRATION_LEEWAY, position.z);
-        SweepCallback callback = collider.sweep(position, to, VERTICAL_PENETRATION_LEEWAY, -1f);
-        if (callback.hasHit()) {
-            float actualDist = Math.max(0,
-                    ((riseAmount + VERTICAL_PENETRATION_LEEWAY) * callback.getClosestHitFraction()) - VERTICAL_PENETRATION_LEEWAY);
-            position.y += actualDist;
-            return actualDist;
+        if (collider != null) {
+            SweepCallback callback = collider.sweep(position, to, VERTICAL_PENETRATION_LEEWAY, -1f);
+            if (callback.hasHit()) {
+                float actualDist = Math.max(0,
+                        ((riseAmount + VERTICAL_PENETRATION_LEEWAY) * callback.getClosestHitFraction()) - VERTICAL_PENETRATION_LEEWAY);
+                position.y += actualDist;
+                return actualDist;
+            }
         }
         position.y += riseAmount;
         return riseAmount;
     }
 
-    private void swim(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
-                      CharacterMoveInputEvent input, EntityRef entity) {
-        Vector3f desiredVelocity = new Vector3f(input.getMovementDirection());
-        float lengthSquared = desiredVelocity.lengthSquared();
-        if (lengthSquared > 1) {
-            desiredVelocity.normalize();
-        }
-        float maxSpeed = getMaxSpeed(entity, MovementMode.SWIMMING, movementComp.maxWaterSpeed);
-        if (input.isRunning()) {
-            maxSpeed *= movementComp.runFactor;
-        }
-        desiredVelocity.scale(maxSpeed);
-        desiredVelocity.y -= UNDERWATER_GRAVITY;
-
-        // Modify velocity towards desired, up to the maximum rate determined by friction
-        Vector3f velocityDiff = new Vector3f(desiredVelocity);
-        velocityDiff.sub(state.getVelocity());
-        velocityDiff.scale(Math.min(UNDERWATER_INERTIA * input.getDelta(), 1.0f));
-        state.getVelocity().x += velocityDiff.x;
-        state.getVelocity().y += velocityDiff.y;
-        state.getVelocity().z += velocityDiff.z;
-
-        // Slow down due to friction
-        float speed = state.getVelocity().length();
-        if (speed > maxSpeed) {
-            state.getVelocity().scale((speed - 4 * (speed - maxSpeed) * input.getDelta()) / speed);
-        }
-        Vector3f moveDelta = new Vector3f(state.getVelocity());
-        moveDelta.scale(input.getDelta());
-        CharacterCollider collider = physics.getCharacterCollider(entity);
-
-        // Note: No stepping underwater, no issue with slopes
-        MoveResult moveResult = move(state.getPosition(), moveDelta, 0, 0.1f, collider);
-        Vector3f distanceMoved = new Vector3f(moveResult.getFinalPosition());
-        distanceMoved.sub(state.getPosition());
-        state.getPosition().set(moveResult.getFinalPosition());
-        if (input.isFirstRun() && distanceMoved.length() > 0) {
-            entity.send(new MovedEvent(distanceMoved, state.getPosition()));
-            state.setFootstepDelta(
-                    state.getFootstepDelta() + distanceMoved.length() / movementComp.distanceBetweenSwimStrokes);
-            if (state.getFootstepDelta() > 1) {
-                state.setFootstepDelta(state.getFootstepDelta() - 1);
-                if (input.isFirstRun()) {
-                    entity.send(new SwimStrokeEvent(worldProvider.getBlock(state.getPosition())));
-                }
-            }
-        }
-    }
-
     private void updatePosition(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
                                 CharacterMoveInputEvent input, EntityRef entity) {
         switch (state.getMode()) {
-            case GHOSTING:
-                ghost(movementComp, state, input, entity);
-                break;
-            case SWIMMING:
-                swim(movementComp, state, input, entity);
-                break;
-            case WALKING:
-                walk(movementComp, state, input, entity);
-                break;
-            case CLIMBING:
-                climb(movementComp, state, input, entity);
-                break;
             case NONE:
                 followToParent(state, entity);
                 break;
@@ -648,16 +566,16 @@ public class KinematicCharacterMover implements CharacterMover {
                                 CharacterMoveInputEvent input) {
         if (movementComp.faceMovementDirection && result.getVelocity().lengthSquared() > 0.01f) {
             float yaw = (float) Math.atan2(result.getVelocity().x, result.getVelocity().z);
-            AxisAngle4f axisAngle = new AxisAngle4f(0, 1, 0, yaw);
-            result.getRotation().set(axisAngle);
+            result.getRotation().set(new Vector3f(0, 1, 0), yaw);
         } else {
-            QuaternionUtil.setEuler(result.getRotation(), TeraMath.DEG_TO_RAD * input.getYaw(), 0, 0);
+            result.getRotation().set(new Quat4f(TeraMath.DEG_TO_RAD * input.getYaw(), 0, 0));
         }
     }
 
     private void walk(final CharacterMovementComponent movementComp, final CharacterStateEvent state,
                       CharacterMoveInputEvent input, EntityRef entity) {
         Vector3f desiredVelocity = new Vector3f(input.getMovementDirection());
+
         float lengthSquared = desiredVelocity.lengthSquared();
 
         // If the length of desired movement is > 1, normalise it to prevent movement being faster than allowed.
@@ -665,13 +583,15 @@ public class KinematicCharacterMover implements CharacterMover {
         if (lengthSquared > 1) {
             desiredVelocity.normalize();
         }
-        float maxSpeed = getMaxSpeed(entity, MovementMode.WALKING, movementComp.maxGroundSpeed);
+        desiredVelocity.scale(movementComp.speedMultiplier);
+
+        float maxSpeed = getMaxSpeed(entity, movementComp);
         if (input.isRunning()) {
             maxSpeed *= movementComp.runFactor;
         }
 
         // As we can't use it, remove the y component of desired movement while maintaining speed.
-        if (desiredVelocity.y != 0) {
+        if (movementComp.grounded && desiredVelocity.y != 0) {
             float speed = desiredVelocity.length();
             desiredVelocity.y = 0;
             if (desiredVelocity.x != 0 || desiredVelocity.z != 0) {
@@ -681,18 +601,30 @@ public class KinematicCharacterMover implements CharacterMover {
         }
         desiredVelocity.scale(maxSpeed);
 
+        if (movementComp.mode == MovementMode.CLIMBING) {
+            climb(state, input, desiredVelocity);
+        }
+
         // Modify velocity towards desired, up to the maximum rate determined by friction
         Vector3f velocityDiff = new Vector3f(desiredVelocity);
         velocityDiff.sub(state.getVelocity());
-        velocityDiff.scale(Math.min(movementComp.groundFriction * input.getDelta(), 1.0f));
+        velocityDiff.scale(Math.min(movementComp.mode.scaleInertia * input.getDelta(), 1.0f));
         Vector3f endVelocity = new Vector3f(state.getVelocity());
         endVelocity.x += velocityDiff.x;
         endVelocity.z += velocityDiff.z;
-        endVelocity.y = Math.max(-TERMINAL_VELOCITY, state.getVelocity().y - GRAVITY * input.getDelta());
+        if (movementComp.mode.scaleGravity == 0) {
+            // apply the velocity without gravity
+            endVelocity.y += velocityDiff.y;
+        } else if (movementComp.mode.applyInertiaToVertical) {
+            endVelocity.y += Math.max(-TERMINAL_VELOCITY, velocityDiff.y - (GRAVITY * movementComp.mode.scaleGravity) * input.getDelta());
+        } else {
+            endVelocity.y = Math.max(-TERMINAL_VELOCITY, state.getVelocity().y - (GRAVITY * movementComp.mode.scaleGravity) * input.getDelta());
+        }
         Vector3f moveDelta = new Vector3f(endVelocity);
         moveDelta.scale(input.getDelta());
-        CharacterCollider collider = physics.getCharacterCollider(entity);
-        MoveResult moveResult = move(state.getPosition(), moveDelta, (state.isGrounded()) ? movementComp.stepHeight : 0,
+        CharacterCollider collider = movementComp.mode.useCollision ? physics.getCharacterCollider(entity) : null;
+        MoveResult moveResult = move(state.getPosition(), moveDelta,
+                (state.getMode() != MovementMode.CLIMBING && state.isGrounded() && movementComp.mode.canBeGrounded) ? movementComp.stepHeight : 0,
                 movementComp.slopeFactor, collider);
         Vector3f distanceMoved = new Vector3f(moveResult.getFinalPosition());
         distanceMoved.sub(state.getPosition());
@@ -702,7 +634,7 @@ public class KinematicCharacterMover implements CharacterMover {
         }
 
         if (moveResult.isBottomHit()) {
-            if (!state.isGrounded()) {
+            if (!state.isGrounded() && movementComp.mode.canBeGrounded) {
                 if (input.isFirstRun()) {
                     Vector3f landVelocity = new Vector3f(state.getVelocity());
                     landVelocity.y += (distanceMoved.y / moveDelta.y) * (endVelocity.y - state.getVelocity().y);
@@ -731,14 +663,80 @@ public class KinematicCharacterMover implements CharacterMover {
         if (input.isFirstRun() && moveResult.isHorizontalHit()) {
             entity.send(new HorizontalCollisionEvent(state.getPosition(), state.getVelocity()));
         }
-        if (state.isGrounded()) {
+        if (state.isGrounded() || movementComp.mode == MovementMode.SWIMMING || movementComp.mode == MovementMode.DIVING) {
             state.setFootstepDelta(
                     state.getFootstepDelta() + distanceMoved.length() / movementComp.distanceBetweenFootsteps);
             if (state.getFootstepDelta() > 1) {
                 state.setFootstepDelta(state.getFootstepDelta() - 1);
                 if (input.isFirstRun()) {
-                    entity.send(new FootstepEvent());
+                    switch (movementComp.mode) {
+                        case WALKING:
+                            entity.send(new FootstepEvent());
+                            break;
+                        case DIVING:
+                        case SWIMMING:
+                            entity.send(new SwimStrokeEvent(worldProvider.getBlock(state.getPosition())));
+                            break;
+                        case CLIMBING:
+                        case FLYING:
+                        case GHOSTING:
+                        case NONE:
+                            break;
+                    }
                 }
+            }
+        }
+    }
+
+    private void climb(final CharacterStateEvent state, CharacterMoveInputEvent input, Vector3f desiredVelocity) {
+        if (state.getClimbDirection() == null) {
+            return;
+        }
+        Vector3f tmp;
+
+        Vector3i climbDir3i = state.getClimbDirection();
+        Vector3f climbDir3f = climbDir3i.toVector3f();
+
+        Quat4f rotation = new Quat4f(TeraMath.DEG_TO_RAD * state.getYaw(), 0, 0);
+        tmp = new Vector3f(0.0f, 0.0f, -1.0f);
+        rotation.rotate(tmp, tmp);
+        float angleToClimbDirection = tmp.angle(climbDir3f);
+
+        boolean clearMovementToDirection = !state.isGrounded();
+
+        // facing the ladder or looking down or up
+        if (angleToClimbDirection < Math.PI / 4.0 || Math.abs(input.getPitch()) > 60f) {
+            float pitchAmount = state.isGrounded() ? 45f : 90f;
+            float pitch = input.getPitch() > 30f ? pitchAmount : -pitchAmount;
+            rotation = new Quat4f(TeraMath.DEG_TO_RAD * state.getYaw(), TeraMath.DEG_TO_RAD * pitch, 0);
+            rotation.rotate(desiredVelocity, desiredVelocity);
+
+            // looking sidewards from ladder
+        } else if (angleToClimbDirection < Math.PI * 3.0 / 4.0) {
+            float rollAmount = state.isGrounded() ? 45f : 90f;
+            tmp = new Vector3f();
+            rotation.rotate(climbDir3f, tmp);
+            float leftOrRight = tmp.x;
+            float plusOrMinus = (leftOrRight < 0f ? -1.0f : 1.0f) * (climbDir3i.x != 0 ? -1.0f : 1.0f);
+            rotation = new Quat4f(TeraMath.DEG_TO_RAD * input.getYaw(), 0f,
+                    TeraMath.DEG_TO_RAD * rollAmount * plusOrMinus
+            );
+            rotation.rotate(desiredVelocity, desiredVelocity);
+
+            // facing away from ladder
+        } else {
+            rotation = new Quat4f(TeraMath.DEG_TO_RAD * state.getYaw(), 0, 0);
+            rotation.rotate(desiredVelocity, desiredVelocity);
+            clearMovementToDirection = false;
+        }
+
+        // clear out movement towards or away from the ladder
+        if (clearMovementToDirection) {
+            if (climbDir3i.x != 0) {
+                desiredVelocity.x = 0f;
+            }
+            if (climbDir3i.z != 0) {
+                desiredVelocity.z = 0f;
             }
         }
     }

@@ -16,14 +16,16 @@
 
 package org.terasology.world;
 
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.biomes.Biome;
 import org.terasology.world.block.Block;
 
 /**
- * @author Immortius
  */
 public interface WorldChangeListener {
 
     void onBlockChanged(Vector3i pos, Block newBlock, Block originalBlock);
+
+    void onBiomeChanged(Vector3i pos, Biome newBiome, Biome originalBiome);
 
 }

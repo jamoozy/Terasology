@@ -16,24 +16,29 @@
 
 package org.terasology.engine.modes.loadProcesses;
 
+import org.terasology.assets.management.AssetManager;
 import org.terasology.config.Config;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.context.Context;
 import org.terasology.game.GameManifest;
 import org.terasology.network.NetworkSystem;
+import org.terasology.persistence.typeHandling.TypeSerializationLibrary;
+import org.terasology.persistence.typeHandling.extensionTypes.BlockFamilyTypeHandler;
+import org.terasology.persistence.typeHandling.extensionTypes.BlockTypeHandler;
+import org.terasology.world.block.Block;
 import org.terasology.world.block.BlockManager;
-import org.terasology.world.block.family.BlockFamilyFactoryRegistry;
+import org.terasology.world.block.family.BlockFamily;
 import org.terasology.world.block.internal.BlockManagerImpl;
-import org.terasology.world.block.loader.WorldAtlas;
-import org.terasology.world.block.loader.WorldAtlasImpl;
+import org.terasology.world.block.tiles.WorldAtlas;
+import org.terasology.world.block.tiles.WorldAtlasImpl;
 
 /**
- * @author Immortius
  */
 public class RegisterBlocks extends SingleStepLoadProcess {
+    private final Context context;
+    private final GameManifest gameManifest;
 
-    private GameManifest gameManifest;
-
-    public RegisterBlocks(GameManifest gameManifest) {
+    public RegisterBlocks(Context context, GameManifest gameManifest) {
+        this.context = context;
         this.gameManifest = gameManifest;
     }
 
@@ -44,19 +49,22 @@ public class RegisterBlocks extends SingleStepLoadProcess {
 
     @Override
     public boolean step() {
-        NetworkSystem networkSystem = CoreRegistry.get(NetworkSystem.class);
-        WorldAtlas atlas = new WorldAtlasImpl(CoreRegistry.get(Config.class).getRendering().getMaxTextureAtlasResolution());
-        CoreRegistry.put(WorldAtlas.class, atlas);
+        NetworkSystem networkSystem = context.get(NetworkSystem.class);
+        WorldAtlas atlas = new WorldAtlasImpl(context.get(Config.class).getRendering().getMaxTextureAtlasResolution());
+        context.put(WorldAtlas.class, atlas);
 
         BlockManagerImpl blockManager;
-        BlockFamilyFactoryRegistry blockFamilyFactoryRegistry = CoreRegistry.get(BlockFamilyFactoryRegistry.class);
         if (networkSystem.getMode().isAuthority()) {
-            blockManager = new BlockManagerImpl(atlas, gameManifest.getRegisteredBlockFamilies(), gameManifest.getBlockIdMap(), true, blockFamilyFactoryRegistry);
-            blockManager.subscribe(CoreRegistry.get(NetworkSystem.class));
+            blockManager = new BlockManagerImpl(atlas, context.get(AssetManager.class), true);
+            blockManager.subscribe(context.get(NetworkSystem.class));
         } else {
-            blockManager = new BlockManagerImpl(atlas, gameManifest.getRegisteredBlockFamilies(), gameManifest.getBlockIdMap(), false, blockFamilyFactoryRegistry);
+            blockManager = new BlockManagerImpl(atlas, context.get(AssetManager.class), false);
         }
-        CoreRegistry.put(BlockManager.class, blockManager);
+        context.put(BlockManager.class, blockManager);
+        context.get(TypeSerializationLibrary.class).add(Block.class, new BlockTypeHandler(blockManager));
+        context.get(TypeSerializationLibrary.class).add(BlockFamily.class, new BlockFamilyTypeHandler(blockManager));
+
+        blockManager.initialise(gameManifest.getRegisteredBlockFamilies(), gameManifest.getBlockIdMap());
 
         return true;
     }

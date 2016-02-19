@@ -18,7 +18,6 @@ package org.terasology.world.chunks.blockdata;
 
 import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
 
-import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -32,9 +31,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * TeraArray is the base class used to store block related data in Chunks.
  *
- * @author Manuel Brotz <manu.brotz@gmx.ch>
  */
-public abstract class TeraArray implements Externalizable {
+public abstract class TeraArray {
 
     private int sizeX;
     private int sizeY;
@@ -149,7 +147,6 @@ public abstract class TeraArray implements Externalizable {
      * This is the interface for tera array factories. Every tera array is required to implement a factory.
      * It should be implemented as a static subclass of the corresponding tera array class and it should be called Factory.
      *
-     * @author Manuel Brotz <manu.brotz@gmx.ch>
      * @see org.terasology.world.chunks.blockdata.TeraDenseArray16Bit.Factory
      */
     public interface Factory<T extends TeraArray> {
@@ -170,7 +167,6 @@ public abstract class TeraArray implements Externalizable {
      * {@link org.terasology.world.chunks.blockdata.TeraArray.BasicSerializationHandler TeraArray.BasicSerializationHandler}
      * instead of using this interface directly. It should be implemented as a static subclass of the corresponding tera array class.
      *
-     * @author Manuel Brotz <manu.brotz@gmx.ch>
      * @see org.terasology.world.chunks.blockdata.TeraArray.BasicSerializationHandler
      */
     public interface SerializationHandler<T extends TeraArray> {
@@ -190,7 +186,6 @@ public abstract class TeraArray implements Externalizable {
      * Extending this class is the recommended way to implement serialization handlers for tera arrays.
      * Tera arrays should implement their serialization handlers as a static subclass called SerializationHandler.
      *
-     * @author Manuel Brotz <manu.brotz@gmx.ch>
      * @see org.terasology.world.chunks.blockdata.TeraDenseArray16Bit.SerializationHandler
      * @see org.terasology.world.chunks.blockdata.TeraDenseArray16Bit.Factory
      */

@@ -17,23 +17,23 @@ package org.terasology.rendering.nui.layouts;
 
 import com.google.common.collect.Lists;
 import com.google.gson.annotations.SerializedName;
-import org.terasology.input.events.KeyEvent;
 import org.terasology.input.events.MouseButtonEvent;
 import org.terasology.input.events.MouseWheelEvent;
-import org.terasology.math.Rect2i;
+import org.terasology.math.geom.Rect2i;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreLayout;
 import org.terasology.rendering.nui.LayoutConfig;
 import org.terasology.rendering.nui.LayoutHint;
 import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * @author Immortius
  */
 public class ColumnLayout extends CoreLayout<LayoutHint> {
 
@@ -47,6 +47,8 @@ public class ColumnLayout extends CoreLayout<LayoutHint> {
     private boolean autoSizeColumns;
     @LayoutConfig
     private boolean fillVerticalSpace = true;
+    @LayoutConfig
+    private boolean extendLast;
 
     private List<UIWidget> widgetList = Lists.newArrayList();
 
@@ -63,6 +65,11 @@ public class ColumnLayout extends CoreLayout<LayoutHint> {
 
     public void addWidget(UIWidget widget) {
         widgetList.add(widget);
+    }
+
+    @Override
+    public void removeWidget(UIWidget widget) {
+        widgetList.remove(widget);
     }
 
     public int getColumns() {
@@ -118,9 +125,7 @@ public class ColumnLayout extends CoreLayout<LayoutHint> {
 
             List<List<UIWidget>> rows = Lists.newArrayList(getRowIterator());
             List<RowInfo> rowInfos = Lists.newArrayList();
-            for (List<UIWidget> row : rows) {
-                rowInfos.add(calculateRowSize(row, canvas, availableSize));
-            }
+            rowInfos.addAll(rows.stream().map(row -> calculateRowSize(row, canvas, availableSize)).collect(Collectors.toList()));
 
             int[] minWidths = new int[columns];
             int minRowWidth = 0;
@@ -153,14 +158,21 @@ public class ColumnLayout extends CoreLayout<LayoutHint> {
             }
             usedHeight += (rowInfos.size() - 1) * verticalSpacing;
 
+            int excessHeight = canvas.size().y - usedHeight;
             if (fillVerticalSpace) {
-                int extraSpacePerRow = (canvas.size().y - usedHeight) / rowInfos.size();
+                if (extendLast && numRows > 0) {
+                    // give all the extra space to the last entry
+                    rowInfos.get(numRows - 1).height += excessHeight;
+                } else {
+                    // distribute extra height equally
+                    int extraSpacePerRow = excessHeight / rowInfos.size();
 
-                for (RowInfo row : rowInfos) {
-                    row.height += extraSpacePerRow;
+                    for (RowInfo row : rowInfos) {
+                        row.height += extraSpacePerRow;
+                    }
                 }
             } else {
-                rowOffsetY = (canvas.size().y - usedHeight) / 2;
+                rowOffsetY = excessHeight / 2;
             }
             for (int rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
                 List<UIWidget> row = rows.get(rowIndex);
@@ -294,7 +306,8 @@ public class ColumnLayout extends CoreLayout<LayoutHint> {
     }
 
     @Override
-    public void onKeyEvent(KeyEvent event) {
+    public boolean onKeyEvent(NUIKeyEvent event) {
+        return false;
     }
 
     @Override
@@ -325,6 +338,18 @@ public class ColumnLayout extends CoreLayout<LayoutHint> {
 
     public boolean isAutoSizeColumns() {
         return autoSizeColumns;
+    }
+
+    public boolean isFillVerticalSpace() {
+        return fillVerticalSpace;
+    }
+
+    /**
+     * @param fillVerticalSpace true if the vertical space of the canvas should be filled.
+     *        The elements are centered vertically otherwise.
+     */
+    public void setFillVerticalSpace(boolean fillVerticalSpace) {
+        this.fillVerticalSpace = fillVerticalSpace;
     }
 
     public void setAutoSizeColumns(boolean autoSizeColumns) {

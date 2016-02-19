@@ -17,9 +17,10 @@ package org.terasology.audio;
 
 /**
  * Is called by AudioManager to inform about end of playing music or sound.
- * <p/>
+ * <br><br>
  * Notice: The code in onAudioEnd is run in the update() method of the AudioManager once the sound/music ends playing.
  */
+@FunctionalInterface
 public interface AudioEndListener {
     void onAudioEnd();
 }

@@ -20,11 +20,11 @@ import com.bulletphysics.linearmath.AabbUtil2;
 import com.bulletphysics.linearmath.Transform;
 import com.google.common.base.Objects;
 import gnu.trove.list.TFloatList;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3d;
+import org.terasology.math.geom.Vector3f;
 
 import javax.vecmath.Matrix4f;
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3d;
-import javax.vecmath.Vector3f;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -33,7 +33,6 @@ import java.util.List;
  * An axis-aligned bounding box. Provides basic support for inclusion
  * and intersection tests.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public final class AABB {
 
@@ -139,18 +138,15 @@ public final class AABB {
     }
 
     public AABB transform(Quat4f rotation, Vector3f offset, float scale) {
-        Transform transform = new Transform(new Matrix4f(rotation, offset, scale));
-        Vector3f newMin = new Vector3f();
-        Vector3f newMax = new Vector3f();
-        AabbUtil2.transformAabb(min, max, 0.01f, transform, newMin, newMax);
-        return new AABB(newMin, newMax);
+        Transform transform = new Transform(new Matrix4f(VecMath.to(rotation), VecMath.to(offset), scale));
+        return transform(transform);
     }
 
     public AABB transform(Transform transform) {
-        Vector3f newMin = new Vector3f();
-        Vector3f newMax = new Vector3f();
-        AabbUtil2.transformAabb(min, max, 0.01f, transform, newMin, newMax);
-        return new AABB(newMin, newMax);
+        javax.vecmath.Vector3f newMin = new javax.vecmath.Vector3f();
+        javax.vecmath.Vector3f newMax = new javax.vecmath.Vector3f();
+        AabbUtil2.transformAabb(VecMath.to(min), VecMath.to(max), 0.01f, transform, newMin, newMax);
+        return new AABB(VecMath.from(newMin), VecMath.from(newMax));
     }
 
     /**
@@ -297,9 +293,7 @@ public final class AABB {
         float minDistance = Float.MAX_VALUE;
         Vector3f closestNormal = new Vector3f();
 
-        for (int i = 0; i < normals.size(); i++) {
-            Vector3f n = normals.get(i);
-
+        for (Vector3f n : normals) {
             Vector3f diff = new Vector3f(centerPointForNormal(n));
             diff.sub(origin);
 
@@ -403,6 +397,7 @@ public final class AABB {
         return false;
     }
 
+    @Override
     public int hashCode() {
         return Objects.hashCode(min, max);
     }

@@ -21,7 +21,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @author Immortius
+ * Marks a class as world generator. Field annotated with {@link org.terasology.registry.In} will
+ * be injected after construction.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

@@ -17,7 +17,8 @@ package org.terasology.world.block.family;
 
 import com.google.common.collect.Maps;
 import org.terasology.math.Side;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.naming.Name;
 import org.terasology.world.BlockEntityRegistry;
 import org.terasology.world.WorldProvider;
 import org.terasology.world.block.Block;
@@ -29,7 +30,6 @@ import java.util.Map;
 /**
  * Block group for blocks that can be oriented around the vertical axis.
  *
- * @author Immortius <immortius@gmail.com>
  */
 public class HorizontalBlockFamily extends AbstractBlockFamily implements SideDefinedBlockFamily {
 
@@ -55,7 +55,7 @@ public class HorizontalBlockFamily extends AbstractBlockFamily implements SideDe
             }
             this.blocks.put(side, block);
             block.setBlockFamily(this);
-            block.setUri(new BlockUri(uri, side.name()));
+            block.setUri(new BlockUri(uri, new Name(side.name())));
         }
     }
 
@@ -64,8 +64,11 @@ public class HorizontalBlockFamily extends AbstractBlockFamily implements SideDe
         if (attachmentSide.isHorizontal()) {
             return blocks.get(attachmentSide);
         }
-        return blocks.get(direction);
-
+        if (direction != null) {
+            return blocks.get(direction);
+        } else {
+            return blocks.get(Side.FRONT);
+        }
     }
 
     @Override
@@ -77,7 +80,7 @@ public class HorizontalBlockFamily extends AbstractBlockFamily implements SideDe
     public Block getBlockFor(BlockUri blockUri) {
         if (getURI().equals(blockUri.getFamilyUri())) {
             try {
-                Side side = Side.valueOf(blockUri.getIdentifier().toUpperCase());
+                Side side = Side.valueOf(blockUri.getIdentifier().toString().toUpperCase(Locale.ENGLISH));
                 return blocks.get(side);
             } catch (IllegalArgumentException e) {
                 return null;
@@ -94,5 +97,15 @@ public class HorizontalBlockFamily extends AbstractBlockFamily implements SideDe
     @Override
     public Block getBlockForSide(Side side) {
         return blocks.get(side);
+    }
+
+    @Override
+    public Side getSide(Block block) {
+        for (Map.Entry<Side, Block> sideBlockEntry : blocks.entrySet()) {
+            if (block == sideBlockEntry.getValue()) {
+                return sideBlockEntry.getKey();
+            }
+        }
+        return null;
     }
 }

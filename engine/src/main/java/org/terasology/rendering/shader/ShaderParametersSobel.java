@@ -16,35 +16,36 @@
 package org.terasology.rendering.shader;
 
 import org.lwjgl.opengl.GL13;
-import org.terasology.editor.EditorRange;
+import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FrameBuffersManager;
 
 /**
  * Shader parameters for the Post-processing shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersSobel extends ShaderParametersBase {
 
-    @EditorRange(min = 0.0f, max = 16.0f)
+    @Range(min = 0.0f, max = 16.0f)
     float pixelOffsetX = 1.0f;
-    @EditorRange(min = 0.0f, max = 16.0f)
+    @Range(min = 0.0f, max = 16.0f)
     float pixelOffsetY = 1.0f;
 
     @Override
     public void applyParameters(Material program) {
         super.applyParameters(program);
 
-        DefaultRenderingProcess.FBO scene = DefaultRenderingProcess.getInstance().getFBO("sceneOpaque");
+        FBO scene = CoreRegistry.get(FrameBuffersManager.class).getFBO("sceneOpaque");
 
         if (scene != null) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0);
             scene.bindDepthTexture();
             program.setInt("texDepth", 0);
 
-            program.setFloat("texelWidth", 1.0f / scene.width);
-            program.setFloat("texelHeight", 1.0f / scene.height);
+            program.setFloat("texelWidth", 1.0f / scene.width());
+            program.setFloat("texelHeight", 1.0f / scene.height());
         }
 
         program.setFloat("pixelOffsetX", pixelOffsetX);

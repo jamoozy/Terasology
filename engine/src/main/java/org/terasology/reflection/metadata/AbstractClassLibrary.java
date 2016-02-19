@@ -20,13 +20,16 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
 import org.terasology.engine.SimpleUri;
 import org.terasology.engine.module.ModuleManager;
 import org.terasology.module.Module;
 import org.terasology.naming.Name;
 import org.terasology.reflection.copy.CopyStrategyLibrary;
 import org.terasology.reflection.reflect.ReflectFactory;
-import org.terasology.registry.CoreRegistry;
 
 import java.util.Iterator;
 import java.util.List;
@@ -36,20 +39,43 @@ import java.util.Set;
 /**
  * Abstract base implement of ClassLibrary.
  *
- * @author Immortius
  */
 public abstract class AbstractClassLibrary<T> implements ClassLibrary<T> {
 
-    private ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);
-    private CopyStrategyLibrary copyStrategyLibrary;
+    private static final Logger logger = LoggerFactory.getLogger(AbstractClassLibrary.class);
+
+    protected final CopyStrategyLibrary copyStrategyLibrary;
+
+    private ModuleManager moduleManager;
     private ReflectFactory reflectFactory;
 
     private Map<Class<? extends T>, ClassMetadata<? extends T, ?>> classLookup = Maps.newHashMap();
     private Table<Name, Name, ClassMetadata<? extends T, ?>> uriLookup = HashBasedTable.create();
 
-    public AbstractClassLibrary(ReflectFactory factory, CopyStrategyLibrary copyStrategies) {
-        this.reflectFactory = factory;
+    public AbstractClassLibrary(Context context) {
+        this.moduleManager = context.get(ModuleManager.class);
+        this.reflectFactory = context.get(ReflectFactory.class);
+        this.copyStrategyLibrary = context.get(CopyStrategyLibrary.class);
+    }
+
+    public AbstractClassLibrary(AbstractClassLibrary<T> factory, CopyStrategyLibrary copyStrategies) {
+        this.reflectFactory = factory.reflectFactory;
         this.copyStrategyLibrary = copyStrategies;
+        for (Table.Cell<Name, Name, ClassMetadata<? extends T, ?>> cell: factory.uriLookup.cellSet()) {
+            Name objectName = cell.getRowKey();
+            Name moduleName = cell.getColumnKey();
+            ClassMetadata<? extends T, ?> oldMetaData = cell.getValue();
+            Class<? extends T> clazz = oldMetaData.getType();
+            SimpleUri uri = oldMetaData.getUri();
+            ClassMetadata<? extends T, ?> metadata = createMetadata(clazz, factory.reflectFactory, copyStrategies, uri);
+
+            if (metadata != null) {
+                classLookup.put(clazz, metadata);
+                uriLookup.put(objectName, moduleName, metadata);
+            } else {
+                throw new RuntimeException("Failed to create copy of class library");
+            }
+        }
     }
 
     /**
@@ -66,7 +92,10 @@ public abstract class AbstractClassLibrary<T> implements ClassLibrary<T> {
 
         if (metadata != null) {
             classLookup.put(clazz, metadata);
-            uriLookup.put(uri.getObjectName(), uri.getModuleName(), metadata);
+            ClassMetadata<? extends T, ?> prev = uriLookup.put(uri.getObjectName(), uri.getModuleName(), metadata);
+            if (prev != null && !prev.equals(metadata)) {
+                logger.warn("Duplicate entry for '{}': {} and {}", uri, prev.getType(), metadata.getType());
+            }
         }
     }
 

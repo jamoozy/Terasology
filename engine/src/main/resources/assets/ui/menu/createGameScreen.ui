@@ -22,13 +22,12 @@
                 "type" : "UILabel",
                 "id" : "subtitle",
                 "family" : "title",
-                "text" : "Create Game",
+                "text" : "${engine:menu#create-game-title}",
                 "layoutInfo" : {
                     "height" : 48,
                     "position-horizontal-center" : {},
                     "position-top" : {
                         "target" : "BOTTOM",
-                        "offset" : 16,
                         "widget" : "title"
                     }
                 }
@@ -44,7 +43,7 @@
                     "contents" : [
                         {
                             "type" : "UILabel",
-                            "text" : "Game name:"
+                            "text" : "${engine:menu#game-name}:"
                         },
                         {
                             "type" : "UIText",
@@ -56,7 +55,41 @@
                         },
                         {
                             "type" : "UILabel",
-                            "text" : "Seed:"
+                            "text" : "${engine:menu#gameplay} (${engine:menu#gameplay-info}):"
+                        },
+                        {
+                            "type" : "RowLayout",
+                            "horizontalSpacing" : 16,
+                            "contents" : [
+                                {
+                                    "type" : "UIDropdown",
+                                    "id" : "gameplay",
+                                    "layoutInfo" : {
+                                        "relativeWidth" : 0.7
+                                    }
+                                },
+                                {
+                                    "type" : "UIButton",
+                                    "text" : "${engine:menu#select-modules}",
+                                    "id" : "mods"
+                                }
+                            ]
+                        },
+                        {
+                            "type" : "UISpace",
+                            "size" : [1, 16]
+                        },
+                        {
+                            "type" : "UILabel",
+                            "id" : "gameplayDescription"
+                        },
+                        {
+                            "type" : "UISpace",
+                            "size" : [1, 16]
+                        },
+                        {
+                            "type" : "UILabel",
+                            "text" : "${engine:menu#world-seed}:"
                         },
                         {
                             "type" : "RowLayout",
@@ -71,7 +104,7 @@
                                 },
                                 {
                                     "type" : "UIButton",
-                                    "text" : "Preview...",
+                                    "text" : "${engine:menu#world-config-preview}",
                                     "id" : "previewSeed"
                                 }
                             ]
@@ -82,7 +115,7 @@
                         },
                         {
                             "type" : "UILabel",
-                            "text" : "Choose World Generator (enabling modules may add more):"
+                            "text" : "${engine:menu#select-world-gen} (${engine:menu#select-world-gen-info}):"
                         },
                         {
                             "type" : "RowLayout",
@@ -94,11 +127,6 @@
 		                            "layoutInfo" : {
                                         "relativeWidth" : 0.7
                                     }
-		                        },
-		                        {
-	                                "type" : "UIButton",
-	                                "text" : "Config...",
-	                                "id" : "config"
 		                        }
 	                        ]
                         }
@@ -122,17 +150,12 @@
                 "contents" : [
                     {
                         "type" : "UIButton",
-                        "text" : "Modules...",
-                        "id" : "mods"
-                    },
-                    {
-                        "type" : "UIButton",
-                        "text" : "Play",
+                        "text" : "${engine:menu#start-game}",
                         "id" : "play"
                     },
                     {
                         "type" : "UIButton",
-                        "text" : "Back",
+                        "text" : "${engine:menu#back}",
                         "id" : "close"
                     }
                 ],

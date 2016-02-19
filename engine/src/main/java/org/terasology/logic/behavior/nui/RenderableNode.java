@@ -19,30 +19,32 @@ import com.google.common.collect.Lists;
 import org.terasology.asset.Assets;
 import org.terasology.input.Keyboard;
 import org.terasology.input.MouseInput;
+import org.terasology.input.device.KeyboardDevice;
 import org.terasology.logic.behavior.BehaviorNodeComponent;
-import org.terasology.logic.behavior.BehaviorNodeFactory;
 import org.terasology.logic.behavior.tree.Node;
 import org.terasology.logic.behavior.tree.Status;
 import org.terasology.logic.behavior.tree.TreeAccessor;
-import org.terasology.math.Vector2i;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector2f;
 import org.terasology.rendering.assets.texture.TextureRegion;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
 import org.terasology.rendering.nui.InteractionListener;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
 import org.terasology.rendering.nui.layouts.ZoomableLayout;
 
-import javax.vecmath.Vector2f;
 import java.util.List;
 
 /**
  * A widget to render and process inputs for a node of a behavior tree.
  *
- * @author synopia
  */
 public class RenderableNode extends CoreWidget implements ZoomableLayout.PositionalWidget<BehaviorEditor>, TreeAccessor<RenderableNode> {
-    private TextureRegion texture = Assets.getTextureRegion("engine:button");
+    private TextureRegion texture = Assets.getTextureRegion("engine:button").get();
 
     private final List<RenderableNode> children = Lists.newArrayList();
     private PortList portList;
@@ -62,14 +64,16 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
 
     private InteractionListener moveListener = new BaseInteractionListener() {
         @Override
-        public void onMouseOver(Vector2i pos, boolean topMostElement) {
+        public void onMouseOver(NUIMouseOverEvent event) {
         }
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            last = pos;
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            last = event.getRelativeMousePosition();
+            MouseInput button = event.getMouseButton();
+            KeyboardDevice keyboard = event.getKeyboard();
             dragged = false;
-            copyMode = button == MouseInput.MOUSE_LEFT && (Keyboard.isKeyDown(Keyboard.KeyId.LEFT_SHIFT) || Keyboard.isKeyDown(Keyboard.KeyId.RIGHT_SHIFT));
+            copyMode = button == MouseInput.MOUSE_LEFT && (keyboard.isKeyDown(Keyboard.KeyId.LEFT_SHIFT) || keyboard.isKeyDown(Keyboard.KeyId.RIGHT_SHIFT));
             if (copyMode) {
                 editor.copyNode(RenderableNode.this);
             }
@@ -77,9 +81,9 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         }
 
         @Override
-        public void onMouseRelease(MouseInput button, Vector2i pos) {
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
             if (!dragged) {
-                if (button == MouseInput.MOUSE_RIGHT) {
+                if (event.getMouseButton() == MouseInput.MOUSE_RIGHT) {
                     collapsed = !collapsed;
                     for (RenderableNode child : children) {
                         child.setVisible(!collapsed);
@@ -92,15 +96,15 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         }
 
         @Override
-        public void onMouseDrag(Vector2i pos) {
-            Vector2f diff = editor.screenToWorld(pos);
+        public void onMouseDrag(NUIMouseDragEvent event) {
+            Vector2f diff = editor.screenToWorld(event.getRelativeMousePosition());
             diff.sub(editor.screenToWorld(last));
             if (diff.lengthSquared() != 0) {
                 dragged = true;
             }
             move(diff);
 
-            last = pos;
+            last = event.getRelativeMousePosition();
         }
     };
 
@@ -127,7 +131,7 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         canvas.drawText(text);
 
         if (editor != null) {
-            canvas.addInteractionRegion(moveListener, CoreRegistry.get(BehaviorNodeFactory.class).getNodeComponent(node).description);
+            canvas.addInteractionRegion(moveListener, data.description);
         }
         portList.onDraw(canvas);
     }
@@ -211,6 +215,7 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         return getPortList().ports();
     }
 
+    @Override
     public void insertChild(int index, RenderableNode child) {
         if (index == -1) {
             children.add(child);
@@ -219,6 +224,7 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         }
     }
 
+    @Override
     public void setChild(int index, RenderableNode child) {
         if (children.size() == index) {
             children.add(null);
@@ -230,12 +236,14 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         children.set(index, child);
     }
 
+    @Override
     public RenderableNode removeChild(int index) {
         RenderableNode remove = children.remove(index);
         remove.getInputPort().setTarget(null);
         return remove;
     }
 
+    @Override
     public RenderableNode getChild(int index) {
         if (children.size() > index) {
             return children.get(index);
@@ -243,6 +251,7 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         return null;
     }
 
+    @Override
     public int getChildrenCount() {
         return children.size();
     }
@@ -286,6 +295,7 @@ public class RenderableNode extends CoreWidget implements ZoomableLayout.Positio
         return status;
     }
 
+    @Override
     public void setVisible(boolean visible) {
         super.setVisible(visible);
         for (RenderableNode child : children) {

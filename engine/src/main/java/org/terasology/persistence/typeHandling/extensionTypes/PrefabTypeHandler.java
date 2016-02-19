@@ -21,7 +21,6 @@ import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.persistence.typeHandling.StringRepresentationTypeHandler;
 
 /**
- * @author Immortius
  */
 public class PrefabTypeHandler extends StringRepresentationTypeHandler<Prefab> {
 
@@ -30,11 +29,14 @@ public class PrefabTypeHandler extends StringRepresentationTypeHandler<Prefab> {
 
     @Override
     public String getAsString(Prefab item) {
+        if (item == null) {
+            return "";
+        }
         return item.getName();
     }
 
     @Override
     public Prefab getFromString(String representation) {
-        return Assets.getPrefab(representation);
+        return Assets.getPrefab(representation).orElse(null);
     }
 }

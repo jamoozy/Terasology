@@ -19,18 +19,17 @@ import com.google.common.collect.Lists;
 import gnu.trove.list.TDoubleList;
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.map.TObjectDoubleMap;
-import gnu.trove.procedure.TObjectDoubleProcedure;
 
 import java.text.NumberFormat;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public abstract class TimeMetricsMode extends MetricsMode {
 
     private int limit;
     private NumberFormat format;
+    private String unit = "ms";
 
 
     public TimeMetricsMode(String name, int limit) {
@@ -40,6 +39,12 @@ public abstract class TimeMetricsMode extends MetricsMode {
         format.setMaximumFractionDigits(2);
     }
 
+    public TimeMetricsMode(String name, int limit, String unit) {
+        this(name, limit);
+        this.limit = limit;
+    }
+
+    @Override
     public String getMetrics() {
         StringBuilder builder = new StringBuilder();
         builder.append(getName());
@@ -59,29 +64,28 @@ public abstract class TimeMetricsMode extends MetricsMode {
             builder.append(activities.get(i));
             builder.append(": ");
             builder.append(format.format(values.get(i)));
-            builder.append("ms\n");
+            builder.append(unit);
+            builder.append("\n");
         }
     }
 
     private void sortMetrics(TObjectDoubleMap<String> metrics, final List<String> activities, final TDoubleList values) {
-        metrics.forEachEntry(new TObjectDoubleProcedure<String>() {
-            public boolean execute(String s, double v) {
-                boolean inserted = false;
-                for (int i = 0; i < values.size() && i < limit; i++) {
-                    if (v > values.get(i)) {
-                        values.insert(i, v);
-                        activities.add(i, s);
-                        inserted = true;
-                        break;
-                    }
+        metrics.forEachEntry((s, v) -> {
+            boolean inserted = false;
+            for (int i = 0; i < values.size() && i < limit; i++) {
+                if (v > values.get(i)) {
+                    values.insert(i, v);
+                    activities.add(i, s);
+                    inserted = true;
+                    break;
                 }
-
-                if (!inserted && values.size() < limit) {
-                    activities.add(s);
-                    values.add(v);
-                }
-                return true;
             }
+
+            if (!inserted && values.size() < limit) {
+                activities.add(s);
+                values.add(v);
+            }
+            return true;
         });
     }
 }

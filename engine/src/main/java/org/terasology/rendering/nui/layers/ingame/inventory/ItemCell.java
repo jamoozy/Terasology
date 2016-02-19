@@ -20,8 +20,9 @@ import org.terasology.asset.Assets;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.logic.common.DisplayNameComponent;
 import org.terasology.logic.inventory.ItemComponent;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.assets.mesh.Mesh;
+import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.rendering.assets.texture.TextureRegion;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
@@ -32,6 +33,7 @@ import org.terasology.rendering.nui.widgets.TooltipLine;
 import org.terasology.world.block.items.BlockItemComponent;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Applies the logic to get information out of the EntityRef item
@@ -67,8 +69,8 @@ public abstract class ItemCell extends CoreWidget {
                         return itemComp.icon;
                     }
                     BlockItemComponent blockItemComp = getTargetItem().getComponent(BlockItemComponent.class);
-                    if (blockItemComp == null) {
-                        return Assets.getTextureRegion("engine:items.questionMark");
+                    if (blockItemComp == null || blockItemComp.blockFamily == null) {
+                        return Assets.getTextureRegion("engine:items#questionMark").get();
                     }
                 }
                 return null;
@@ -78,13 +80,18 @@ public abstract class ItemCell extends CoreWidget {
             @Override
             public Mesh get() {
                 BlockItemComponent blockItemComp = getTargetItem().getComponent(BlockItemComponent.class);
-                if (blockItemComp != null) {
-                    return blockItemComp.blockFamily.getArchetypeBlock().getMesh();
+                if (blockItemComp != null && blockItemComp.blockFamily != null) {
+                    return blockItemComp.blockFamily.getArchetypeBlock().getMeshGenerator().getStandaloneMesh();
                 }
                 return null;
             }
         });
-        icon.setMeshTexture(Assets.getTexture("engine:terrain"));
+        Optional<Texture> terrainTex = Assets.getTexture("engine:terrain");
+        if (terrainTex.isPresent()) {
+            icon.setMeshTexture(terrainTex.get());
+        } else {
+            icon.setMeshTexture(Assets.getTexture("engine:default").get());
+        }
         icon.bindQuantity(new ReadOnlyBinding<Integer>() {
             @Override
             public Integer get() {

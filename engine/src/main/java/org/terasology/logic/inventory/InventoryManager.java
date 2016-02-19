@@ -21,7 +21,6 @@ import org.terasology.entitySystem.entity.EntityRef;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public interface InventoryManager {
 
@@ -141,6 +140,18 @@ public interface InventoryManager {
     EntityRef removeItem(EntityRef inventory, EntityRef instigator, List<EntityRef> items, boolean destroyRemoved, int count);
 
     /**
+     * Removes specified amount of item from an inventory's slot.
+     * @param inventory       Inventory to remove item from.
+     * @param instigator      Instigator of the action.
+     * @param slotNo          Slot to remove the item from.
+     * @param destroyRemoved  If the removed item should be destroyed.
+     * @param count           Amount of items to remove.
+     * @return If action fails - <code>null</code> value will be returned. If successful and destroyRemoved is true -
+     *         EntityRef.NULL will be returned, otherwise the removed item entity will be returned instead.
+     */
+    EntityRef removeItem(EntityRef inventory, EntityRef instigator, int slotNo, boolean destroyRemoved, int count);
+
+    /**
      * Moves a specified amount of items from one inventory to another.
      *
      * @param fromInventory Inventory to move item from.
@@ -152,6 +163,19 @@ public interface InventoryManager {
      * @return If the action was successful.
      */
     boolean moveItem(EntityRef fromInventory, EntityRef instigator, int slotFrom, EntityRef toInventory, int slotTo, int count);
+
+    /**
+     * Tries to move a item smartly to the specified slots.
+     * It will try to fill up existing stacks if possible.
+     *
+     * @param fromInventory Inventory to move item from.
+     * @param instigator    Instigator of the action.
+     * @param slotFrom      Slot to move from.
+     * @param toInventory   Inventory to move item to.
+     * @param toSlots   slots to move the item to.     *
+     * @return If the action was successful. The action counts as successful if at least one item got moved.
+     */
+    boolean moveItemToSlots(EntityRef instigator, EntityRef fromInventory, int slotFrom, EntityRef toInventory, List<Integer> toSlots);
 
     /**
      * Switches items in two inventories.

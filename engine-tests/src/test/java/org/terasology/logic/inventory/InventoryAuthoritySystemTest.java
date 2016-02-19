@@ -21,9 +21,6 @@ import org.mockito.Matchers;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.AtLeast;
 import org.mockito.internal.verification.Times;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.logic.inventory.action.GiveItemAction;
@@ -35,6 +32,7 @@ import org.terasology.logic.inventory.events.InventorySlotStackSizeChangedEvent;
 
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.List;
 
 import static junit.framework.Assert.assertNull;
 import static org.junit.Assert.assertEquals;
@@ -42,7 +40,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 public class InventoryAuthoritySystemTest {
     private InventoryAuthoritySystem inventoryAuthoritySystem;
@@ -263,13 +260,10 @@ public class InventoryAuthoritySystemTest {
         inventoryComp.itemSlots.set(0, item);
 
         Mockito.when(inventory.send(Matchers.any(BeforeItemRemovedFromInventory.class))).then(
-                new Answer<Object>() {
-                    @Override
-                    public Object answer(InvocationOnMock invocation) throws Exception {
-                        BeforeItemRemovedFromInventory event = (BeforeItemRemovedFromInventory) invocation.getArguments()[0];
-                        event.consume();
-                        return null;
-                    }
+                invocation -> {
+                    BeforeItemRemovedFromInventory event = (BeforeItemRemovedFromInventory) invocation.getArguments()[0];
+                    event.consume();
+                    return null;
                 }
         );
 
@@ -388,13 +382,10 @@ public class InventoryAuthoritySystemTest {
         setupItemRef(item, itemComp, 2, 10);
 
         Mockito.when(inventory.send(Matchers.any(BeforeItemPutInInventory.class))).then(
-                new Answer<Object>() {
-                    @Override
-                    public Object answer(InvocationOnMock invocation) throws Exception {
-                        BeforeItemPutInInventory event = (BeforeItemPutInInventory) invocation.getArguments()[0];
-                        event.consume();
-                        return null;
-                    }
+                invocation -> {
+                    BeforeItemPutInInventory event = (BeforeItemPutInInventory) invocation.getArguments()[0];
+                    event.consume();
+                    return null;
                 }
         );
 
@@ -418,6 +409,238 @@ public class InventoryAuthoritySystemTest {
         itemComp.stackId = "stackId";
         Mockito.when(item.exists()).thenReturn(true);
         Mockito.when(item.getComponent(ItemComponent.class)).thenReturn(itemComp);
-        Mockito.when(item.iterateComponents()).thenReturn(new LinkedList<Component>());
+        Mockito.when(item.iterateComponents()).thenReturn(new LinkedList<>());
     }
+
+
+    private EntityRef createItem(String stackId, int stackCount, int stackSize) {
+        ItemComponent itemComp = new ItemComponent();
+        itemComp.stackCount = (byte) stackCount;
+        itemComp.maxStackSize = (byte) stackSize;
+        itemComp.stackId = stackId;
+        EntityRef item = Mockito.mock(EntityRef.class);
+        Mockito.when(item.exists()).thenReturn(true);
+        Mockito.when(item.getComponent(ItemComponent.class)).thenReturn(itemComp);
+        Mockito.when(item.iterateComponents()).thenReturn(new LinkedList<>());
+        return item;
+    }
+
+    @Test
+    public void testMoveItemToSlotsWithSplittingToMultipleStacks() {
+        int stackSize = 10;
+        EntityRef toInventory = inventory;
+        InventoryComponent toInventoryComp = toInventory.getComponent(InventoryComponent.class);
+        EntityRef itemA1 = createItem("A", 8, stackSize);
+        EntityRef itemB1 = createItem("B", 8, stackSize);
+        EntityRef itemA2 = createItem("A", 7, stackSize);
+        toInventoryComp.itemSlots.set(0, itemA1);
+        toInventoryComp.itemSlots.set(2, itemB1);
+        toInventoryComp.itemSlots.set(3, itemA2);
+
+        EntityRef fromInventory = Mockito.mock(EntityRef.class);
+        InventoryComponent fromInventoryComp = new InventoryComponent(5);
+        Mockito.when(fromInventory.getComponent(InventoryComponent.class)).thenReturn(fromInventoryComp);
+        EntityRef itemA3 = createItem("A", 4, stackSize);
+        int fromSlot = 1;
+        fromInventoryComp.itemSlots.set(fromSlot, itemA3);
+
+        List<Integer> toSlots = Arrays.asList(0, 1, 2, 3, 4);
+
+        // The method that gets tested:
+        inventoryAuthoritySystem.moveItemToSlots(instigator, fromInventory, fromSlot, toInventory, toSlots);
+
+        assertEquals(10, itemA1.getComponent(ItemComponent.class).stackCount);
+        assertEquals(9, itemA2.getComponent(ItemComponent.class).stackCount);
+        assertFalse(fromInventoryComp.itemSlots.get(fromSlot).exists());
+    }
+
+    @Test
+    public void testMoveItemToSlotsWithSplittingToMultipleStacksAndEmptySlot() {
+        int stackSize = 10;
+        EntityRef toInventory = inventory;
+        InventoryComponent toInventoryComp = toInventory.getComponent(InventoryComponent.class);
+        EntityRef itemA1 = createItem("A", 8, stackSize);
+        EntityRef itemB1 = createItem("B", 8, stackSize);
+        EntityRef itemA2 = createItem("A", 7, stackSize);
+        toInventoryComp.itemSlots.set(0, itemA1);
+        toInventoryComp.itemSlots.set(2, itemB1);
+        toInventoryComp.itemSlots.set(3, itemA2);
+
+        EntityRef fromInventory = Mockito.mock(EntityRef.class);
+        InventoryComponent fromInventoryComp = new InventoryComponent(5);
+        Mockito.when(fromInventory.getComponent(InventoryComponent.class)).thenReturn(fromInventoryComp);
+        EntityRef itemA3 = createItem("A", 8, stackSize);
+        int fromSlot = 1;
+        fromInventoryComp.itemSlots.set(fromSlot, itemA3);
+
+        List<Integer> toSlots = Arrays.asList(0, 1, 2, 3, 4);
+
+        // The method that gets tested:
+        inventoryAuthoritySystem.moveItemToSlots(instigator, fromInventory, fromSlot, toInventory, toSlots);
+
+        assertEquals(10, itemA1.getComponent(ItemComponent.class).stackCount);
+        assertEquals(10, itemA2.getComponent(ItemComponent.class).stackCount);
+        assertEquals(3, itemA3.getComponent(ItemComponent.class).stackCount);
+        assertEquals(itemA3, toInventoryComp.itemSlots.get(1));
+        assertFalse(fromInventoryComp.itemSlots.get(fromSlot).exists());
+    }
+
+
+    @Test
+    public void testMoveItemToSlotsWithToLessSpaceInTargetSlots() {
+        int stackSize = 10;
+        EntityRef toInventory = inventory;
+        InventoryComponent toInventoryComp = toInventory.getComponent(InventoryComponent.class);
+        EntityRef itemA1 = createItem("A", 8, stackSize);
+        EntityRef itemB1 = createItem("B", 8, stackSize);
+        EntityRef itemA2 = createItem("A", 7, stackSize);
+        toInventoryComp.itemSlots.set(0, itemA1);
+        toInventoryComp.itemSlots.set(2, itemB1);
+        toInventoryComp.itemSlots.set(3, itemA2);
+
+        EntityRef fromInventory = Mockito.mock(EntityRef.class);
+        InventoryComponent fromInventoryComp = new InventoryComponent(5);
+        Mockito.when(fromInventory.getComponent(InventoryComponent.class)).thenReturn(fromInventoryComp);
+        EntityRef itemA3 = createItem("A", 4, stackSize);
+        int fromSlot = 1;
+        fromInventoryComp.itemSlots.set(fromSlot, itemA3);
+
+        List<Integer> toSlots = Arrays.asList(0, 2);
+
+        // The method that gets tested:
+        boolean result = inventoryAuthoritySystem.moveItemToSlots(instigator, fromInventory, fromSlot, toInventory, toSlots);
+        assertTrue(result);
+
+        assertEquals(10, itemA1.getComponent(ItemComponent.class).stackCount);
+        assertEquals(7, itemA2.getComponent(ItemComponent.class).stackCount);
+        assertEquals(2, itemA3.getComponent(ItemComponent.class).stackCount);
+        assertEquals(itemA3, fromInventoryComp.itemSlots.get(fromSlot));
+    }
+
+
+    @Test
+    public void testMoveItemToSlotsWithTargetVetos() {
+        int stackSize = 10;
+        EntityRef toInventory = inventory;
+        InventoryComponent toInventoryComp = toInventory.getComponent(InventoryComponent.class);
+        EntityRef itemA1 = createItem("A", 8, stackSize);
+        toInventoryComp.itemSlots.set(0, itemA1);
+
+        EntityRef fromInventory = Mockito.mock(EntityRef.class);
+        InventoryComponent fromInventoryComp = new InventoryComponent(5);
+        Mockito.when(fromInventory.getComponent(InventoryComponent.class)).thenReturn(fromInventoryComp);
+        EntityRef itemA2 = createItem("A", 5, stackSize);
+        int fromSlot = 1;
+        fromInventoryComp.itemSlots.set(fromSlot, itemA2);
+
+        // Placement to slots 1 gets blocked by veto
+        Mockito.when(inventory.send(Matchers.any(BeforeItemPutInInventory.class))).then(
+                invocation -> {
+                    Object arg = invocation.getArguments()[0];
+                    if (arg instanceof BeforeItemPutInInventory) {
+                        BeforeItemPutInInventory event = (BeforeItemPutInInventory) arg;
+                        if (event.getSlot() == 1) {
+                            event.consume();
+                        }
+                    }
+                    return null;
+                }
+        );
+
+        List<Integer> toSlots = Arrays.asList(0, 1, 2, 3, 4);
+
+
+        // The method that gets tested:
+        boolean result = inventoryAuthoritySystem.moveItemToSlots(instigator, fromInventory, fromSlot, toInventory, toSlots);
+        assertTrue(result);
+
+        /*
+         * The free slot 1 can't be used since it's blocked:
+         * => A1 gets still filled up and the rest of the items gets placed at slot 2
+         */
+        assertEquals(10, itemA1.getComponent(ItemComponent.class).stackCount);
+        assertEquals(3, itemA2.getComponent(ItemComponent.class).stackCount);
+        assertEquals(EntityRef.NULL, toInventoryComp.itemSlots.get(1));
+        assertEquals(itemA2, toInventoryComp.itemSlots.get(2));
+        assertFalse(fromInventoryComp.itemSlots.get(fromSlot).exists());
+    }
+
+
+    /**
+     * A shift click isn't possible because the removal of the item gets blocked
+     */
+    @Test
+    public void testMoveItemToSlotsWithRemovalVeto() {
+        int stackSize = 10;
+        EntityRef toInventory = inventory;
+        InventoryComponent toInventoryComp = toInventory.getComponent(InventoryComponent.class);
+        EntityRef itemA1 = createItem("A", 8, stackSize);
+        toInventoryComp.itemSlots.set(0, itemA1);
+
+        EntityRef fromInventory = Mockito.mock(EntityRef.class);
+        InventoryComponent fromInventoryComp = new InventoryComponent(5);
+        Mockito.when(fromInventory.getComponent(InventoryComponent.class)).thenReturn(fromInventoryComp);
+        EntityRef itemA2 = createItem("A", 5, stackSize);
+        int fromSlot = 1;
+        fromInventoryComp.itemSlots.set(fromSlot, itemA2);
+
+        // Placement to slots 1 gets blocked by veto
+        Mockito.when(fromInventory.send(Matchers.any(BeforeItemRemovedFromInventory.class))).then(
+                invocation -> {
+                    Object arg = invocation.getArguments()[0];
+                    if (arg instanceof BeforeItemRemovedFromInventory) {
+                        BeforeItemRemovedFromInventory event = (BeforeItemRemovedFromInventory) arg;
+                        if (event.getSlot() == 1) {
+                            event.consume();
+                        }
+                    }
+                    return null;
+                }
+        );
+
+        List<Integer> toSlots = Arrays.asList(0, 1, 2, 3, 4);
+
+
+        // The method that gets tested:
+        boolean result = inventoryAuthoritySystem.moveItemToSlots(instigator, fromInventory, fromSlot, toInventory, toSlots);
+        assertFalse(result);
+
+        assertEquals(8, itemA1.getComponent(ItemComponent.class).stackCount);
+        assertEquals(5, itemA2.getComponent(ItemComponent.class).stackCount);
+        assertEquals(EntityRef.NULL, toInventoryComp.itemSlots.get(1));
+        assertEquals(itemA2, fromInventoryComp.itemSlots.get(fromSlot));
+    }
+
+
+    @Test
+    public void testMoveItemToSlotsWithFullTargetInventorySlots() {
+        int stackSize = 10;
+        EntityRef toInventory = inventory;
+        InventoryComponent toInventoryComp = toInventory.getComponent(InventoryComponent.class);
+        EntityRef itemA1 = createItem("A", 10, stackSize);
+        EntityRef itemB1 = createItem("B", 8, stackSize);
+        EntityRef itemA2 = createItem("A", 10, stackSize);
+        toInventoryComp.itemSlots.set(0, itemA1);
+        toInventoryComp.itemSlots.set(1, itemB1);
+        toInventoryComp.itemSlots.set(2, itemA2);
+
+        EntityRef fromInventory = Mockito.mock(EntityRef.class);
+        InventoryComponent fromInventoryComp = new InventoryComponent(5);
+        Mockito.when(fromInventory.getComponent(InventoryComponent.class)).thenReturn(fromInventoryComp);
+        EntityRef itemA3 = createItem("A", 4, stackSize);
+        int fromSlot = 1;
+        fromInventoryComp.itemSlots.set(fromSlot, itemA3);
+
+        List<Integer> toSlots = Arrays.asList(0, 1, 2);
+
+        // The method that gets tested:
+        boolean result = inventoryAuthoritySystem.moveItemToSlots(instigator, fromInventory, fromSlot, toInventory, toSlots);
+        assertFalse(result);
+
+        assertEquals(10, itemA1.getComponent(ItemComponent.class).stackCount);
+        assertEquals(10, itemA2.getComponent(ItemComponent.class).stackCount);
+        assertEquals(4, itemA3.getComponent(ItemComponent.class).stackCount);
+        assertEquals(itemA3, fromInventoryComp.itemSlots.get(fromSlot));
+    }
+
 }

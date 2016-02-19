@@ -20,12 +20,15 @@ import org.terasology.network.OwnerEvent;
 /**
  * Use to send error messages to a client
  *
- * @author Martin Steiger
  */
 @OwnerEvent
 public class ErrorMessageEvent implements MessageEvent {
 
-    private final String message;
+    private String message = "";
+
+    // Default constructor for serialization
+    ErrorMessageEvent() {
+    }
 
     public ErrorMessageEvent(String message) {
         this.message = message;

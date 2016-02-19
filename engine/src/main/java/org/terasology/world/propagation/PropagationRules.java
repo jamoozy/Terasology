@@ -16,14 +16,13 @@
 package org.terasology.world.propagation;
 
 import org.terasology.math.Side;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.block.Block;
-import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.chunks.LitChunk;
 
 /**
  * Rules to drive value propagation.
  *
- * @author Immortius
  */
 public interface PropagationRules {
 
@@ -31,7 +30,7 @@ public interface PropagationRules {
      * @param block
      * @return The value of provided by the given block
      */
-    byte getBlockValue(Block block);
+    byte getFixedValue(Block block, Vector3i pos);
 
     /**
      * @param newBlock
@@ -44,7 +43,7 @@ public interface PropagationRules {
     /**
      * @param existingValue
      * @param side
-     * @param from the block the value is leaving
+     * @param from          the block the value is leaving
      * @return The value propagate in the given direction from an existing value
      */
     byte propagateValue(byte existingValue, Side side, Block from);
@@ -55,7 +54,6 @@ public interface PropagationRules {
     byte getMaxValue();
 
     /**
-     *
      * @param block
      * @param side
      * @return Whether the given block can propagated out through side
@@ -74,13 +72,16 @@ public interface PropagationRules {
      * @param pos
      * @return The value of the given position of a chunk
      */
-    byte getValue(ChunkImpl chunk, Vector3i pos);
+    byte getValue(LitChunk chunk, Vector3i pos);
+
+    byte getValue(LitChunk chunk, int x, int y, int z);
 
     /**
      * Sets the value for a given chunk position
+     *
      * @param chunk
      * @param pos
      * @param value
      */
-    void setValue(ChunkImpl chunk, Vector3i pos, byte value);
+    void setValue(LitChunk chunk, Vector3i pos, byte value);
 }

@@ -15,7 +15,7 @@
  */
 package org.terasology.logic.behavior;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.junit.Test;
 import org.terasology.logic.behavior.tree.Interpreter;
 import org.terasology.logic.behavior.tree.Node;
@@ -30,7 +30,6 @@ import static org.mockito.Mockito.verify;
 
 
 /**
- * @author synopia
  */
 public class InterpreterTest {
     private Status result = Status.RUNNING;

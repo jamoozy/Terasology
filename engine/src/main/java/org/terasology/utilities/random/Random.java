@@ -18,14 +18,13 @@ package org.terasology.utilities.random;
 
 import org.terasology.module.sandbox.API;
 import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
 
-import javax.vecmath.Vector3f;
 import java.util.List;
 
 /**
  * Interface for random number generators.
  *
- * @author Marcos Vives Del Sol <socram8888@gmail.com>
  */
 @API
 public abstract class Random {
@@ -240,4 +239,17 @@ public abstract class Random {
         return u1 * p; // or u2 * p
     }
 
+    /**
+     * Calculates a normal distributed value (using the polar method).
+     *
+     * <code>nextGuassian(1,1)</code> is equivalent to {@link #nextGaussian()}.
+     *
+     * @param mean the mean value of the distribution
+     * @param stdDev the standard deviation of the distribution
+     *
+     * @return The value
+     */
+    public double nextGaussian(double mean, double stdDev) {
+        return mean + stdDev * nextGaussian();
+    }
 }

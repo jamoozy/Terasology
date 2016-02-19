@@ -15,47 +15,25 @@
  */
 package org.terasology.engine.subsystem.headless;
 
-import org.terasology.config.Config;
-import org.terasology.engine.ComponentSystemManager;
-import org.terasology.engine.modes.GameState;
+import org.terasology.context.Context;
 import org.terasology.engine.subsystem.EngineSubsystem;
 import org.terasology.input.InputSystem;
-import org.terasology.registry.CoreRegistry;
 
 public class HeadlessInput implements EngineSubsystem {
 
     @Override
-    public void preInitialise() {
+    public String getName() {
+        return "Input";
     }
 
     @Override
-    public void postInitialise(Config config) {
-        initControls();
+    public void postInitialise(Context context) {
+        initControls(context);
     }
 
-    @Override
-    public void preUpdate(GameState currentState, float delta) {
-    }
-
-    @Override
-    public void postUpdate(GameState currentState, float delta) {
-    }
-
-    @Override
-    public void shutdown(Config config) {
-    }
-
-    @Override
-    public void dispose() {
-    }
-
-    private void initControls() {
+    private void initControls(Context context) {
         InputSystem inputSystem = new InputSystem();
-        CoreRegistry.putPermanently(InputSystem.class, inputSystem);
-    }
-
-    @Override
-    public void registerSystems(ComponentSystemManager componentSystemManager) {
+        context.put(InputSystem.class, inputSystem);
     }
 
 }

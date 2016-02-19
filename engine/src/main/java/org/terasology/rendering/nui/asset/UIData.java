@@ -15,14 +15,13 @@
  */
 package org.terasology.rendering.nui.asset;
 
-import org.terasology.asset.AssetData;
+import org.terasology.assets.AssetData;
 import org.terasology.module.sandbox.API;
 import org.terasology.rendering.nui.UIWidget;
 
 /**
  * UIData contains a UI widget that has been loaded from a UI asset, ready to be added to the
  *
- * @author Immortius
  */
 @API
 public class UIData implements AssetData {

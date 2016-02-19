@@ -16,13 +16,12 @@
 package org.terasology.world.block.internal;
 
 import gnu.trove.list.TIntList;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.BlockEntityRegistry;
 
 import java.util.Iterator;
 
 /**
- * @author Immortius
  */
 public class BlockPositionIterator implements Iterator<Vector3i> {
     private BlockEntityRegistry registry;

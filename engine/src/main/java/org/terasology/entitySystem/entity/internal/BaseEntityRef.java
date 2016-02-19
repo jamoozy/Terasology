@@ -15,19 +15,20 @@
  */
 package org.terasology.entitySystem.entity.internal;
 
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.LowLevelEntityManager;
 import org.terasology.entitySystem.event.Event;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.network.NetworkComponent;
+import org.terasology.persistence.serializers.EntityDataJSONFormat;
+import org.terasology.persistence.serializers.EntitySerializer;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Collections;
 
 /**
- * @author Immortius
  */
 public abstract class BaseEntityRef extends EntityRef {
 
@@ -40,17 +41,6 @@ public abstract class BaseEntityRef extends EntityRef {
     @Override
     public boolean isPersistent() {
         return exists() && (!isActive() || getEntityInfo().persisted);
-    }
-
-    @Override
-    public void setPersistent(boolean persistent) {
-        if (exists()) {
-            EntityInfoComponent info = getEntityInfo();
-            if (info.persisted != persistent) {
-                info.persisted = persistent;
-                saveComponent(info);
-            }
-        }
     }
 
     @Override
@@ -93,18 +83,7 @@ public abstract class BaseEntityRef extends EntityRef {
         if (exists()) {
             EntityInfoComponent info = getComponent(EntityInfoComponent.class);
             if (info != null) {
-                return entityManager.getPrefabManager().getPrefab(info.parentPrefab);
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public AssetUri getPrefabURI() {
-        if (exists()) {
-            EntityInfoComponent info = getComponent(EntityInfoComponent.class);
-            if (info != null && !info.parentPrefab.isEmpty()) {
-                return new AssetUri(AssetType.PREFAB, info.parentPrefab);
+                return info.parentPrefab;
             }
         }
         return null;
@@ -175,7 +154,7 @@ public abstract class BaseEntityRef extends EntityRef {
 
     @Override
     public String toString() {
-        AssetUri prefabUri = getPrefabURI();
+        Prefab parent = getParentPrefab();
         StringBuilder builder = new StringBuilder();
         builder.append("EntityRef{id = ");
         builder.append(getId());
@@ -184,9 +163,9 @@ public abstract class BaseEntityRef extends EntityRef {
             builder.append(", netId = ");
             builder.append(networkComponent.getNetworkId());
         }
-        if (prefabUri != null) {
+        if (parent != null) {
             builder.append(", prefab = '");
-            builder.append(prefabUri.toSimpleString());
+            builder.append(parent.getUrn());
             builder.append("'");
         }
         builder.append("}");
@@ -203,5 +182,13 @@ public abstract class BaseEntityRef extends EntityRef {
             entityInfo = addComponent(new EntityInfoComponent());
         }
         return entityInfo;
+    }
+
+    @Override
+    public String toFullDescription() {
+        EntitySerializer serializer = new EntitySerializer((EngineEntityManager) entityManager);
+        serializer.setUsingFieldIds(false);
+        return AccessController.doPrivileged((PrivilegedAction<String>) () ->
+               EntityDataJSONFormat.write(serializer.serialize(this)));
     }
 }

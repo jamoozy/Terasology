@@ -15,31 +15,34 @@
  */
 package org.terasology.engine.subsystem.headless;
 
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetType;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
 import org.terasology.audio.AudioManager;
+import org.terasology.audio.StaticSound;
+import org.terasology.audio.StreamingSound;
 import org.terasology.audio.nullAudio.NullAudioManager;
-import org.terasology.config.Config;
-import org.terasology.engine.ComponentSystemManager;
+import org.terasology.context.Context;
+import org.terasology.engine.GameEngine;
 import org.terasology.engine.modes.GameState;
 import org.terasology.engine.subsystem.EngineSubsystem;
-import org.terasology.registry.CoreRegistry;
 
 public class HeadlessAudio implements EngineSubsystem {
 
     private AudioManager audioManager;
 
     @Override
-    public void preInitialise() {
+    public String getName() {
+        return "Audio";
     }
 
     @Override
-    public void postInitialise(Config config) {
-        initNoSound();
+    public void initialise(GameEngine engine, Context context) {
+        initNoSound(context);
     }
 
     @Override
-    public void preUpdate(GameState currentState, float delta) {
+    public void registerCoreAssetTypes(ModuleAwareAssetTypeManager assetTypeManager) {
+        assetTypeManager.registerCoreAssetType(StaticSound.class, audioManager.getStaticSoundFactory(), "sounds");
+        assetTypeManager.registerCoreAssetType(StreamingSound.class, audioManager.getStreamingSoundFactory(), "music");
     }
 
     @Override
@@ -48,24 +51,13 @@ public class HeadlessAudio implements EngineSubsystem {
     }
 
     @Override
-    public void shutdown(Config config) {
-    }
-
-    @Override
-    public void dispose() {
+    public void shutdown() {
         audioManager.dispose();
     }
 
-    private void initNoSound() {
+    private void initNoSound(Context context) {
         audioManager = new NullAudioManager();
-        CoreRegistry.putPermanently(AudioManager.class, audioManager);
-        AssetManager assetManager = CoreRegistry.get(AssetManager.class);
-        assetManager.setAssetFactory(AssetType.SOUND, audioManager.getStaticSoundFactory());
-        assetManager.setAssetFactory(AssetType.MUSIC, audioManager.getStreamingSoundFactory());
-    }
-
-    @Override
-    public void registerSystems(ComponentSystemManager componentSystemManager) {
+        context.put(AudioManager.class, audioManager);
     }
 
 }

@@ -18,7 +18,7 @@ package org.terasology.network.internal;
 
 import com.google.protobuf.ByteString;
 import org.terasology.identity.PublicIdentityCertificate;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.protobuf.NetData;
 
 import java.math.BigInteger;
@@ -26,7 +26,6 @@ import java.math.BigInteger;
 /**
  * Utility class for converting types between network representation and usable objects
  *
- * @author Immortius
  */
 public final class NetMessageUtil {
     private NetMessageUtil() {
@@ -45,7 +44,7 @@ public final class NetMessageUtil {
                 .setId(data.getId())
                 .setModulus(ByteString.copyFrom(data.getModulus().toByteArray()))
                 .setExponent(ByteString.copyFrom(data.getExponent().toByteArray()))
-                .setSignature(ByteString.copyFrom(data.getSignature().toByteArray())).build();
+                .setSignature(ByteString.copyFrom(data.getSignatureBytes())).build();
     }
 
     public static PublicIdentityCertificate convert(NetData.Certificate data) {

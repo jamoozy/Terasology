@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author Immortius
  */
 public final class OwnershipHelper {
     private ComponentLibrary componentLibrary;
@@ -64,29 +63,27 @@ public final class OwnershipHelper {
 
     @SuppressWarnings("unchecked")
     private void addOwnedEntitiesFor(Component comp, ComponentMetadata<?> componentMetadata, Collection<EntityRef> outEntityList) {
-        for (ComponentFieldMetadata field : componentMetadata.getFields()) {
-            if (field.isOwnedReference()) {
-                Object value = field.getValue(comp);
-                if (value instanceof Collection) {
-                    for (EntityRef ref : ((Collection<EntityRef>) value)) {
-                        if (ref.exists()) {
-                            outEntityList.add(ref);
-                        }
-                    }
-                } else if (value instanceof Map) {
-                    for (EntityRef ref : ((Map<Object, EntityRef>) value).values()) {
-                        if (ref.exists()) {
-                            outEntityList.add(ref);
-                        }
-                    }
-                } else if (value instanceof EntityRef) {
-                    EntityRef ref = (EntityRef) value;
+        componentMetadata.getFields().stream().filter(ComponentFieldMetadata::isOwnedReference).forEach(field -> {
+            Object value = field.getValue(comp);
+            if (value instanceof Collection) {
+                for (EntityRef ref : ((Collection<EntityRef>) value)) {
                     if (ref.exists()) {
                         outEntityList.add(ref);
                     }
                 }
+            } else if (value instanceof Map) {
+                for (EntityRef ref : ((Map<Object, EntityRef>) value).values()) {
+                    if (ref.exists()) {
+                        outEntityList.add(ref);
+                    }
+                }
+            } else if (value instanceof EntityRef) {
+                EntityRef ref = (EntityRef) value;
+                if (ref.exists()) {
+                    outEntityList.add(ref);
+                }
             }
-        }
+        });
     }
 
 }

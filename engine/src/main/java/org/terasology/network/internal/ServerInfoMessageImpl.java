@@ -35,7 +35,6 @@ import com.google.common.collect.Maps;
 /**
  * Default implementation of {@link ServerInfoMessage}.
  * Wraps the Protocol Buffer implementation
- * @author Martin Steiger
  */
 class ServerInfoMessageImpl implements ServerInfoMessage {
 
@@ -78,6 +77,11 @@ class ServerInfoMessageImpl implements ServerInfoMessage {
     }
 
     @Override
+    public float getReflectionHeight() {
+        return info.getReflectionHeight();
+    }
+
+    @Override
     public List<NameVersion> getModuleList() {
         List<NameVersion> result = Lists.newArrayList();
 
@@ -104,4 +108,20 @@ class ServerInfoMessageImpl implements ServerInfoMessage {
 
         return result;
     }
+
+    @Override
+    public Map<Short, String> getBiomeIds() {
+        Map<Short, String> result = Maps.newHashMap();
+
+        for (int i = 0; i < info.getBiomeIdCount(); ++i) {
+            int biomeShortId = info.getBiomeShortId(i);
+            if (biomeShortId > Short.MAX_VALUE) {
+                throw new IllegalStateException("Received an invalid biome id from the server: " + biomeShortId);
+            }
+            result.put((short) biomeShortId, info.getBiomeId(i));
+        }
+
+        return result;
+    }
+
 }

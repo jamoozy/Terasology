@@ -20,27 +20,30 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
-import org.terasology.asset.AssetLoader;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
 import org.terasology.math.AABB;
-import org.terasology.module.Module;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.rendering.assets.animation.MeshAnimationData;
 import org.terasology.rendering.assets.animation.MeshAnimationFrame;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
- * @author Immortius
  */
-public class MD5AnimationLoader implements AssetLoader<MeshAnimationData> {
+@RegisterAssetFileFormat
+public class MD5AnimationLoader extends AbstractAssetFileFormat<MeshAnimationData> {
 
     private static final String INTEGER_PATTERN = "((?:[\\+-]?\\d+)(?:[eE][\\+-]?\\d+)?)";
     private static final String FLOAT_PATTERN = "((?:[\\+-]?\\d(?:\\.\\d*)?|\\.\\d+)(?:[eE][\\+-]?(?:\\d(?:\\.\\d*)?|\\.\\d+))?)";
@@ -58,13 +61,17 @@ public class MD5AnimationLoader implements AssetLoader<MeshAnimationData> {
     private Pattern doubleVectorPattern = Pattern.compile(VECTOR3_PATTERN + "\\s*" + VECTOR3_PATTERN);
     private Pattern frameStartPattern = Pattern.compile("frame " + INTEGER_PATTERN + " \\{");
 
+    public MD5AnimationLoader() {
+        super("md5anim");
+    }
+
     @Override
-    public MeshAnimationData load(Module module, InputStream stream, List<URL> urls, List<URL> deltas) throws IOException {
-        try {
+    public MeshAnimationData load(ResourceUrn urn, List<AssetDataFile> inputs) throws IOException {
+        try (InputStream stream = inputs.get(0).openStream()) {
             MD5 md5 = parse(stream);
             return createAnimation(md5);
         } catch (NumberFormatException e) {
-            throw new IOException("Error parsing " + module.toString(), e);
+            throw new IOException("Error parsing " + inputs.get(0).getFilename(), e);
         }
     }
 
@@ -114,10 +121,8 @@ public class MD5AnimationLoader implements AssetLoader<MeshAnimationData> {
                 }
             }
 
-            List<Quat4f> rotations = Lists.newArrayListWithCapacity(rawRotations.size());
-            for (Vector3f rot : rawRotations) {
-                rotations.add(MD5ParserCommon.completeQuat4f(rot.x, rot.y, rot.z));
-            }
+            List<Quat4f> rotations = rawRotations.stream().map(rot ->
+                    MD5ParserCommon.completeQuat4f(rot.x, rot.y, rot.z)).collect(Collectors.toCollection(ArrayList::new));
 
             // Rotate just the root bone to correct for coordinate system differences
             rotations.set(0, MD5ParserCommon.correctQuat4f(rotations.get(0)));

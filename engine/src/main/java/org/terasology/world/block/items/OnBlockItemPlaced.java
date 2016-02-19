@@ -17,10 +17,9 @@ package org.terasology.world.block.items;
 
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.Event;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 
 /**
- * @author Immortius
  */
 public class OnBlockItemPlaced implements Event {
     private Vector3i position;

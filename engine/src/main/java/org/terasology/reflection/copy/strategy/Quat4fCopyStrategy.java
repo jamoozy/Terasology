@@ -15,13 +15,11 @@
  */
 package org.terasology.reflection.copy.strategy;
 
+import org.terasology.math.geom.Quat4f;
 import org.terasology.reflection.copy.CopyStrategy;
 import org.terasology.reflection.copy.RegisterCopyStrategy;
 
-import javax.vecmath.Quat4f;
-
 /**
- * @author Immortius
  */
 @RegisterCopyStrategy
 public class Quat4fCopyStrategy implements CopyStrategy<Quat4f> {

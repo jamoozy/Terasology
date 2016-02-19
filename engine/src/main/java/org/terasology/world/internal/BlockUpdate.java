@@ -16,13 +16,12 @@
 
 package org.terasology.world.internal;
 
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.block.Block;
 
 /**
  * A single requested block change.
  *
- * @author Immortius
  */
 public class BlockUpdate {
 

@@ -15,10 +15,17 @@
  */
 package org.terasology.input.device;
 
+import java.util.Queue;
+
+import org.terasology.module.sandbox.API;
+
 /**
- * @author Immortius
  */
+@API
 public interface KeyboardDevice extends InputDevice {
+
+    @Override
+    Queue<KeyboardAction> getInputQueue();
 
     /**
      * @param key

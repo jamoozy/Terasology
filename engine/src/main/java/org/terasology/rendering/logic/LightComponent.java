@@ -17,13 +17,11 @@ package org.terasology.rendering.logic;
 
 import org.terasology.reflection.metadata.FieldMetadata;
 import org.terasology.entitySystem.Component;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.network.Replicate;
 import org.terasology.network.ReplicationCheck;
 
-import javax.vecmath.Vector3f;
-
 /**
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 // TODO: Split into multiple components? Point, Directional?
 public final class LightComponent implements Component, ReplicationCheck {
@@ -63,7 +61,7 @@ public final class LightComponent implements Component, ReplicationCheck {
 
 
     @Override
-    public boolean shouldReplicate(FieldMetadata field, boolean initial, boolean toOwner) {
+    public boolean shouldReplicate(FieldMetadata<?, ?> field, boolean initial, boolean toOwner) {
         switch (field.getName()) {
             case "lightDiffuseIntensity":
             case "lightAmbientIntensity":

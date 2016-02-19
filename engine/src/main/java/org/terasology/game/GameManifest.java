@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 public class GameManifest {
     public static final String DEFAULT_FILE_NAME = "manifest.json";
@@ -49,6 +48,7 @@ public class GameManifest {
     private long time;
     private List<String> registeredBlockFamilies = Lists.newArrayList();
     private Map<String, Short> blockIdMap = Maps.newHashMap();
+    private Map<String, Short> biomeIdMap = Maps.newHashMap();
     private Map<String, WorldInfo> worlds = Maps.newHashMap();
     private List<NameVersion> modules = Lists.newArrayList();
 
@@ -115,6 +115,14 @@ public class GameManifest {
 
     public Iterable<WorldInfo> getWorlds() {
         return this.worlds.values();
+    }
+
+    public Map<String, Short> getBiomeIdMap() {
+        return biomeIdMap;
+    }
+
+    public void setBiomeIdMap(Map<String, Short> biomeIdMap) {
+        this.biomeIdMap = biomeIdMap;
     }
 
     public static void save(Path toFile, GameManifest gameManifest) throws IOException {

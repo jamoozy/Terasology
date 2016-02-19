@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public abstract class StringRepresentationTypeHandler<T> implements TypeHandler<T> {
 
@@ -31,12 +30,20 @@ public abstract class StringRepresentationTypeHandler<T> implements TypeHandler<
 
     @Override
     public PersistedData serialize(T value, SerializationContext context) {
-        return context.create(getAsString(value));
+        String stringValue = getAsString(value);
+        if (stringValue == null) {
+            return context.createNull();
+        } else {
+            return context.create(stringValue);
+        }
     }
 
     @Override
     public T deserialize(PersistedData data, DeserializationContext context) {
-        return getFromString(data.getAsString());
+        if (data.isString()) {
+            return getFromString(data.getAsString());
+        }
+        return null;
     }
 
     @Override

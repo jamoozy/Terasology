@@ -15,15 +15,16 @@
  */
 package org.terasology.input.device;
 
+import org.terasology.module.sandbox.API;
+
 import java.util.Queue;
 
-/**
- * @author Immortius
- */
+@API
+@FunctionalInterface
 public interface InputDevice {
 
     /**
      * @return A queue of all input actions that have occurred over the last update for this device
      */
-    Queue<InputAction> getInputQueue();
+    Queue<?> getInputQueue();
 }

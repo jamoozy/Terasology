@@ -16,7 +16,12 @@
 package org.terasology.entitySystem;
 
 /**
- * @author Immortius <immortius@gmail.com>
+ * A Component is (a collection of) <b>data</b> that
+ * <ul>
+ *     <li> can be attached to/carried by an entity, and</li>
+ *     <li> can be inspected and/or edited by one or more {@link org.terasology.entitySystem.systems.ComponentSystem}s.</li>
+ * </ul>
+ *
  */
 public interface Component {
 

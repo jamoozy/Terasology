@@ -18,9 +18,7 @@ package org.terasology.world.block.internal;
 
 import org.terasology.world.block.family.BlockFamily;
 
-/**
- * @author Immortius
- */
+@FunctionalInterface
 public interface BlockRegistrationListener {
 
     void onBlockFamilyRegistered(BlockFamily family);

@@ -15,7 +15,8 @@
  */
 package org.terasology.logic.characters;
 
-import org.terasology.audio.AudioManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.terasology.audio.StaticSound;
 import org.terasology.audio.events.PlaySoundEvent;
 import org.terasology.engine.Time;
@@ -34,32 +35,56 @@ import org.terasology.logic.health.DamageSoundComponent;
 import org.terasology.logic.health.DestroyEvent;
 import org.terasology.logic.health.HealthComponent;
 import org.terasology.logic.health.OnDamagedEvent;
+import org.terasology.logic.location.LocationComponent;
 import org.terasology.logic.players.event.OnPlayerSpawnedEvent;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.registry.In;
 import org.terasology.utilities.random.FastRandom;
 import org.terasology.utilities.random.Random;
+import org.terasology.world.WorldProvider;
+import org.terasology.world.block.Block;
 
-import javax.vecmath.Vector3f;
+import java.util.List;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 @RegisterSystem(RegisterMode.ALWAYS)
 public class CharacterSoundSystem extends BaseComponentSystem {
 
+    private static final Logger logger = LoggerFactory.getLogger(CharacterSoundSystem.class);
+
     private static final long MIN_TIME = 10;
+    private static final float LANDING_VOLUME_MODIFIER = 0.2f; //The sound volume is multiplied by this number
+    private static final float LANDING_VELOCITY_THRESHOLD = 7; //How fast do you have to be falling for the sound to play
+    private static final float LANDING_VOLUME_MAX = 2; //The maximum modifier value
     private Random random = new FastRandom();
 
     @In
     private Time time;
 
     @In
-    private AudioManager audioManager;
+    private WorldProvider worldProvider;
 
     @ReceiveEvent
-    public void onFootstep(FootstepEvent event, EntityRef entity, CharacterSoundComponent characterSounds) {
-        if (characterSounds.footstepSounds.size() > 0 && characterSounds.lastSoundTime + MIN_TIME < time.getGameTimeInMs()) {
-            StaticSound sound = random.nextItem(characterSounds.footstepSounds);
+    public void onFootstep(FootstepEvent event, EntityRef entity, LocationComponent locationComponent, CharacterSoundComponent characterSounds) {
+
+        List<StaticSound> footstepSounds = characterSounds.footstepSounds;
+
+        // Check if the block the character is standing on has footstep sounds
+        Vector3i blockPos = new Vector3i(locationComponent.getLocalPosition());
+        blockPos.y--; // The block *below* the character's feet is interesting to us
+        Block block = worldProvider.getBlock(blockPos);
+        if (block != null) {
+            if (block.getSounds() == null) {
+                logger.error("Block '{}' has no sounds", block.getURI());
+            } else if (!block.getSounds().getStepSounds().isEmpty()) {
+                footstepSounds = block.getSounds().getStepSounds();
+            }
+        }
+
+        if (footstepSounds.size() > 0 && characterSounds.lastSoundTime + MIN_TIME < time.getGameTimeInMs()) {
+            StaticSound sound = random.nextItem(footstepSounds);
             entity.send(new PlaySoundEvent(entity, sound, characterSounds.footstepVolume));
             characterSounds.lastSoundTime = time.getGameTimeInMs();
             entity.saveComponent(characterSounds);
@@ -85,8 +110,15 @@ public class CharacterSoundSystem extends BaseComponentSystem {
 
     @ReceiveEvent
     public void onLanded(VerticalCollisionEvent event, EntityRef entity, CharacterSoundComponent characterSounds) {
-        if (event.getVelocity().y > 0f) {
+        Vector3f velocity = event.getVelocity();
+        float soundVolumeModifier = (velocity.y * -1 - LANDING_VELOCITY_THRESHOLD) * LANDING_VOLUME_MODIFIER;
+
+        if (soundVolumeModifier <= 0f) {
             return;
+        }
+
+        if (soundVolumeModifier > LANDING_VOLUME_MAX) {
+            soundVolumeModifier = LANDING_VOLUME_MAX;
         }
 
         if (characterSounds.lastSoundTime + MIN_TIME < time.getGameTimeInMs()) {
@@ -97,7 +129,7 @@ public class CharacterSoundSystem extends BaseComponentSystem {
                 sound = random.nextItem(characterSounds.footstepSounds);
             }
             if (sound != null) {
-                entity.send(new PlaySoundEvent(entity, sound, characterSounds.landingVolume));
+                entity.send(new PlaySoundEvent(entity, sound, characterSounds.landingVolume * soundVolumeModifier));
                 characterSounds.lastSoundTime = time.getGameTimeInMs();
                 entity.saveComponent(characterSounds);
             }

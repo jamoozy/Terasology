@@ -18,86 +18,43 @@ package org.terasology.world.block;
 import com.bulletphysics.collision.shapes.CollisionShape;
 import com.bulletphysics.linearmath.Transform;
 import com.google.common.collect.Maps;
-import org.newdawn.slick.util.ResourceLoader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
+
 import org.terasology.asset.Assets;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.math.AABB;
 import org.terasology.math.Side;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector3i;
+import org.terasology.math.VecMath;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.mesh.Mesh;
 import org.terasology.rendering.assets.shader.ShaderProgramFeature;
+import org.terasology.rendering.primitives.BlockMeshGenerator;
+import org.terasology.rendering.primitives.BlockMeshGeneratorSingleShape;
 import org.terasology.rendering.primitives.Tessellator;
 import org.terasology.utilities.collection.EnumBooleanMap;
+import org.terasology.world.biomes.Biome;
 import org.terasology.world.block.family.BlockFamily;
 import org.terasology.world.block.shapes.BlockMeshPart;
+import org.terasology.world.block.sounds.BlockSounds;
 import org.terasology.world.chunks.ChunkConstants;
 
-import javax.imageio.ImageIO;
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
+import java.math.RoundingMode;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Stores all information for a specific block type.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
- * @author Rasmus 'Cervator' Praestholm <cervator@gmail.com>
  */
-// TODO: Make this immutable, add a block builder class?
 public final class Block {
-    private static final Logger logger = LoggerFactory.getLogger(Block.class);
 
     // TODO: Use directional light(s) when rendering instead of this
     private static final Map<BlockPart, Float> DIRECTION_LIT_LEVEL = Maps.newEnumMap(BlockPart.class);
-
-    /**
-     * Different color sources for blocks.
-     */
-    public static enum ColorSource {
-        DEFAULT {
-            @Override
-            public Vector4f calcColor(float temperature, float humidity) {
-                return new Vector4f(1, 1, 1, 1);
-            }
-        },
-        COLOR_LUT {
-            @Override
-            public Vector4f calcColor(float temperature, float humidity) {
-                float prod = temperature * humidity;
-                int rgbValue = colorLut.getRGB((int) ((1.0 - temperature) * 255.0), (int) ((1.0 - prod) * 255.0));
-
-                Color c = new Color(rgbValue);
-                return new Vector4f(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, 1.0f);
-            }
-        },
-        FOLIAGE_LUT {
-            @Override
-            public Vector4f calcColor(float temperature, float humidity) {
-                float prod = humidity * temperature;
-                int rgbValue = foliageLut.getRGB((int) ((1.0 - temperature) * 255.0), (int) ((1.0 - prod) * 255.0));
-
-                Color c = new Color(rgbValue);
-                return new Vector4f(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, 1.0f);
-            }
-        };
-
-        public abstract Vector4f calcColor(float temperature, float humidity);
-    }
-
-    /* LUTs */
-    private static BufferedImage colorLut;
-    private static BufferedImage foliageLut;
 
     /**
      * Init. the LUTs.
@@ -110,19 +67,13 @@ public final class Block {
         DIRECTION_LIT_LEVEL.put(BlockPart.LEFT, 0.75f);
         DIRECTION_LIT_LEVEL.put(BlockPart.RIGHT, 0.75f);
         DIRECTION_LIT_LEVEL.put(BlockPart.CENTER, 0.8f);
-        try {
-            // TODO: Read these from asset manager
-            colorLut = ImageIO.read(ResourceLoader.getResource("assets/textures/grasscolor.png").openStream());
-            foliageLut = ImageIO.read(ResourceLoader.getResource("assets/textures/foliagecolor.png").openStream());
-        } catch (IOException e) {
-            logger.error("Failed to load LUTs", e);
-        }
     }
 
     private short id;
-    private String displayName = "Untitled block";
     private BlockUri uri;
+    private String displayName = "Untitled block";
     private BlockFamily family;
+    // TODO: Remove this and replace with the rotation applied to the block
     private Side direction = Side.FRONT;
 
     /* PROPERTIES */
@@ -131,9 +82,10 @@ public final class Block {
     private boolean liquid;
     private boolean attachmentAllowed = true;
     private boolean replacementAllowed;
-    private byte hardness = 0x3;
+    private int hardness = 3;
     private boolean supportRequired;
     private EnumBooleanMap<Side> fullSide = new EnumBooleanMap<>(Side.class);
+    private BlockSounds sounds;
 
     // Special rendering flags (TODO: clean this up)
     private boolean water;
@@ -142,14 +94,14 @@ public final class Block {
     private boolean ice;
 
     // Rendering related
-    private boolean invisible;
+    private BlockMeshGenerator meshGenerator = new BlockMeshGeneratorSingleShape(this);
     private boolean translucent;
     private boolean doubleSided;
     private boolean shadowCasting = true;
     private boolean waving;
     private byte luminance;
     private Vector3f tint = new Vector3f(0, 0, 0);
-    private Map<BlockPart, ColorSource> colorSource = Maps.newEnumMap(BlockPart.class);
+    private Map<BlockPart, BlockColorSource> colorSource = Maps.newEnumMap(BlockPart.class);
     private Map<BlockPart, Vector4f> colorOffsets = Maps.newEnumMap(BlockPart.class);
 
     // Collision related
@@ -162,7 +114,7 @@ public final class Block {
     private boolean debrisOnDestroy = true;
 
     // Entity integration
-    private String prefab = "";
+    private Prefab prefab;
     private boolean keepActive;
     private EntityRef entity = EntityRef.NULL;
     private boolean lifecycleEventsRequired;
@@ -171,8 +123,6 @@ public final class Block {
     private boolean directPickup;
     private boolean stackable = true;
 
-    /* Mesh */
-    private Mesh mesh;
     private BlockAppearance primaryAppearance = new BlockAppearance();
     // TODO: Remove once liquids have nicer generation
     private Map<Side, BlockMeshPart> loweredLiquidMesh = Maps.newEnumMap(Side.class);
@@ -187,7 +137,7 @@ public final class Block {
      */
     public Block() {
         for (BlockPart part : BlockPart.values()) {
-            colorSource.put(part, ColorSource.DEFAULT);
+            colorSource.put(part, DefaultColorSource.DEFAULT);
             colorOffsets.put(part, new Vector4f(1.0f, 1.0f, 1.0f, 1.0f));
         }
     }
@@ -288,6 +238,16 @@ public final class Block {
         this.ice = ice;
     }
 
+    /**
+     * @return The sound set used by this block. Never null.
+     */
+    public BlockSounds getSounds() {
+        return sounds;
+    }
+
+    public void setSounds(BlockSounds sounds) {
+        this.sounds = sounds;
+    }
 
     /**
      * @return Whether this block is translucent/alpha masked
@@ -301,14 +261,38 @@ public final class Block {
     }
 
     /**
-     * @return Whether this block needs to be rendered at all
+     * @return The BlockMeshGenerator that is used in rendering, null if invisible.
      */
-    public boolean isInvisible() {
-        return invisible;
+    public BlockMeshGenerator getMeshGenerator() {
+        return meshGenerator;
     }
 
+    /**
+     * @param meshGenerator The new BlockMeshGenerator to use in rendering this block.
+     *                      If meshGenerator is null then this block is invisible.
+     */
+    public void setMeshGenerator(BlockMeshGenerator meshGenerator) {
+        this.meshGenerator = meshGenerator;
+    }
+
+    /**
+     * @return Whether this block needs to be rendered at all
+     * @deprecated Use getMeshGenerator()==null instead.
+     */
+    @Deprecated
+    public boolean isInvisible() {
+        return meshGenerator == null;
+    }
+
+    /**
+     * @param invisible Set if invisible
+     * @deprecated Use setMeshGenerator() instead.
+     */
+    @Deprecated
     public void setInvisible(boolean invisible) {
-        this.invisible = invisible;
+        if (invisible) {
+            this.meshGenerator = null;
+        }
     }
 
     /**
@@ -406,12 +390,12 @@ public final class Block {
     /**
      * @return The entity prefab for this block
      */
-    public String getPrefab() {
-        return prefab;
+    public Optional<Prefab> getPrefab() {
+        return Optional.ofNullable(prefab);
     }
 
-    public void setPrefab(String value) {
-        prefab = (value == null) ? "" : value;
+    public void setPrefab(Prefab value) {
+        this.prefab = value;
     }
 
     public boolean isKeepActive() {
@@ -460,11 +444,11 @@ public final class Block {
     /**
      * @return How much damage it takes to destroy the block
      */
-    public byte getHardness() {
+    public int getHardness() {
         return hardness;
     }
 
-    public void setHardness(byte hardness) {
+    public void setHardness(int hardness) {
         this.hardness = hardness;
     }
 
@@ -510,17 +494,17 @@ public final class Block {
         this.mass = mass;
     }
 
-    public ColorSource getColorSource(BlockPart part) {
+    public BlockColorSource getColorSource(BlockPart part) {
         return colorSource.get(part);
     }
 
-    public void setColorSource(ColorSource colorSource) {
+    public void setColorSource(BlockColorSource colorSource) {
         for (BlockPart part : BlockPart.values()) {
             this.colorSource.put(part, colorSource);
         }
     }
 
-    public void setColorSource(BlockPart part, ColorSource value) {
+    public void setColorSource(BlockPart part, BlockColorSource value) {
         this.colorSource.put(part, value);
     }
 
@@ -550,11 +534,17 @@ public final class Block {
         this.primaryAppearance = appearence;
     }
 
+
+    /**
+     * @return Standalone mesh
+     * @deprecated Use getMeshGenerator() instead.
+     */
+    @Deprecated
     public Mesh getMesh() {
-        if (mesh == null || mesh.isDisposed()) {
-            generateMesh();
+        if (meshGenerator != null) {
+            return meshGenerator.getStandaloneMesh();
         }
-        return mesh;
+        return new Tessellator().generateMesh(new ResourceUrn("engine", "blockmesh", uri.toString()));
     }
 
     public BlockMeshPart getLoweredLiquidMesh(Side side) {
@@ -581,14 +571,13 @@ public final class Block {
      * Calculates the color offset for a given block type and a specific
      * side of the block.
      *
-     * @param part        The block side
-     * @param temperature The temperature
-     * @param humidity    The humidity
+     * @param part  The block side
+     * @param biome The block's biome
      * @return The color offset
      */
-    public Vector4f calcColorOffsetFor(BlockPart part, float temperature, float humidity) {
-        ColorSource source = getColorSource(part);
-        Vector4f color = source.calcColor(temperature, humidity);
+    public Vector4f calcColorOffsetFor(BlockPart part, Biome biome) {
+        BlockColorSource source = getColorSource(part);
+        Vector4f color = source.calcColor(biome);
 
         Vector4f colorOffset = colorOffsets.get(part);
         color.x *= colorOffset.x;
@@ -602,12 +591,12 @@ public final class Block {
     public void setCollision(Vector3f offset, CollisionShape shape) {
         collisionShape = shape;
         collisionOffset = offset;
-        Transform t = new Transform(new Matrix4f(new Quat4f(0, 0, 0, 1), offset, 1.0f));
-        Vector3f min = new Vector3f();
-        Vector3f max = new Vector3f();
+        Transform t = new Transform(new javax.vecmath.Matrix4f(new javax.vecmath.Quat4f(0, 0, 0, 1), VecMath.to(offset), 1.0f));
+        javax.vecmath.Vector3f min = new javax.vecmath.Vector3f();
+        javax.vecmath.Vector3f max = new javax.vecmath.Vector3f();
         shape.getAabb(t, min, max);
 
-        bounds = AABB.createMinMax(min, max);
+        bounds = AABB.createMinMax(VecMath.from(min), VecMath.from(max));
     }
 
     public CollisionShape getCollisionShape() {
@@ -623,46 +612,28 @@ public final class Block {
     }
 
     public AABB getBounds(Vector3f floatPos) {
-        return getBounds(new Vector3i(floatPos, 0.5f));
+        return getBounds(new Vector3i(floatPos, RoundingMode.HALF_UP));
     }
 
     public void renderWithLightValue(float sunlight, float blockLight) {
-        if (isInvisible()) {
+        if (meshGenerator == null) {
             return;
         }
 
-        Material mat = Assets.getMaterial("engine:prog.block");
+        Material mat = Assets.getMaterial("engine:prog.block").orElseThrow(() -> new RuntimeException("Missing engine material"));
         mat.activateFeature(ShaderProgramFeature.FEATURE_USE_MATRIX_STACK);
 
         mat.enable();
         mat.setFloat("sunlight", sunlight);
         mat.setFloat("blockLight", blockLight);
 
-        if (mesh == null || mesh.isDisposed()) {
-            generateMesh();
-        } else if (mesh.isDisposed()) {
-            logger.error("Cannot render disposed mesh");
-            return;
-        }
 
-        mesh.render();
+        Mesh mesh = meshGenerator.getStandaloneMesh();
+        if (mesh != null) {
+            mesh.render();
+        }
 
         mat.deactivateFeature(ShaderProgramFeature.FEATURE_USE_MATRIX_STACK);
-    }
-
-    private void generateMesh() {
-        Tessellator tessellator = new Tessellator();
-        for (BlockPart dir : BlockPart.values()) {
-            BlockMeshPart part = primaryAppearance.getPart(dir);
-            if (part != null) {
-                if (doubleSided) {
-                    tessellator.addMeshPartDoubleSided(part);
-                } else {
-                    tessellator.addMeshPart(part);
-                }
-            }
-        }
-        mesh = tessellator.generateMesh(new AssetUri(AssetType.MESH, uri.toString()));
     }
 
     @Override

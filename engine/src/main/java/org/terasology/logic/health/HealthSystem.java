@@ -19,8 +19,7 @@ import gnu.trove.iterator.TFloatIterator;
 import gnu.trove.iterator.TIntIterator;
 import gnu.trove.list.TFloatList;
 import gnu.trove.list.TIntList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.ReceiveEvent;
@@ -31,27 +30,26 @@ import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
 import org.terasology.logic.characters.events.HorizontalCollisionEvent;
 import org.terasology.logic.characters.events.VerticalCollisionEvent;
-import org.terasology.logic.console.Command;
-import org.terasology.logic.console.CommandParam;
+import org.terasology.logic.console.commandSystem.annotations.Command;
+import org.terasology.logic.console.commandSystem.annotations.CommandParam;
+import org.terasology.logic.console.commandSystem.annotations.Sender;
+import org.terasology.logic.permission.PermissionManager;
 import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.network.ClientComponent;
 import org.terasology.registry.In;
 
-import javax.vecmath.Vector3f;
-
 /**
- * @author Immortius <immortius@gmail.com>
  */
 @RegisterSystem(RegisterMode.AUTHORITY)
 public class HealthSystem extends BaseComponentSystem implements UpdateSubscriberSystem {
-    private static final Logger logger = LoggerFactory.getLogger(HealthSystem.class);
-
     @In
     private EntityManager entityManager;
 
     @In
     private org.terasology.engine.Time time;
 
+    @Override
     public void update(float delta) {
         for (EntityRef entity : entityManager.getEntitiesWith(HealthComponent.class)) {
             HealthComponent health = entity.getComponent(HealthComponent.class);
@@ -64,15 +62,25 @@ public class HealthSystem extends BaseComponentSystem implements UpdateSubscribe
             }
 
             int healAmount = 0;
-            while (time.getGameTimeInMs() >= health.nextRegenTick) {
-                healAmount++;
-                health.nextRegenTick = health.nextRegenTick + (long) (1000 / health.regenRate);
-            }
+            healAmount = regenerateHealth(health, healAmount);
 
-            if (healAmount > 0) {
-                checkHeal(entity, healAmount, entity, health);
-                entity.saveComponent(health);
-            }
+            checkHealed(entity, health, healAmount);
+        }
+    }
+
+    private int regenerateHealth(HealthComponent health, int healAmount) {
+        int newHeal = healAmount;
+        while (time.getGameTimeInMs() >= health.nextRegenTick) {
+            newHeal++;
+            health.nextRegenTick = health.nextRegenTick + (long) (1000 / health.regenRate);
+        }
+        return newHeal;
+    }
+
+    private void checkHealed(EntityRef entity, HealthComponent health, int healAmount) {
+        if (healAmount > 0) {
+            checkHeal(entity, healAmount, entity, health);
+            entity.saveComponent(health);
         }
     }
 
@@ -207,28 +215,31 @@ public class HealthSystem extends BaseComponentSystem implements UpdateSubscribe
 
     // Debug commands
     @Command(shortDescription = "Reduce the player's health by an amount", runOnServer = true)
-    public String damage(@CommandParam("amount") int amount, EntityRef client) {
+    public String damage(@Sender EntityRef client, @CommandParam("amount") int amount) {
         ClientComponent clientComp = client.getComponent(ClientComponent.class);
         clientComp.character.send(new DoDamageEvent(amount, EngineDamageTypes.DIRECT.get(), clientComp.character));
-        
+
         return "Inflicted damage of " + amount;
     }
 
-    @Command(shortDescription = "Restores your health to max", runOnServer = true)
-    public String health(EntityRef clientEntity) {
+    @Command(shortDescription = "Restores your health to max", runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String healthMax(@Sender EntityRef clientEntity) {
         ClientComponent clientComp = clientEntity.getComponent(ClientComponent.class);
         clientComp.character.send(new DoHealEvent(100000, clientComp.character));
         return "Health restored";
     }
 
-    @Command(shortDescription = "Restores your health by an amount", runOnServer = true)
-    public void health(@CommandParam("amount") int amount, EntityRef client) {
+    @Command(shortDescription = "Restores your health by an amount", runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public void health(@Sender EntityRef client, @CommandParam("amount") int amount) {
         ClientComponent clientComp = client.getComponent(ClientComponent.class);
         clientComp.character.send(new DoHealEvent(amount, clientComp.character));
     }
 
-    @Command(shortDescription = "Set max health", runOnServer = true)
-    public String setMaxHealth(@CommandParam("max") int max, EntityRef client) {
+    @Command(shortDescription = "Set max health", runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String setMaxHealth(@Sender EntityRef client, @CommandParam("max") int max) {
         ClientComponent clientComp = client.getComponent(ClientComponent.class);
         HealthComponent health = clientComp.character.getComponent(HealthComponent.class);
         if (health != null) {
@@ -237,19 +248,20 @@ public class HealthSystem extends BaseComponentSystem implements UpdateSubscribe
         return "Max health set to " + max;
     }
 
-    @Command(shortDescription = "Set regen rate", runOnServer = true)
-    public String setRegenRate(@CommandParam("rate") float rate, EntityRef client) {
+    @Command(shortDescription = "Set health regen rate", runOnServer = true,
+            requiredPermission = PermissionManager.CHEAT_PERMISSION)
+    public String setRegenRate(@Sender EntityRef client, @CommandParam("rate") float rate) {
         ClientComponent clientComp = client.getComponent(ClientComponent.class);
         HealthComponent health = clientComp.character.getComponent(HealthComponent.class);
         if (health != null) {
             health.regenRate = rate;
             clientComp.character.saveComponent(health);
         }
-        return "Set regeneration rate to " + rate;
+        return "Set health regeneration rate to " + rate;
     }
 
     @Command(shortDescription = "Show your health")
-    public String showHealth(EntityRef client) {
+    public String showHealth(@Sender EntityRef client) {
         ClientComponent clientComp = client.getComponent(ClientComponent.class);
         HealthComponent health = clientComp.character.getComponent(HealthComponent.class);
         if (health != null) {

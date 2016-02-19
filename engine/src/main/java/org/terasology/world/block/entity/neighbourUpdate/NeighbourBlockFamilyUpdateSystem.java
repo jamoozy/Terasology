@@ -21,12 +21,12 @@ import org.slf4j.LoggerFactory;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.ReceiveEvent;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
-import org.terasology.registry.In;
 import org.terasology.entitySystem.systems.RegisterMode;
 import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
 import org.terasology.math.Side;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.In;
 import org.terasology.world.BlockEntityRegistry;
 import org.terasology.world.OnChangedBlock;
 import org.terasology.world.WorldProvider;
@@ -38,7 +38,6 @@ import org.terasology.world.block.family.UpdatesWithNeighboursFamily;
 import java.util.Set;
 
 /**
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 @RegisterSystem(RegisterMode.AUTHORITY)
 public class NeighbourBlockFamilyUpdateSystem extends BaseComponentSystem implements UpdateSubscriberSystem {
@@ -71,7 +70,6 @@ public class NeighbourBlockFamilyUpdateSystem extends BaseComponentSystem implem
     }
 
 
-
     private void notifyNeighboursOfChangedBlocks() {
         // Invoke the updates in another large block change for this class only
         largeBlockUpdateCount++;
@@ -81,9 +79,7 @@ public class NeighbourBlockFamilyUpdateSystem extends BaseComponentSystem implem
             // Setup new collection for blocks changed in this pass
             blocksUpdatedInLargeBlockUpdate = Sets.newHashSet();
 
-            for (Vector3i blockLocation : blocksToUpdate) {
-                processUpdateForBlockLocation(blockLocation);
-            }
+            blocksToUpdate.forEach(this::processUpdateForBlockLocation);
         }
         largeBlockUpdateCount--;
     }
@@ -102,13 +98,15 @@ public class NeighbourBlockFamilyUpdateSystem extends BaseComponentSystem implem
         for (Side side : Side.values()) {
             Vector3i neighborLocation = new Vector3i(blockLocation);
             neighborLocation.add(side.getVector3i());
-            Block neighborBlock = worldProvider.getBlock(neighborLocation);
-            final BlockFamily blockFamily = neighborBlock.getBlockFamily();
-            if (blockFamily instanceof UpdatesWithNeighboursFamily) {
-                UpdatesWithNeighboursFamily neighboursFamily = (UpdatesWithNeighboursFamily) blockFamily;
-                Block neighborBlockAfterUpdate = neighboursFamily.getBlockForNeighborUpdate(worldProvider, blockEntityRegistry, neighborLocation, neighborBlock);
-                if (neighborBlock != neighborBlockAfterUpdate) {
-                    worldProvider.setBlock(neighborLocation, neighborBlockAfterUpdate);
+            if (worldProvider.isBlockRelevant(neighborLocation)) {
+                Block neighborBlock = worldProvider.getBlock(neighborLocation);
+                final BlockFamily blockFamily = neighborBlock.getBlockFamily();
+                if (blockFamily instanceof UpdatesWithNeighboursFamily) {
+                    UpdatesWithNeighboursFamily neighboursFamily = (UpdatesWithNeighboursFamily) blockFamily;
+                    Block neighborBlockAfterUpdate = neighboursFamily.getBlockForNeighborUpdate(worldProvider, blockEntityRegistry, neighborLocation, neighborBlock);
+                    if (neighborBlock != neighborBlockAfterUpdate) {
+                        worldProvider.setBlock(neighborLocation, neighborBlockAfterUpdate);
+                    }
                 }
             }
         }

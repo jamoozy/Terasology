@@ -15,10 +15,13 @@
  */
 package org.terasology.rendering.nui.internal;
 
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.math.Border;
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.rendering.assets.font.Font;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.mesh.Mesh;
@@ -29,11 +32,7 @@ import org.terasology.rendering.nui.ScaleMode;
 import org.terasology.rendering.nui.VerticalAlign;
 import org.terasology.rendering.opengl.FrameBufferObject;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
-
 /**
- * @author Immortius
  */
 public interface CanvasRenderer {
 
@@ -45,7 +44,7 @@ public interface CanvasRenderer {
 
     void crop(Rect2i cropRegion);
 
-    FrameBufferObject getFBO(AssetUri uri, Vector2i size);
+    FrameBufferObject getFBO(ResourceUrn urn, BaseVector2i size);
 
     void drawMesh(Mesh mesh, Material material, Rect2i drawRegion, Rect2i cropRegion, Quat4f rotation, Vector3f offset, float scale, float alpha);
 
@@ -55,7 +54,8 @@ public interface CanvasRenderer {
 
     void drawTexture(TextureRegion texture, Color color, ScaleMode mode, Rect2i absoluteRegion, float ux, float uy, float uw, float uh, float alpha);
 
-    void drawText(String text, Font font, HorizontalAlign hAlign, VerticalAlign vAlign, Rect2i absoluteRegion, Color color, Color shadowColor, float alpha);
+    void drawText(String text, Font font, HorizontalAlign hAlign, VerticalAlign vAlign, Rect2i absoluteRegion, Color color,
+                  Color shadowColor, float alpha, boolean underlined);
 
     void drawTextureBordered(TextureRegion texture, Rect2i absoluteRegion, Border border, boolean tile, float ux, float uy, float uw, float uh, float alpha);
 }

@@ -16,40 +16,45 @@
 
 package org.terasology.engine;
 
+import com.google.api.client.repackaged.com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetFactory;
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
-import org.terasology.config.Config;
-import org.terasology.engine.bootstrap.ApplyModulesUtil;
+import org.terasology.assets.AssetFactory;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
+import org.terasology.context.Context;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.bootstrap.EnvironmentSwitchHandler;
 import org.terasology.engine.modes.GameState;
 import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.module.ModuleManagerImpl;
 import org.terasology.engine.paths.PathManager;
 import org.terasology.engine.subsystem.DisplayDevice;
 import org.terasology.engine.subsystem.EngineSubsystem;
 import org.terasology.engine.subsystem.RenderingSubsystemFactory;
+import org.terasology.engine.subsystem.common.CommandSubsystem;
+import org.terasology.engine.subsystem.common.ConfigurationSubsystem;
+import org.terasology.engine.subsystem.common.GameSubsystem;
+import org.terasology.engine.subsystem.common.MonitoringSubsystem;
+import org.terasology.engine.subsystem.common.NetworkSubsystem;
+import org.terasology.engine.subsystem.common.PhysicsSubsystem;
+import org.terasology.engine.subsystem.common.ThreadManagerSubsystem;
+import org.terasology.engine.subsystem.common.TimeSubsystem;
+import org.terasology.engine.subsystem.common.WorldGenerationSubsystem;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.entitySystem.prefab.PrefabData;
 import org.terasology.entitySystem.prefab.internal.PojoPrefab;
-import org.terasology.game.Game;
-import org.terasology.identity.CertificateGenerator;
-import org.terasology.identity.CertificatePair;
+import org.terasology.i18n.I18nSubsystem;
 import org.terasology.input.InputSystem;
 import org.terasology.logic.behavior.asset.BehaviorTree;
 import org.terasology.logic.behavior.asset.BehaviorTreeData;
+import org.terasology.monitoring.Activity;
 import org.terasology.monitoring.PerformanceMonitor;
-import org.terasology.monitoring.ThreadActivity;
-import org.terasology.monitoring.ThreadMonitor;
-import org.terasology.monitoring.gui.AdvancedMonitor;
-import org.terasology.network.NetworkSystem;
-import org.terasology.network.internal.NetworkSystemImpl;
 import org.terasology.persistence.typeHandling.TypeSerializationLibrary;
-import org.terasology.physics.CollisionGroupManager;
 import org.terasology.reflection.copy.CopyStrategyLibrary;
 import org.terasology.reflection.reflect.ReflectFactory;
 import org.terasology.reflection.reflect.ReflectionReflectFactory;
@@ -58,402 +63,431 @@ import org.terasology.rendering.nui.asset.UIData;
 import org.terasology.rendering.nui.asset.UIElement;
 import org.terasology.rendering.nui.skin.UISkin;
 import org.terasology.rendering.nui.skin.UISkinData;
-import org.terasology.utilities.concurrency.ShutdownTask;
-import org.terasology.utilities.concurrency.Task;
-import org.terasology.utilities.concurrency.TaskMaster;
 import org.terasology.version.TerasologyVersion;
+import org.terasology.world.block.family.BlockFamilyFactoryRegistry;
+import org.terasology.world.block.family.DefaultBlockFamilyFactoryRegistry;
+import org.terasology.world.block.loader.BlockFamilyDefinition;
+import org.terasology.world.block.loader.BlockFamilyDefinitionData;
+import org.terasology.world.block.loader.BlockFamilyDefinitionFormat;
 import org.terasology.world.block.shapes.BlockShape;
 import org.terasology.world.block.shapes.BlockShapeData;
 import org.terasology.world.block.shapes.BlockShapeImpl;
-import org.terasology.world.generator.internal.WorldGeneratorManager;
+import org.terasology.world.block.sounds.BlockSounds;
+import org.terasology.world.block.sounds.BlockSoundsData;
+import org.terasology.world.block.tiles.BlockTile;
+import org.terasology.world.block.tiles.TileData;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author Immortius
+ * <p>
+ * This GameEngine implementation is the heart of Terasology.
+ * </p>
+ * <p>
+ * It first takes care of making a number of application-wide initializations (see init()
+ * method). It then provides a main game loop (see run() method) characterized by a number
+ * of mutually exclusive {@link GameState}s. The current GameState is updated each
+ * frame, and a change of state (see changeState() method) can be requested at any time - the
+ * switch will occur cleanly between frames. Interested parties can be notified of GameState
+ * changes by using the subscribeToStateChange() method.
+ * </p>
+ * <p>
+ * At this stage the engine also provides a number of utility methods (see submitTask() and
+ * hasMouseFocus() to name a few) but they might be moved elsewhere.
+ * </p>
+ * <p>
+ * Special mention must be made in regard to EngineSubsystems. An {@link EngineSubsystem}
+ * is a pluggable low-level component of the engine, that is processed every frame - like
+ * rendering or audio. A list of EngineSubsystems is provided in input to the engine's
+ * constructor. Different sets of Subsystems can significantly change the behaviour of
+ * the engine, i.e. providing a "no-frills" server in one case or a full-graphics client
+ * in another.
+ * </p>
  */
 public class TerasologyEngine implements GameEngine {
 
     private static final Logger logger = LoggerFactory.getLogger(TerasologyEngine.class);
 
+    private static final int ONE_MEBIBYTE = 1024 * 1024;
+
     private GameState currentState;
-    private boolean initialised;
-    private boolean running;
-    private boolean disposed;
     private GameState pendingState;
-
-    private Config config;
-
-    private EngineTime time;
-    private final TaskMaster<Task> commonThreadPool = TaskMaster.createFIFOTaskMaster("common", 16);
-
-    private boolean hibernationAllowed;
-    private boolean gameFocused = true;
     private Set<StateChangeSubscriber> stateChangeSubscribers = Sets.newLinkedHashSet();
 
-    private Deque<EngineSubsystem> subsystems;
+    private EngineStatus status = StandardGameStatus.UNSTARTED;
+    private final List<EngineStatusSubscriber> statusSubscriberList = new CopyOnWriteArrayList<>();
 
-    public TerasologyEngine(Collection<EngineSubsystem> subsystems) {
-        this.subsystems = Queues.newArrayDeque(subsystems);
+    private volatile boolean shutdownRequested;
+    private volatile boolean running;
+
+    private TimeSubsystem timeSubsystem;
+    private Deque<EngineSubsystem> allSubsystems;
+    private ModuleAwareAssetTypeManager assetTypeManager;
+
+    /**
+     * Contains objects that life for the duration of this engine.
+     */
+    private Context rootContext;
+
+    /**
+     * This constructor initializes the engine by initializing its systems,
+     * subsystems and managers. It also verifies that some required systems
+     * are up and running after they have been initialized.
+     *
+     * @param subsystems Typical subsystems lists contain graphics, timer,
+     *                   audio and input subsystems.
+     */
+    public TerasologyEngine(TimeSubsystem timeSubsystem, Collection<EngineSubsystem> subsystems) {
+
+        this.rootContext = new ContextImpl();
+        this.timeSubsystem = timeSubsystem;
+        /*
+         * We can't load the engine without core registry yet.
+         * e.g. the statically created MaterialLoader needs the CoreRegistry to get the AssetManager.
+         * And the engine loads assets while it gets created.
+         */
+        // TODO: Remove
+        CoreRegistry.setContext(rootContext);
+
+        this.allSubsystems = Queues.newArrayDeque();
+        this.allSubsystems.add(new ConfigurationSubsystem());
+        this.allSubsystems.add(timeSubsystem);
+        this.allSubsystems.addAll(subsystems);
+        this.allSubsystems.add(new ThreadManagerSubsystem());
+        this.allSubsystems.add(new MonitoringSubsystem());
+        this.allSubsystems.add(new PhysicsSubsystem());
+        this.allSubsystems.add(new CommandSubsystem());
+        this.allSubsystems.add(new NetworkSubsystem());
+        this.allSubsystems.add(new WorldGenerationSubsystem());
+        this.allSubsystems.add(new GameSubsystem());
+        this.allSubsystems.add(new I18nSubsystem());
     }
 
-    public Iterable<EngineSubsystem> getSubsystems() {
-        return subsystems;
-    }
-
-    @Override
-    public void init() {
-        if (initialised) {
-            return;
-        }
-
-        Stopwatch sw = Stopwatch.createStarted();
-
+    private void initialize() {
+        Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
+        Stopwatch totalInitTime = Stopwatch.createStarted();
         try {
             logger.info("Initializing Terasology...");
-            logger.info(TerasologyVersion.getInstance().toString());
-            logger.info("Home path: {}", PathManager.getInstance().getHomePath());
-            logger.info("Install path: {}", PathManager.getInstance().getInstallPath());
-            logger.info("Java: {} in {}", System.getProperty("java.version"), System.getProperty("java.home"));
-            logger.info("Java VM: {}, version: {}", System.getProperty("java.vm.name"), System.getProperty("java.vm.version"));
-            logger.info("OS: {}, arch: {}, version: {}", System.getProperty("os.name"), System.getProperty("os.arch"), System.getProperty("os.version"));
-            logger.info("Max. Memory: {} MB", Runtime.getRuntime().maxMemory() / (1024 * 1024));
-            logger.info("Processors: {}", Runtime.getRuntime().availableProcessors());
+            logEnvironmentInfo();
 
-            initConfig();
+            // TODO: Need to get everything thread safe and get rid of the concept of "GameThread" as much as possible.
+            GameThread.setToCurrentThread();
 
-            for (EngineSubsystem subsystem : getSubsystems()) {
-                subsystem.preInitialise();
-            }
-
-            // Verify required systems are available
-            time = (EngineTime) CoreRegistry.get(Time.class);
-            if (time == null) {
-                throw new IllegalStateException("Time not registered as a core system.");
-            }
+            preInitSubsystems();
 
             initManagers();
 
-            for (EngineSubsystem subsystem : getSubsystems()) {
-                subsystem.postInitialise(config);
-            }
+            initSubsystems();
 
-            // Verify required systems are available
-            if (CoreRegistry.get(DisplayDevice.class) == null) {
-                throw new IllegalStateException("DisplayDevice not registered as a core system.");
-            }
-            if (CoreRegistry.get(RenderingSubsystemFactory.class) == null) {
-                throw new IllegalStateException("EngineSubsystemFactory not registered as a core system.");
-            }
-            if (CoreRegistry.get(InputSystem.class) == null) {
-                throw new IllegalStateException("InputSystem not registered as a core system.");
-            }
-
+            changeStatus(TerasologyEngineStatus.INITIALIZING_ASSET_MANAGEMENT);
             initAssets();
 
-            if (config.getSystem().isMonitoringEnabled()) {
-                new AdvancedMonitor().setVisible(true);
-            }
-            initialised = true;
+            EnvironmentSwitchHandler environmentSwitcher = new EnvironmentSwitchHandler();
+            rootContext.put(EnvironmentSwitchHandler.class, environmentSwitcher);
+
+            environmentSwitcher.handleSwitchToGameEnvironment(rootContext);
+
+            postInitSubsystems();
+
+            verifyInitialisation();
+
+            /**
+             * Prevent objects being put in engine context after init phase. Engine states should use/create a
+             * child context.
+             */
+            CoreRegistry.setContext(null);
         } catch (RuntimeException e) {
             logger.error("Failed to initialise Terasology", e);
-            throw e;
-        }
-
-        double secs = 0.001 * sw.elapsed(TimeUnit.MILLISECONDS);
-        logger.info("Initialization completed in {}sec.", String.format("%.2f", secs));
-    }
-
-    private void initAssets() {
-        AssetManager assetManager = CoreRegistry.get(AssetManager.class);
-        assetManager.setAssetFactory(AssetType.PREFAB, new AssetFactory<PrefabData, Prefab>() {
-
-            @Override
-            public Prefab buildAsset(AssetUri uri, PrefabData data) {
-                return new PojoPrefab(uri, data);
-            }
-        });
-        assetManager.setAssetFactory(AssetType.SHAPE, new AssetFactory<BlockShapeData, BlockShape>() {
-
-            @Override
-            public BlockShape buildAsset(AssetUri uri, BlockShapeData data) {
-                return new BlockShapeImpl(uri, data);
-            }
-        });
-        assetManager.setAssetFactory(AssetType.UI_SKIN, new AssetFactory<UISkinData, UISkin>() {
-            @Override
-            public UISkin buildAsset(AssetUri uri, UISkinData data) {
-                return new UISkin(uri, data);
-            }
-        });
-        assetManager.setAssetFactory(AssetType.BEHAVIOR, new AssetFactory<BehaviorTreeData, BehaviorTree>() {
-            @Override
-            public BehaviorTree buildAsset(AssetUri uri, BehaviorTreeData data) {
-                return new BehaviorTree(uri, data);
-            }
-        });
-        assetManager.setAssetFactory(AssetType.UI_ELEMENT, new AssetFactory<UIData, UIElement>() {
-            @Override
-            public UIElement buildAsset(AssetUri uri, UIData data) {
-                return new UIElement(uri, data);
-            }
-        });
-
-    }
-
-    private void initConfig() {
-        if (Files.isRegularFile(Config.getConfigFile())) {
-            try {
-                config = Config.load(Config.getConfigFile());
-            } catch (IOException e) {
-                logger.error("Failed to load config", e);
-                config = new Config();
-            }
-        } else {
-            config = new Config();
-        }
-        if (!config.getDefaultModSelection().hasModule(TerasologyConstants.CORE_MODULE)) {
-            config.getDefaultModSelection().addModule(TerasologyConstants.CORE_MODULE);
-        }
-        if (config.getSecurity().getServerPrivateCertificate() == null) {
-            CertificateGenerator generator = new CertificateGenerator();
-            CertificatePair serverIdentity = generator.generateSelfSigned();
-            config.getSecurity().setServerCredentials(serverIdentity.getPublicCert(), serverIdentity.getPrivateCert());
-            config.save();
-        }
-        logger.info("Video Settings: " + config.getRendering().toString());
-        CoreRegistry.putPermanently(Config.class, config);
-    }
-
-    @Override
-    public void run(GameState initialState) {
-        try {
-            CoreRegistry.putPermanently(GameEngine.class, this);
-            if (!initialised) {
-                init();
-            }
-            changeState(initialState);
-            running = true;
-            Thread.currentThread().setPriority(Thread.MAX_PRIORITY);
-
-            mainLoop();
-
             cleanup();
-        } catch (RuntimeException e) {
-            logger.error("Uncaught exception", e);
             throw e;
         }
+
+
+        double seconds = 0.001 * totalInitTime.elapsed(TimeUnit.MILLISECONDS);
+        logger.info("Initialization completed in {}sec.", String.format("%.2f", seconds));
     }
 
-    @Override
-    public void shutdown() {
-        running = false;
+    private void verifyInitialisation() {
+        verifyRequiredSystemIsRegistered(Time.class);
+        verifyRequiredSystemIsRegistered(DisplayDevice.class);
+        verifyRequiredSystemIsRegistered(RenderingSubsystemFactory.class);
+        verifyRequiredSystemIsRegistered(InputSystem.class);
     }
 
-    @Override
-    public void dispose() {
-        try {
-            if (!running) {
-                disposed = true;
-                initialised = false;
-                Iterator<EngineSubsystem> iter = subsystems.descendingIterator();
-                while (iter.hasNext()) {
-                    EngineSubsystem subsystem = iter.next();
-                    subsystem.dispose();
-                }
-            }
-        } catch (RuntimeException e) {
-            logger.error("Uncaught exception", e);
-            throw e;
+    /**
+     * Logs software, environment and hardware information.
+     */
+    private void logEnvironmentInfo() {
+        logger.info(TerasologyVersion.getInstance().toString());
+        logger.info("Home path: {}", PathManager.getInstance().getHomePath());
+        logger.info("Install path: {}", PathManager.getInstance().getInstallPath());
+        logger.info("Java: {} in {}", System.getProperty("java.version"), System.getProperty("java.home"));
+        logger.info("Java VM: {}, version: {}", System.getProperty("java.vm.name"), System.getProperty("java.vm.version"));
+        logger.info("OS: {}, arch: {}, version: {}", System.getProperty("os.name"), System.getProperty("os.arch"), System.getProperty("os.version"));
+        logger.info("Max. Memory: {} MiB", Runtime.getRuntime().maxMemory() / ONE_MEBIBYTE);
+        logger.info("Processors: {}", Runtime.getRuntime().availableProcessors());
+    }
+
+    /**
+     * Gives a chance to subsystems to do something BEFORE managers and Time are initialized.
+     */
+    private void preInitSubsystems() {
+        changeStatus(TerasologyEngineStatus.PREPARING_SUBSYSTEMS);
+        for (EngineSubsystem subsystem : getSubsystems()) {
+            changeStatus(() -> "Pre-initialising " + subsystem.getName() + " subsystem");
+            subsystem.preInitialise(rootContext);
         }
     }
 
-    @Override
-    public boolean isRunning() {
-        return running;
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return disposed;
-    }
-
-    @Override
-    public GameState getState() {
-        return currentState;
-    }
-
-    @Override
-    public void changeState(GameState newState) {
-        if (currentState != null) {
-            pendingState = newState;
-        } else {
-            switchState(newState);
+    private void initSubsystems() {
+        changeStatus(TerasologyEngineStatus.INITIALIZING_SUBSYSTEMS);
+        for (EngineSubsystem subsystem : getSubsystems()) {
+            changeStatus(() -> "Initialising " + subsystem.getName() + " subsystem");
+            subsystem.initialise(this, rootContext);
         }
     }
 
-    @Override
-    public void submitTask(final String name, final Runnable task) {
-        try {
-            commonThreadPool.put(new Task() {
-                @Override
-                public String getName() {
-                    return name;
-                }
+    /**
+     * Gives a chance to subsystems to do something AFTER managers and Time are initialized.
+     */
+    private void postInitSubsystems() {
+        for (EngineSubsystem subsystem : getSubsystems()) {
+            subsystem.postInitialise(rootContext);
+        }
+    }
 
-                @Override
-                public void run() {
-                    Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
-                    Thread.currentThread().setName("Engine-Task-Pool");
-                    try (ThreadActivity ignored = ThreadMonitor.startThreadActivity(task.getClass().getSimpleName())) {
-                        task.run();
-                    } catch (RejectedExecutionException e) {
-                        ThreadMonitor.addError(e);
-                        logger.error("Thread submitted after shutdown requested: {}", name);
-                    } catch (Throwable e) {
-                        ThreadMonitor.addError(e);
-                    }
-                }
-
-                @Override
-                public boolean isTerminateSignal() {
-                    return false;
-                }
-            });
-        } catch (InterruptedException e) {
-            logger.error("Failed to submit task {}, running on main thread", name, e);
-            task.run();
+    /**
+     * Verifies that a required class is available through the core registry.
+     *
+     * @param clazz The required type, i.e. Time.class
+     * @throws IllegalStateException Details the required system that has not been registered.
+     */
+    private void verifyRequiredSystemIsRegistered(Class<?> clazz) {
+        if (rootContext.get(clazz) == null) {
+            throw new IllegalStateException(clazz.getSimpleName() + " not registered as a core system.");
         }
     }
 
     private void initManagers() {
-        GameThread.setGameThread();
-        ModuleManager moduleManager = CoreRegistry.putPermanently(ModuleManager.class, new ModuleManager());
 
-        ReflectFactory reflectFactory = CoreRegistry.putPermanently(ReflectFactory.class, new ReflectionReflectFactory());
-        CopyStrategyLibrary copyStrategyLibrary = CoreRegistry.putPermanently(CopyStrategyLibrary.class, new CopyStrategyLibrary(reflectFactory));
+        changeStatus(TerasologyEngineStatus.INITIALIZING_MODULE_MANAGER);
+        ModuleManager moduleManager = new ModuleManagerImpl();
+        rootContext.put(ModuleManager.class, moduleManager);
 
-        CoreRegistry.putPermanently(TypeSerializationLibrary.class, new TypeSerializationLibrary(reflectFactory, copyStrategyLibrary));
+        changeStatus(TerasologyEngineStatus.INITIALIZING_LOWLEVEL_OBJECT_MANIPULATION);
+        ReflectFactory reflectFactory = new ReflectionReflectFactory();
+        rootContext.put(ReflectFactory.class, reflectFactory);
 
-        AssetManager assetManager = CoreRegistry.putPermanently(AssetManager.class, new AssetManager(moduleManager.getEnvironment()));
-        assetManager.setEnvironment(moduleManager.getEnvironment());
-        CoreRegistry.putPermanently(CollisionGroupManager.class, new CollisionGroupManager());
-        CoreRegistry.putPermanently(WorldGeneratorManager.class, new WorldGeneratorManager());
-        CoreRegistry.putPermanently(ComponentSystemManager.class, new ComponentSystemManager());
-        CoreRegistry.putPermanently(NetworkSystem.class, new NetworkSystemImpl(time));
-        CoreRegistry.putPermanently(Game.class, new Game(this, time));
-        assetManager.setEnvironment(moduleManager.getEnvironment());
+        CopyStrategyLibrary copyStrategyLibrary = new CopyStrategyLibrary(reflectFactory);
+        rootContext.put(CopyStrategyLibrary.class, copyStrategyLibrary);
+        rootContext.put(TypeSerializationLibrary.class, new TypeSerializationLibrary(reflectFactory,
+                copyStrategyLibrary));
 
-        AssetType.registerAssetTypes(assetManager);
-        ApplyModulesUtil.applyModules();
+        changeStatus(TerasologyEngineStatus.INITIALIZING_ASSET_TYPES);
+        assetTypeManager = new ModuleAwareAssetTypeManager();
+        rootContext.put(ModuleAwareAssetTypeManager.class, assetTypeManager);
+        rootContext.put(AssetManager.class, assetTypeManager.getAssetManager());
     }
 
-    private void cleanup() {
-        logger.info("Shutting down Terasology...");
+    private void initAssets() {
+        DefaultBlockFamilyFactoryRegistry familyFactoryRegistry = new DefaultBlockFamilyFactoryRegistry();
+        rootContext.put(BlockFamilyFactoryRegistry.class, familyFactoryRegistry);
 
-        Iterator<EngineSubsystem> iter = subsystems.descendingIterator();
-        while (iter.hasNext()) {
-            EngineSubsystem subsystem = iter.next();
-            subsystem.shutdown(config);
+        // cast lambdas explicitly to avoid inconsistent compiler behavior wrt. type inference
+        assetTypeManager.registerCoreAssetType(Prefab.class,
+                (AssetFactory<Prefab, PrefabData>) PojoPrefab::new, false, "prefabs");
+        assetTypeManager.registerCoreAssetType(BlockShape.class,
+                (AssetFactory<BlockShape, BlockShapeData>) BlockShapeImpl::new, "shapes");
+        assetTypeManager.registerCoreAssetType(BlockSounds.class,
+                (AssetFactory<BlockSounds, BlockSoundsData>) BlockSounds::new, "blockSounds");
+        assetTypeManager.registerCoreAssetType(BlockTile.class,
+                (AssetFactory<BlockTile, TileData>) BlockTile::new, "blockTiles");
+        assetTypeManager.registerCoreAssetType(BlockFamilyDefinition.class,
+                (AssetFactory<BlockFamilyDefinition, BlockFamilyDefinitionData>) BlockFamilyDefinition::new, "blocks");
+        assetTypeManager.registerCoreFormat(BlockFamilyDefinition.class,
+                new BlockFamilyDefinitionFormat(assetTypeManager.getAssetManager(), familyFactoryRegistry));
+        assetTypeManager.registerCoreAssetType(UISkin.class,
+                (AssetFactory<UISkin, UISkinData>) UISkin::new, "skins");
+        assetTypeManager.registerCoreAssetType(BehaviorTree.class,
+                (AssetFactory<BehaviorTree, BehaviorTreeData>) BehaviorTree::new, false, "behaviors");
+        assetTypeManager.registerCoreAssetType(UIElement.class,
+                (AssetFactory<UIElement, UIData>) UIElement::new, "ui");
+
+        for (EngineSubsystem subsystem : allSubsystems) {
+            subsystem.registerCoreAssetTypes(assetTypeManager);
         }
+    }
 
-        config.save();
-        if (currentState != null) {
-            currentState.dispose();
-            currentState = null;
+    @Override
+    public EngineStatus getStatus() {
+        return status;
+    }
+
+    @Override
+    public void subscribe(EngineStatusSubscriber subscriber) {
+        statusSubscriberList.add(subscriber);
+    }
+
+    @Override
+    public void unsubscribe(EngineStatusSubscriber subscriber) {
+        statusSubscriberList.remove(subscriber);
+    }
+
+    private void changeStatus(EngineStatus newStatus) {
+        status = newStatus;
+        for (EngineStatusSubscriber subscriber : statusSubscriberList) {
+            subscriber.onEngineStatusChanged(newStatus);
         }
-
-        stopThreads();
     }
 
-    public void stopThreads() {
-        commonThreadPool.shutdown(new ShutdownTask(), false);
+    /**
+     * Runs the engine, including its main loop. This method is called only once per
+     * application startup, which is the reason the GameState provided is the -initial-
+     * state rather than a generic game state.
+     *
+     * @param initialState In at least one context (the PC facade) the GameState
+     *                     implementation provided as input may vary, depending if
+     *                     the application has or hasn't been started headless.
+     */
+    @Override
+    public synchronized void run(GameState initialState) {
+        Preconditions.checkState(!running);
+        running = true;
+        initialize();
+        changeStatus(StandardGameStatus.RUNNING);
+
+        try {
+            rootContext.put(GameEngine.class, this);
+            changeState(initialState);
+
+            mainLoop(); // -THE- MAIN LOOP. Most of the application time and resources are spent here.
+        } catch (Throwable e) {
+            logger.error("Uncaught exception, attempting clean game shutdown", e);
+            throw e;
+        } finally {
+            try {
+                cleanup();
+            } catch (RuntimeException t) {
+                logger.error("Clean game shutdown after an uncaught exception failed", t);
+            }
+            running = false;
+            shutdownRequested = false;
+            changeStatus(StandardGameStatus.UNSTARTED);
+        }
     }
 
-    public void restartThreads() {
-        commonThreadPool.restart();
-    }
-
+    /**
+     * The main loop runs until the EngineState is set back to INITIALIZED by shutdown()
+     * or until the OS requests the application's window to be closed. Engine cleanup
+     * and disposal occur afterwards.
+     */
     private void mainLoop() {
-        NetworkSystem networkSystem = CoreRegistry.get(NetworkSystem.class);
-
-        DisplayDevice display = CoreRegistry.get(DisplayDevice.class);
-
         PerformanceMonitor.startActivity("Other");
         // MAIN GAME LOOP
-        while (running && !display.isCloseRequested()) {
+        while (!shutdownRequested) {
+            assetTypeManager.reloadChangedOnDisk();
 
-            // Only process rendering and updating once a second
-            if (!display.isActive() && isHibernationAllowed()) {
-                time.setPaused(true);
-                Iterator<Float> updateCycles = time.tick();
-                while (updateCycles.hasNext()) {
-                    updateCycles.next();
-                }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    logger.warn("Display inactivity sleep interrupted", e);
-                }
-
-                display.processMessages();
-                time.setPaused(false);
-                continue;
-            }
-
-            processStateChanges();
+            processPendingState();
 
             if (currentState == null) {
                 shutdown();
                 break;
             }
 
-            Iterator<Float> updateCycles = time.tick();
+            Iterator<Float> updateCycles = timeSubsystem.getEngineTime().tick();
 
-            PerformanceMonitor.startActivity("Network Update");
-            networkSystem.update();
-            PerformanceMonitor.endActivity();
+            for (EngineSubsystem subsystem : allSubsystems) {
+                try (Activity ignored = PerformanceMonitor.startActivity(subsystem.getName() + " PreUpdate")) {
+                    subsystem.preUpdate(currentState, timeSubsystem.getEngineTime().getRealDelta());
+                }
+            }
 
-            long totalDelta = 0;
             while (updateCycles.hasNext()) {
-                float delta = updateCycles.next();
-                totalDelta += time.getDeltaInMs();
-                PerformanceMonitor.startActivity("Main Update");
-                currentState.update(delta);
-                PerformanceMonitor.endActivity();
+                float updateDelta = updateCycles.next(); // gameTime gets updated here!
+                try (Activity ignored = PerformanceMonitor.startActivity("Main Update")) {
+                    currentState.update(updateDelta);
+                }
             }
 
-            float delta = totalDelta / 1000f;
-
-            for (EngineSubsystem subsystem : getSubsystems()) {
-                PerformanceMonitor.startActivity(subsystem.getClass().getSimpleName());
-                subsystem.preUpdate(currentState, delta);
-                PerformanceMonitor.endActivity();
-            }
-
+            // Waiting processes are set by modules via GameThread.a/synch() methods.
             GameThread.processWaitingProcesses();
 
             for (EngineSubsystem subsystem : getSubsystems()) {
-                PerformanceMonitor.startActivity(subsystem.getClass().getSimpleName());
-                subsystem.postUpdate(currentState, delta);
-                PerformanceMonitor.endActivity();
+                try (Activity ignored = PerformanceMonitor.startActivity(subsystem.getName() + " Subsystem postUpdate")) {
+                    subsystem.postUpdate(currentState, timeSubsystem.getEngineTime().getRealDelta());
+                }
             }
+            assetTypeManager.disposedUnusedAssets();
 
             PerformanceMonitor.rollCycle();
             PerformanceMonitor.startActivity("Other");
         }
         PerformanceMonitor.endActivity();
-        running = false;
     }
 
-    private void processStateChanges() {
+    private void cleanup() {
+        logger.info("Shutting down Terasology...");
+        changeStatus(StandardGameStatus.SHUTTING_DOWN);
+
+        if (currentState != null) {
+            currentState.dispose();
+            currentState = null;
+        }
+
+        Iterator<EngineSubsystem> preshutdownIter = allSubsystems.descendingIterator();
+        while (preshutdownIter.hasNext()) {
+            EngineSubsystem subsystem = preshutdownIter.next();
+            try {
+                subsystem.preShutdown();
+            } catch (RuntimeException e) {
+                logger.error("Error preparing to shutdown {} subsystem", subsystem.getName(), e);
+            }
+        }
+
+        Iterator<EngineSubsystem> shutdownIter = allSubsystems.descendingIterator();
+        while (shutdownIter.hasNext()) {
+            EngineSubsystem subsystem = shutdownIter.next();
+            try {
+                subsystem.shutdown();
+            } catch (RuntimeException e) {
+                logger.error("Error shutting down {} subsystem", subsystem.getName(), e);
+            }
+        }
+    }
+
+    /**
+     * Causes the main loop to stop at the end of the current frame, cleanly ending
+     * the current GameState, all running task threads and disposing subsystems.
+     */
+    @Override
+    public void shutdown() {
+        shutdownRequested = true;
+    }
+
+    /**
+     * Changes the game state, i.e. to switch from the MainMenu to Ingame via Loading screen
+     * (each is a GameState). The change can be immediate, if there is no current game
+     * state set, or scheduled, when a current state exists and the new state is stored as
+     * pending. That been said, scheduled changes occurs in the main loop through the call
+     * processStateChanges(). As such, from a user perspective in normal circumstances,
+     * scheduled changes are likely to be perceived as immediate.
+     */
+    @Override
+    public void changeState(GameState newState) {
+        if (currentState != null) {
+            pendingState = newState;    // scheduled change
+        } else {
+            switchState(newState);      // immediate change
+        }
+    }
+
+    private void processPendingState() {
         if (pendingState != null) {
             switchState(pendingState);
             pendingState = null;
@@ -465,48 +499,30 @@ public class TerasologyEngine implements GameEngine {
             currentState.dispose();
         }
         currentState = newState;
+        LoggingContext.setGameState(newState);
         newState.init(this);
-        for (StateChangeSubscriber subscriber : stateChangeSubscribers) {
-            subscriber.onStateChange();
-        }
-        // drain input queues
-        InputSystem inputSystem = CoreRegistry.get(InputSystem.class);
-        inputSystem.getMouseDevice().getInputQueue();
-        inputSystem.getKeyboard().getInputQueue();
-    }
-
-    public boolean isFullscreen() {
-        return config.getRendering().isFullscreen();
-    }
-
-    public void setFullscreen(boolean state) {
-        if (config.getRendering().isFullscreen() != state) {
-            config.getRendering().setFullscreen(state);
-            DisplayDevice display = CoreRegistry.get(DisplayDevice.class);
-            display.setFullscreen(state);
-        }
-    }
-
-    public boolean isHibernationAllowed() {
-        return hibernationAllowed && currentState.isHibernationAllowed();
-    }
-
-    public void setHibernationAllowed(boolean allowed) {
-        this.hibernationAllowed = allowed;
-    }
-
-    public boolean hasFocus() {
-        DisplayDevice display = CoreRegistry.get(DisplayDevice.class);
-        return gameFocused && display.isActive();
+        stateChangeSubscribers.forEach(StateChangeSubscriber::onStateChange);
+        InputSystem inputSystem = rootContext.get(InputSystem.class);
+        inputSystem.drainQueues();
     }
 
     @Override
-    public boolean hasMouseFocus() {
-        return gameFocused;
+    public boolean hasPendingState() {
+        return pendingState != null;
     }
 
-    public void setFocus(boolean focused) {
-        gameFocused = focused;
+    @Override
+    public GameState getState() {
+        return currentState;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return running;
+    }
+
+    public Iterable<EngineSubsystem> getSubsystems() {
+        return allSubsystems;
     }
 
     @Override
@@ -517,5 +533,22 @@ public class TerasologyEngine implements GameEngine {
     @Override
     public void unsubscribeToStateChange(StateChangeSubscriber subscriber) {
         stateChangeSubscribers.remove(subscriber);
+    }
+
+    @Override
+    public Context createChildContext() {
+        return new ContextImpl(rootContext);
+    }
+
+    /**
+     * Allows it to obtain objects directly from the context of the game engine. It exists only for situations in
+     * which no child context exists yet. If there is a child context then it automatically contains the objects of
+     * the engine context. Thus normal code should just work with the (child) context that is available to it
+     * instead of using this method.
+     *
+     * @return a object directly from the context of the game engine
+     */
+    public <T> T getFromEngineContext(Class<? extends T> type) {
+        return rootContext.get(type);
     }
 }

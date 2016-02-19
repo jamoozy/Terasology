@@ -15,10 +15,10 @@
  */
 
 {
-    "hardness" : 6,
-    "categories" : ["wood"],
+    "basedOn" : "core:wood",
+    "displayName": "Pine Log",
     "tiles" : {
-        "topBottom" : "OakTrunk",
-        "sides" : "PineBark"
+        "topBottom": "Core:PineTrunk",
+        "sides": "Core:PineBark"
     }
 }

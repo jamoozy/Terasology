@@ -21,8 +21,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.terasology.config.Config;
+import org.terasology.context.internal.ContextImpl;
 import org.terasology.registry.CoreRegistry;
-import org.terasology.world.chunks.ChunkConstants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +30,6 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 /**
- * @author Immortius
  */
 public class IntMathTest {
     public IntMathTest() {
@@ -39,6 +38,7 @@ public class IntMathTest {
     @BeforeClass
     public static void setUpClass() throws Exception {
         Config config = new Config();
+        CoreRegistry.setContext(new ContextImpl());
         CoreRegistry.put(Config.class, config);
     }
 
@@ -99,15 +99,6 @@ public class IntMathTest {
         assertEquals(0, TeraMath.ceilToInt(-0.5f));
         assertEquals(-1, TeraMath.ceilToInt(-1f));
     }
-
-    @Test
-    public void testChunkPosX() {
-        assertEquals(0, TeraMath.calcChunkPosX(1));
-        assertEquals(1, TeraMath.calcChunkPosX(ChunkConstants.SIZE_X));
-        assertEquals(-1, TeraMath.calcChunkPosX(-1));
-        assertEquals(-2, TeraMath.calcChunkPosX(-ChunkConstants.SIZE_X - 1));
-    }
-
 
     /**
      * Tests TeraMath.ceilPowerOfTwo for inputs that are

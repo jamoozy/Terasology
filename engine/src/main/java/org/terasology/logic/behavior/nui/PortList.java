@@ -17,13 +17,14 @@ package org.terasology.logic.behavior.nui;
 
 import com.google.common.collect.Lists;
 import org.terasology.logic.behavior.tree.TreeAccessor;
-import org.terasology.math.Rect2i;
+import org.terasology.math.geom.Rect2i;
 import org.terasology.rendering.nui.Canvas;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * @author synopia
  */
 public class PortList implements TreeAccessor<RenderableNode> {
     private List<Port> ports = Lists.newLinkedList();
@@ -60,13 +61,7 @@ public class PortList implements TreeAccessor<RenderableNode> {
     }
 
     public List<Port> ports() {
-        List<Port> list = Lists.newArrayList();
-        for (Port port : ports) {
-            if (port.isVisible()) {
-                list.add(port);
-            }
-        }
-        return list;
+        return ports.stream().filter(Port::isVisible).collect(Collectors.toCollection(ArrayList::new));
     }
 
     int indexOfPort(Port port) {

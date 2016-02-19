@@ -15,28 +15,27 @@
  */
 package org.terasology.rendering.world.selection;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.terasology.asset.Assets;
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
-import org.terasology.registry.In;
 import org.terasology.entitySystem.systems.RegisterMode;
 import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.RenderSystem;
-import org.terasology.math.Vector2i;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.registry.In;
 import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.world.selection.BlockSelectionComponent;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * System to render registered BlockSelections.
- * 
+ * <br><br>
  * This system is not currently thread-safe.
- * 
- * @author synopia mkienenb@gmail.com
+ *
  */
 @RegisterSystem(RegisterMode.CLIENT)
 public class BlockSelectionRenderSystem extends BaseComponentSystem implements RenderSystem {
@@ -49,7 +48,7 @@ public class BlockSelectionRenderSystem extends BaseComponentSystem implements R
      * While it is possible that the number of cached renderers could grow out of control over time,
      * in practice most textures should be a standard size.
      */
-    private Map<Vector2i, BlockSelectionRenderer> cachedBlockSelectionRendererByTextureDimensionsMap = new HashMap<Vector2i, BlockSelectionRenderer>();
+    private Map<Vector2i, BlockSelectionRenderer> cachedBlockSelectionRendererByTextureDimensionsMap = new HashMap<>();
 
     @Override
     public void renderOverlay() {
@@ -58,7 +57,7 @@ public class BlockSelectionRenderSystem extends BaseComponentSystem implements R
             if (blockSelectionComponent.shouldRender) {
                 Texture texture = blockSelectionComponent.texture;
                 if (null == texture) {
-                    texture = Assets.getTexture("engine:selection");
+                    texture = Assets.getTexture("engine:selection").get();
                 }
 
                 Vector2i textureDimensions = new Vector2i(texture.getWidth(), texture.getHeight());

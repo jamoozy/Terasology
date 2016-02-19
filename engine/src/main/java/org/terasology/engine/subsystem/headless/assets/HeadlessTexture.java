@@ -15,27 +15,33 @@
  */
 package org.terasology.engine.subsystem.headless.assets;
 
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
-import org.terasology.math.Rect2f;
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import com.google.common.collect.Lists;
+
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.rendering.assets.texture.TextureData;
 
-public class HeadlessTexture extends AbstractAsset<TextureData> implements Texture {
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
-    static int idCounter;
+public class HeadlessTexture extends Texture {
+
+    private static final AtomicInteger ID_COUNTER = new AtomicInteger();
 
     private TextureData textureData;
     private int id;
+    private final DisposalAction disposalAction;
 
-    public HeadlessTexture(AssetUri uri, TextureData textureData) {
-        super(uri);
-        reload(textureData);
-
-        // TODO: this might need to be synchronized at some point
-        id = idCounter++;
+    public HeadlessTexture(ResourceUrn urn, AssetType<?, TextureData> assetType, TextureData data) {
+        super(urn, assetType);
+        disposalAction = new DisposalAction();
+        getDisposalHook().setDisposeAction(disposalAction);
+        reload(data);
+        id = ID_COUNTER.getAndIncrement();
     }
 
     @Override
@@ -44,25 +50,34 @@ public class HeadlessTexture extends AbstractAsset<TextureData> implements Textu
     }
 
     @Override
-    public void reload(TextureData data) {
+    public int getDepth() {
+        switch (textureData.getType()) {
+            case TEXTURE3D:
+                return textureData.getHeight();
+            default:
+                return 1;
+        }
+    }
+
+    /**
+     *
+     * @return
+     */
+    @Override
+    public boolean isLoaded() {
+        return isDisposed();
+    }
+
+    @Override
+    protected void doReload(TextureData data) {
         this.textureData = data;
     }
 
     @Override
     public TextureData getData() {
-        return textureData;
+        return new TextureData(textureData);
     }
 
-    @Override
-    public void dispose() {
-        this.textureData = null;
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return textureData == null;
-    }
-    
     @Override
     public Texture getTexture() {
         return this;
@@ -75,7 +90,12 @@ public class HeadlessTexture extends AbstractAsset<TextureData> implements Textu
 
     @Override
     public int getWidth() {
-        return textureData.getWidth();
+        switch (textureData.getType()) {
+            case TEXTURE3D:
+                return textureData.getHeight();
+            default:
+                return textureData.getWidth();
+        }
     }
 
     @Override
@@ -101,5 +121,25 @@ public class HeadlessTexture extends AbstractAsset<TextureData> implements Textu
     @Override
     public Rect2i getPixelRegion() {
         return Rect2i.createFromMinAndSize(0, 0, textureData.getWidth(), textureData.getHeight());
+    }
+
+    @Override
+    public synchronized void subscribeToDisposal(Runnable subscriber) {
+        disposalAction.disposalListeners.add(subscriber);
+    }
+
+    @Override
+    public synchronized void unsubscribeToDisposal(Runnable subscriber) {
+        disposalAction.disposalListeners.remove(subscriber);
+    }
+
+    private static class DisposalAction implements Runnable {
+
+        private final List<Runnable> disposalListeners = Lists.newArrayList();
+
+        @Override
+        public void run() {
+            disposalListeners.forEach(java.lang.Runnable::run);
+        }
     }
 }

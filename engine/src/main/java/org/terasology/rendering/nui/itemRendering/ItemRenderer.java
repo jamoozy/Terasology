@@ -15,14 +15,13 @@
  */
 package org.terasology.rendering.nui.itemRendering;
 
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 
 /**
  * An item renderer draws an object of a given type as part of a UI.
  *
- * @author Immortius
  */
 public interface ItemRenderer<T> {
 

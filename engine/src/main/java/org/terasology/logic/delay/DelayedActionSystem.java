@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 @RegisterSystem(RegisterMode.AUTHORITY)
 @Share(value = DelayManager.class)
@@ -45,10 +44,16 @@ public class DelayedActionSystem extends BaseComponentSystem implements UpdateSu
     private Time time;
 
     private SortedSetMultimap<Long, EntityRef> delayedOperationsSortedByTime = TreeMultimap.create(Ordering.natural(), Ordering.arbitrary());
+    private SortedSetMultimap<Long, EntityRef> periodicOperationsSortedByTime = TreeMultimap.create(Ordering.natural(), Ordering.arbitrary());
 
     @Override
     public void update(float delta) {
         final long currentWorldTime = time.getGameTimeInMs();
+        invokeDelayedOperations(currentWorldTime);
+        invokePeriodicOperations(currentWorldTime);
+    }
+
+    private void invokeDelayedOperations(long currentWorldTime) {
         List<EntityRef> operationsToInvoke = new LinkedList<>();
         Iterator<Long> scheduledOperationsIterator = delayedOperationsSortedByTime.keySet().iterator();
         long processedTime;
@@ -61,57 +66,69 @@ public class DelayedActionSystem extends BaseComponentSystem implements UpdateSu
             scheduledOperationsIterator.remove();
         }
 
-        for (EntityRef delayedEntity : operationsToInvoke) {
-            if (delayedEntity.exists()) {
-                final DelayedActionComponent delayedActions = delayedEntity.getComponent(DelayedActionComponent.class);
+        operationsToInvoke.stream().filter(EntityRef::exists).forEach(delayedEntity -> {
+            final DelayedActionComponent delayedActions = delayedEntity.getComponent(DelayedActionComponent.class);
 
-                final Set<String> actionIds = delayedActions.removeActionsUpTo(currentWorldTime);
-                saveOrRemoveComponent(delayedEntity, delayedActions);
+            final Set<String> actionIds = delayedActions.removeActionsUpTo(currentWorldTime);
+            saveOrRemoveComponent(delayedEntity, delayedActions);
 
-                if (!delayedActions.isEmpty()) {
-                    delayedOperationsSortedByTime.put(delayedActions.getLowestWakeUp(), delayedEntity);
-                }
-
-                for (String actionId : actionIds) {
-                    delayedEntity.send(new DelayedActionTriggeredEvent(actionId));
-                }
+            if (!delayedActions.isEmpty()) {
+                delayedOperationsSortedByTime.put(delayedActions.getLowestWakeUp(), delayedEntity);
             }
+
+            for (String actionId : actionIds) {
+                delayedEntity.send(new DelayedActionTriggeredEvent(actionId));
+            }
+        });
+    }
+
+    private void invokePeriodicOperations(long currentWorldTime) {
+        List<EntityRef> operationsToInvoke = new LinkedList<>();
+        Iterator<Long> scheduledOperationsIterator = periodicOperationsSortedByTime.keySet().iterator();
+        long processedTime;
+        while (scheduledOperationsIterator.hasNext()) {
+            processedTime = scheduledOperationsIterator.next();
+            if (processedTime > currentWorldTime) {
+                break;
+            }
+            operationsToInvoke.addAll(periodicOperationsSortedByTime.get(processedTime));
+            scheduledOperationsIterator.remove();
         }
-    }
 
-    private void saveOrRemoveComponent(EntityRef delayedEntity, DelayedActionComponent delayedActionComponent) {
-        if (delayedActionComponent.isEmpty()) {
-            delayedEntity.removeComponent(DelayedActionComponent.class);
-        } else {
-            delayedEntity.saveComponent(delayedActionComponent);
-        }
-    }
+        operationsToInvoke.stream().filter(EntityRef::exists).forEach(periodicEntity -> {
+            final PeriodicActionComponent periodicActionComponent = periodicEntity.getComponent(PeriodicActionComponent.class);
 
-    @ReceiveEvent(components = {DelayedActionComponent.class})
-    public void componentActivated(OnActivatedComponent event, EntityRef entity) {
-        DelayedActionComponent delayedComponent = entity.getComponent(DelayedActionComponent.class);
-        delayedOperationsSortedByTime.put(delayedComponent.getLowestWakeUp(), entity);
-    }
+            final Set<String> actionIds = periodicActionComponent.getTriggeredActionsAndReschedule(currentWorldTime);
+            saveOrRemoveComponent(periodicEntity, periodicActionComponent);
 
-    @ReceiveEvent(components = {DelayedActionComponent.class})
-    public void componentDeactivated(BeforeDeactivateComponent event, EntityRef entity) {
-        DelayedActionComponent delayedComponent = entity.getComponent(DelayedActionComponent.class);
-        delayedOperationsSortedByTime.remove(delayedComponent.getLowestWakeUp(), entity);
-    }
+            if (!periodicActionComponent.isEmpty()) {
+                periodicOperationsSortedByTime.put(periodicActionComponent.getLowestWakeUp(), periodicEntity);
+            }
 
-    @ReceiveEvent(components = {DelayedActionComponent.class})
-    public void getDelayedAction(HasDelayedActionEvent event, EntityRef entity) {
-        event.setResult(hasDelayedAction(entity, event.getActionId()));
-    }
-
-    @ReceiveEvent(components = {DelayedActionComponent.class})
-    public void cancelDelayedAction(CancelDelayedActionEvent event, EntityRef entity) {
-        cancelDelayedAction(entity, event.getActionId());
+            for (String actionId : actionIds) {
+                periodicEntity.send(new PeriodicActionTriggeredEvent(actionId));
+            }
+        });
     }
 
     @ReceiveEvent
-    public void addDelayedAction(AddDelayedActionEvent event, EntityRef entity) {
-        addDelayedAction(entity, event.getActionId(), event.getDelay());
+    public void delayedComponentActivated(OnActivatedComponent event, EntityRef entity, DelayedActionComponent delayedActionComponent) {
+        delayedOperationsSortedByTime.put(delayedActionComponent.getLowestWakeUp(), entity);
+    }
+
+    @ReceiveEvent
+    public void periodicComponentActivated(OnActivatedComponent event, EntityRef entity, PeriodicActionComponent periodicActionComponent) {
+        periodicOperationsSortedByTime.put(periodicActionComponent.getLowestWakeUp(), entity);
+    }
+
+    @ReceiveEvent
+    public void delayedComponentDeactivated(BeforeDeactivateComponent event, EntityRef entity, DelayedActionComponent delayedActionComponent) {
+        delayedOperationsSortedByTime.remove(delayedActionComponent.getLowestWakeUp(), entity);
+    }
+
+    @ReceiveEvent
+    public void periodicComponentDeactivated(BeforeDeactivateComponent event, EntityRef entity, PeriodicActionComponent periodicActionComponent) {
+        delayedOperationsSortedByTime.remove(periodicActionComponent.getLowestWakeUp(), entity);
     }
 
     @Override
@@ -136,20 +153,97 @@ public class DelayedActionSystem extends BaseComponentSystem implements UpdateSu
     }
 
     @Override
+    public void addPeriodicAction(EntityRef entity, String actionId, long initialDelay, long period) {
+        long scheduleTime = time.getGameTimeInMs() + initialDelay;
+
+        PeriodicActionComponent periodicActionComponent = entity.getComponent(PeriodicActionComponent.class);
+        if (periodicActionComponent != null) {
+            final long oldWakeUp = periodicActionComponent.getLowestWakeUp();
+            periodicActionComponent.addScheduledActionId(actionId, scheduleTime, period);
+            entity.saveComponent(periodicActionComponent);
+            final long newWakeUp = periodicActionComponent.getLowestWakeUp();
+            if (oldWakeUp < newWakeUp) {
+                periodicOperationsSortedByTime.remove(oldWakeUp, entity);
+                periodicOperationsSortedByTime.put(newWakeUp, entity);
+            }
+        } else {
+            periodicActionComponent = new PeriodicActionComponent();
+            periodicActionComponent.addScheduledActionId(actionId, scheduleTime, period);
+            entity.addComponent(periodicActionComponent);
+        }
+    }
+
+    @Override
     public void cancelDelayedAction(EntityRef entity, String actionId) {
         DelayedActionComponent delayedComponent = entity.getComponent(DelayedActionComponent.class);
+        long oldWakeUp = delayedComponent.getLowestWakeUp();
         delayedComponent.removeActionId(actionId);
+        long newWakeUp = delayedComponent.getLowestWakeUp();
+        if (!delayedComponent.isEmpty() && oldWakeUp < newWakeUp) {
+            delayedOperationsSortedByTime.remove(oldWakeUp, entity);
+            delayedOperationsSortedByTime.put(newWakeUp, entity);
+        } else if (delayedComponent.isEmpty()) {
+            delayedOperationsSortedByTime.remove(oldWakeUp, entity);
+        }
         saveOrRemoveComponent(entity, delayedComponent);
+    }
+
+    @Override
+    public void cancelPeriodicAction(EntityRef entity, String actionId) {
+        PeriodicActionComponent periodicActionComponent = entity.getComponent(PeriodicActionComponent.class);
+        long oldWakeUp = periodicActionComponent.getLowestWakeUp();
+        periodicActionComponent.removeScheduledActionId(actionId);
+        long newWakeUp = periodicActionComponent.getLowestWakeUp();
+        if (!periodicActionComponent.isEmpty() && oldWakeUp < newWakeUp) {
+            periodicOperationsSortedByTime.remove(oldWakeUp, entity);
+            periodicOperationsSortedByTime.put(newWakeUp, entity);
+        } else if (periodicActionComponent.isEmpty()) {
+            periodicOperationsSortedByTime.remove(oldWakeUp, entity);
+        }
+        saveOrRemoveComponent(entity, periodicActionComponent);
     }
 
     @Override
     public boolean hasDelayedAction(EntityRef entity, String actionId) {
         DelayedActionComponent delayedComponent = entity.getComponent(DelayedActionComponent.class);
-        if (delayedComponent != null) {
-            return delayedComponent.getActionIdsWakeUp().containsKey(actionId);
+        return delayedComponent != null && delayedComponent.containsActionId(actionId);
+    }
+
+    @Override
+    public boolean hasPeriodicAction(EntityRef entity, String actionId) {
+        PeriodicActionComponent periodicActionComponent = entity.getComponent(PeriodicActionComponent.class);
+        return periodicActionComponent != null && periodicActionComponent.containsActionId(actionId);
+    }
+
+    private void saveOrRemoveComponent(EntityRef delayedEntity, DelayedActionComponent delayedActionComponent) {
+        if (delayedActionComponent.isEmpty()) {
+            delayedEntity.removeComponent(DelayedActionComponent.class);
         } else {
-            return false;
+            delayedEntity.saveComponent(delayedActionComponent);
         }
     }
 
+    private void saveOrRemoveComponent(EntityRef periodicEntity, PeriodicActionComponent periodicActionComponent) {
+        if (periodicActionComponent.isEmpty()) {
+            periodicEntity.removeComponent(PeriodicActionComponent.class);
+        } else {
+            periodicEntity.saveComponent(periodicActionComponent);
+        }
+    }
+
+    // Deprecated methods
+    @ReceiveEvent(components = {DelayedActionComponent.class})
+    public void getDelayedAction(HasDelayedActionEvent event, EntityRef entity) {
+        event.setResult(hasDelayedAction(entity, event.getActionId()));
+    }
+
+    @ReceiveEvent(components = {DelayedActionComponent.class})
+    public void cancelDelayedAction(CancelDelayedActionEvent event, EntityRef entity) {
+        cancelDelayedAction(entity, event.getActionId());
+    }
+
+    @ReceiveEvent
+    public void addDelayedAction(AddDelayedActionEvent event, EntityRef entity) {
+        addDelayedAction(entity, event.getActionId(), event.getDelay());
+    }
 }

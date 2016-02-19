@@ -15,10 +15,11 @@
  */
 package org.terasology.rendering.nui.widgets;
 
+import com.google.common.base.Function;
 import org.terasology.input.MouseInput;
-import org.terasology.math.Rect2i;
+import org.terasology.math.geom.Rect2i;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
@@ -27,9 +28,11 @@ import org.terasology.rendering.nui.LayoutConfig;
 import org.terasology.rendering.nui.SubRegion;
 import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
 
 /**
- * @author Immortius
  */
 public class UISlider extends CoreWidget {
     public static final String SLIDER = "slider";
@@ -39,10 +42,10 @@ public class UISlider extends CoreWidget {
         private Vector2i offset = new Vector2i();
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {
                 active = true;
-                offset.set(pos);
+                offset.set(event.getRelativeMousePosition());
                 offset.x -= pixelOffsetFor(getValue(), sliderWidth);
                 return true;
             }
@@ -50,13 +53,14 @@ public class UISlider extends CoreWidget {
         }
 
         @Override
-        public void onMouseRelease(MouseInput button, Vector2i pos) {
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
             active = false;
         }
 
         @Override
-        public void onMouseDrag(Vector2i pos) {
+        public void onMouseDrag(NUIMouseDragEvent event) {
             if (sliderWidth > 0) {
+                Vector2i pos = event.getRelativeMousePosition();
                 int maxSlot = TeraMath.floorToInt(getRange() / getIncrement());
                 int slotWidth = sliderWidth / maxSlot;
                 int nearestSlot = maxSlot * (pos.x - offset.x + slotWidth / 2) / sliderWidth;
@@ -83,7 +87,7 @@ public class UISlider extends CoreWidget {
 
     private int sliderWidth;
     private boolean active;
-    private String formatString = "0.0";
+    private Function<? super Float, String> labelFunction;
 
     public UISlider() {
     }
@@ -92,14 +96,26 @@ public class UISlider extends CoreWidget {
         super(id);
     }
 
+    private String getDisplayText() {
+        if (labelFunction != null) {
+            return labelFunction.apply(value.get());
+        } else {
+            return String.format("%." + precision + "f", value.get());
+        }
+    }
+
+    public void setLabelFunction(Function<? super Float, String> labelFunction) {
+        this.labelFunction = labelFunction;
+    }
+
     @Override
     public void onDraw(Canvas canvas) {
         canvas.setPart(SLIDER);
         canvas.drawBackground();
 
         canvas.setPart(TICKER);
-        String display = String.format("%." + precision + "f", value.get());
-        int tickerWidth = canvas.getCurrentStyle().getFont().getWidth(formatString);
+        String display = getDisplayText();
+        int tickerWidth = canvas.getCurrentStyle().getFont().getWidth(display);
         tickerWidth += canvas.getCurrentStyle().getMargin().getTotalWidth();
 
         sliderWidth = canvas.size().x - tickerWidth;
@@ -126,7 +142,7 @@ public class UISlider extends CoreWidget {
         }
 
         canvas.setPart(TICKER);
-        int tickerWidth = canvas.getCurrentStyle().getFont().getWidth(formatString);
+        int tickerWidth = canvas.getCurrentStyle().getFont().getWidth(getDisplayText());
         tickerWidth += canvas.getCurrentStyle().getMargin().getTotalWidth();
         result.x = Math.max(result.x, tickerWidth);
         if (canvas.getCurrentStyle().getFixedWidth() != 0) {
@@ -162,7 +178,6 @@ public class UISlider extends CoreWidget {
 
     public void setMinimum(float min) {
         this.minimum.set(min);
-        generateFormatString();
     }
 
     public void bindRange(Binding<Float> binding) {
@@ -175,7 +190,6 @@ public class UISlider extends CoreWidget {
 
     public void setRange(float val) {
         range.set(val);
-        generateFormatString();
     }
 
     public void bindIncrement(Binding<Float> binding) {
@@ -208,26 +222,6 @@ public class UISlider extends CoreWidget {
 
     public void setPrecision(int precision) {
         this.precision = precision;
-        generateFormatString();
-    }
-
-    private void generateFormatString() {
-        float maxValue = getRange() + getMinimum();
-        int leadingValues = String.format("%.0f", maxValue).length();
-        StringBuilder newFormat = new StringBuilder();
-        if (getMinimum() < 0) {
-            newFormat.append('-');
-        }
-        for (int i = 0; i < leadingValues; ++i) {
-            newFormat.append('0');
-        }
-        if (precision > 0) {
-            newFormat.append('.');
-            for (int i = 0; i < precision; ++i) {
-                newFormat.append('0');
-            }
-        }
-        formatString = newFormat.toString();
     }
 
     private int pixelOffsetFor(float val, int width) {

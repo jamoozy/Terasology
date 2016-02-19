@@ -15,7 +15,6 @@
  */
 package org.terasology.entitySystem.entity.internal;
 
-import gnu.trove.set.TIntSet;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.LowLevelEntityManager;
@@ -24,7 +23,6 @@ import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.persistence.typeHandling.TypeSerializationLibrary;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public interface EngineEntityManager extends LowLevelEntityManager {
 
@@ -32,7 +30,7 @@ public interface EngineEntityManager extends LowLevelEntityManager {
 
     /**
      * Creates an entity but doesn't send any lifecycle events.
-     * <p/>
+     * <br><br>
      * This is used by the block entity system to give an illusion of permanence to temporary block entities.
      *
      * @param components
@@ -42,7 +40,7 @@ public interface EngineEntityManager extends LowLevelEntityManager {
 
     /**
      * Creates an entity but doesn't send any lifecycle events.
-     * <p/>
+     * <br><br>
      * This is used by the block entity system to give an illusion of permanence to temporary block entities.
      *
      * @param prefab
@@ -54,7 +52,7 @@ public interface EngineEntityManager extends LowLevelEntityManager {
 
     /**
      * Destroys an entity without sending lifecycle events.
-     * <p/>
+     * <br><br>
      * This is used by the block entity system to give an illusion of permanence to temporary block entities.
      *
      * @param entity
@@ -69,7 +67,7 @@ public interface EngineEntityManager extends LowLevelEntityManager {
      * @param components
      * @return The entityRef for the newly created entity
      */
-    EntityRef createEntityWithId(int id, Iterable<Component> components);
+    EntityRef createEntityWithId(long id, Iterable<Component> components);
 
     /**
      * Creates an entity ref with the given id. This is used when loading components with references.
@@ -77,28 +75,21 @@ public interface EngineEntityManager extends LowLevelEntityManager {
      * @param id
      * @return The entityRef for the given id
      */
-    EntityRef createEntityRefWithId(int id);
+    EntityRef createEntityRefWithId(long id);
 
     /**
      * This is used to persist the entity manager's state
      *
      * @return The id that will be used for the next entity (after freed ids are used)
      */
-    int getNextId();
+    long getNextId();
 
     /**
      * Sets the next id the entity manager will use. This is used when restoring the entity manager's state.
      *
      * @param id
      */
-    void setNextId(int id);
-
-    /**
-     * A list of freed ids. This is used when persisting the entity manager's state
-     *
-     * @return A list of freed ids that are available for reuse.
-     */
-    TIntSet getFreedIds();
+    void setNextId(long id);
 
     /**
      * Removes all entities from the entity manager and resets its state.
@@ -117,14 +108,14 @@ public interface EngineEntityManager extends LowLevelEntityManager {
      *
      * @param subscriber
      */
-    void subscribe(EntityChangeSubscriber subscriber);
+    void subscribeForChanges(EntityChangeSubscriber subscriber);
 
     /**
      * Subscribe for notification the destruction of entities.
      *
      * @param subscriber
      */
-    void subscribe(EntityDestroySubscriber subscriber);
+    void subscribeForDestruction(EntityDestroySubscriber subscriber);
 
     /**
      * Unsubscribes from changes relating to entities. Used by engine systems.

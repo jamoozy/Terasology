@@ -17,23 +17,23 @@ package org.terasology.logic.behavior;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.audio.StaticSound;
 import org.terasology.engine.paths.PathManager;
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.entitySystem.entity.lifecycleEvents.BeforeRemoveComponent;
+import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
 import org.terasology.entitySystem.entity.lifecycleEvents.OnActivatedComponent;
-import org.terasology.entitySystem.entity.lifecycleEvents.OnAddedComponent;
 import org.terasology.entitySystem.event.ReceiveEvent;
 import org.terasology.entitySystem.prefab.PrefabManager;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
+import org.terasology.entitySystem.systems.RegisterMode;
 import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
 import org.terasology.logic.behavior.asset.BehaviorTree;
 import org.terasology.logic.behavior.asset.BehaviorTreeData;
-import org.terasology.logic.behavior.asset.BehaviorTreeLoader;
+import org.terasology.logic.behavior.asset.BehaviorTreeFormat;
 import org.terasology.logic.behavior.tree.Actor;
 import org.terasology.logic.behavior.tree.Interpreter;
 import org.terasology.logic.behavior.tree.Node;
@@ -46,21 +46,21 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Behavior tree system
- * <p/>
+ * <br><br>
  * Each entity with BehaviorComponent is kept under control by this system. For each such entity a behavior tree
  * is loaded and an interpreter is started.
- * <p/>
+ * <br><br>
  * Modifications made to a behavior tree will reflect to all entities using this tree.
  *
- * @author synopia
  */
-@RegisterSystem
+@RegisterSystem(RegisterMode.AUTHORITY)
 @Share(BehaviorSystem.class)
 public class BehaviorSystem extends BaseComponentSystem implements UpdateSubscriberSystem {
     public static final Name BEHAVIORS = new Name("Behaviors");
@@ -77,22 +77,15 @@ public class BehaviorSystem extends BaseComponentSystem implements UpdateSubscri
 
     @Override
     public void initialise() {
-        List<AssetUri> uris = Lists.newArrayList();
-        for (AssetUri uri : assetManager.listAssets(AssetType.SOUND)) {
-            uris.add(uri);
-        }
-        for (AssetUri uri : assetManager.listAssets(AssetType.BEHAVIOR)) {
+        List<ResourceUrn> uris = Lists.newArrayList();
+        uris.addAll(assetManager.getAvailableAssets(StaticSound.class).stream().collect(Collectors.toList()));
+        for (ResourceUrn uri : assetManager.getAvailableAssets(BehaviorTree.class)) {
 
-            BehaviorTree asset = assetManager.loadAsset(uri, BehaviorTree.class);
-            if (asset != null) {
-                trees.add(asset);
+            Optional<BehaviorTree> asset = assetManager.getAsset(uri, BehaviorTree.class);
+            if (asset.isPresent()) {
+                trees.add(asset.get());
             }
         }
-    }
-
-    @ReceiveEvent
-    public void onBehaviorAdded(OnAddedComponent event, EntityRef entityRef, BehaviorComponent behaviorComponent) {
-        addEntity(entityRef, behaviorComponent);
     }
 
     @ReceiveEvent
@@ -101,7 +94,7 @@ public class BehaviorSystem extends BaseComponentSystem implements UpdateSubscri
     }
 
     @ReceiveEvent
-    public void onBehaviorRemoved(BeforeRemoveComponent event, EntityRef entityRef, BehaviorComponent behaviorComponent) {
+    public void onBehaviorDeactivated(BeforeDeactivateComponent event, EntityRef entityRef, BehaviorComponent behaviorComponent) {
         if (behaviorComponent.tree != null) {
             entityInterpreters.remove(entityRef);
         }
@@ -117,7 +110,7 @@ public class BehaviorSystem extends BaseComponentSystem implements UpdateSubscri
     public BehaviorTree createTree(String name, Node root) {
         BehaviorTreeData data = new BehaviorTreeData();
         data.setRoot(root);
-        BehaviorTree behaviorTree = new BehaviorTree(new AssetUri(AssetType.BEHAVIOR, BEHAVIORS, name.replaceAll("\\W+", "")), data);
+        BehaviorTree behaviorTree = assetManager.loadAsset(new ResourceUrn(BEHAVIORS, new Name(name.replaceAll("\\W+", ""))), data, BehaviorTree.class);
         trees.add(behaviorTree);
         save(behaviorTree);
         return behaviorTree;
@@ -125,17 +118,17 @@ public class BehaviorSystem extends BaseComponentSystem implements UpdateSubscri
 
     public void save(BehaviorTree tree) {
         Path savePath;
-        AssetUri uri = tree.getURI();
+        ResourceUrn uri = tree.getUrn();
         if (BEHAVIORS.equals(uri.getModuleName())) {
             savePath = PathManager.getInstance().getHomeModPath().resolve(BEHAVIORS.toString()).resolve("assets").resolve("behaviors");
         } else {
             Path overridesPath = PathManager.getInstance().getHomeModPath().resolve(BEHAVIORS.toString()).resolve("overrides");
             savePath = overridesPath.resolve(uri.getModuleName().toString()).resolve("behaviors");
         }
-        BehaviorTreeLoader loader = new BehaviorTreeLoader();
+        BehaviorTreeFormat loader = new BehaviorTreeFormat();
         try {
             Files.createDirectories(savePath);
-            Path file = savePath.resolve(uri.getAssetName() + ".behavior");
+            Path file = savePath.resolve(uri.getResourceName() + ".behavior");
             try (FileOutputStream fos = new FileOutputStream(file.toFile())) {
                 loader.save(fos, tree.getData());
             }
@@ -151,19 +144,12 @@ public class BehaviorSystem extends BaseComponentSystem implements UpdateSubscri
     public List<Interpreter> getInterpreter() {
         List<Interpreter> interpreters = Lists.newArrayList();
         interpreters.addAll(entityInterpreters.values());
-        Collections.sort(interpreters, new Comparator<Interpreter>() {
-            @Override
-            public int compare(Interpreter o1, Interpreter o2) {
-                return o1.toString().compareTo(o2.toString());
-            }
-        });
+        Collections.sort(interpreters, (o1, o2) -> o1.toString().compareTo(o2.toString()));
         return interpreters;
     }
 
     public void treeModified(BehaviorTree tree) {
-        for (Interpreter interpreter : entityInterpreters.values()) {
-            interpreter.reset();
-        }
+        entityInterpreters.values().forEach(Interpreter::reset);
         save(tree);
     }
 

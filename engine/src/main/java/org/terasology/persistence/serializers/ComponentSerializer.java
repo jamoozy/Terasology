@@ -43,13 +43,12 @@ import java.util.Map;
 /**
  * ComponentSerializer provides the ability to serialize and deserialize between Components and the protobuf
  * EntityData.Component
- * <p/>
+ * <br><br>
  * If provided with a idTable, then the components will be serialized and deserialized using those ids rather
  * than the names of each component, saving some space.
- * <p/>
+ * <br><br>
  * When serializing, a FieldSerializeCheck can be provided to determine whether each field should be serialized or not
  *
- * @author Immortius
  */
 public class ComponentSerializer {
 
@@ -196,7 +195,7 @@ public class ComponentSerializer {
             }
             if (fieldInfo != null) {
                 dataMap.put(fieldInfo, new ProtobufPersistedData(field.getValue()));
-            } else if (field.hasNameIndex()) {
+            } else if (field.hasName()) {
                 logger.warn("Cannot deserialize unknown field '{}' onto '{}'", field.getName(), componentMetadata.getUri());
             }
         }
@@ -232,7 +231,7 @@ public class ComponentSerializer {
         serializeComponentType(componentMetadata, componentMessage);
 
         Serializer serializer = typeSerializationLibrary.getSerializerFor(componentMetadata);
-        for (ReplicatedFieldMetadata field : componentMetadata.getFields()) {
+        for (ReplicatedFieldMetadata<?, ?> field : componentMetadata.getFields()) {
             if (check.shouldSerializeField(field, component)) {
                 PersistedData result = serializer.serialize(field, component, serializationContext);
                 if (!result.isNull()) {
@@ -290,7 +289,7 @@ public class ComponentSerializer {
         Serializer serializer = typeSerializationLibrary.getSerializerFor(componentMetadata);
         boolean changed = false;
         for (ReplicatedFieldMetadata field : componentMetadata.getFields()) {
-            if (check.shouldSerializeField(field, delta)) {
+            if (check.shouldSerializeField(field, delta) && serializer.getHandlerFor(field) != null) {
                 Object origValue = field.getValue(base);
                 Object deltaValue = field.getValue(delta);
 

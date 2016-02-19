@@ -15,13 +15,12 @@
  */
 package org.terasology.engine.subsystem;
 
-import org.terasology.logic.players.LocalPlayerSystem;
+import org.terasology.context.Context;
 import org.terasology.rendering.world.WorldRenderer;
-import org.terasology.world.WorldProvider;
-import org.terasology.world.chunks.ChunkProvider;
 
+@FunctionalInterface
 public interface RenderingSubsystemFactory {
 
-    WorldRenderer createWorldRenderer(WorldProvider worldProvider, ChunkProvider chunkProvider, LocalPlayerSystem localPlayerSystem);
+    WorldRenderer createWorldRenderer(Context context);
 
 }

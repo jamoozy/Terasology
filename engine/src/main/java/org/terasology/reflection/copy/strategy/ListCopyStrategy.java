@@ -15,13 +15,13 @@
  */
 package org.terasology.reflection.copy.strategy;
 
-import com.google.common.collect.Lists;
 import org.terasology.reflection.copy.CopyStrategy;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * @author Immortius
  */
 public class ListCopyStrategy<T> implements CopyStrategy<List<T>> {
 
@@ -34,11 +34,7 @@ public class ListCopyStrategy<T> implements CopyStrategy<List<T>> {
     @Override
     public List<T> copy(List<T> value) {
         if (value != null) {
-            List<T> result = Lists.newArrayListWithCapacity(value.size());
-            for (T item : value) {
-                result.add(contentStrategy.copy(item));
-            }
-            return result;
+            return value.stream().map(contentStrategy::copy).collect(Collectors.toCollection(ArrayList::new));
         }
         return null;
     }

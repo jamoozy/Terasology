@@ -17,15 +17,16 @@
 package org.terasology.input.binds.interaction;
 
 import org.terasology.input.BindButtonEvent;
+import org.terasology.input.ControllerId;
 import org.terasology.input.DefaultBinding;
 import org.terasology.input.InputType;
 import org.terasology.input.Keyboard;
 import org.terasology.input.RegisterBindButton;
 
 /**
- * @author Immortius
  */
 @RegisterBindButton(id = "frob", description = "Use Target")
 @DefaultBinding(type = InputType.KEY, id = Keyboard.KeyId.E)
+@DefaultBinding(type = InputType.CONTROLLER_BUTTON, id = ControllerId.ONE)
 public class FrobButton extends BindButtonEvent {
 }

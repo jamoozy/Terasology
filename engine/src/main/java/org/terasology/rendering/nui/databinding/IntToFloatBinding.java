@@ -16,27 +16,26 @@
 
 package org.terasology.rendering.nui.databinding;
 
-import java.math.RoundingMode;
-
 import com.google.common.math.DoubleMath;
+
+import java.math.RoundingMode;
 
 /**
  * Links a Integer-Binding to a Float-Binding
- * @author Martin Steiger
  */
 public final class IntToFloatBinding implements Binding<Float> {
 
     private final Binding<Integer> intBinding;
     private final RoundingMode roundingMode;
-    
+
     /**
      * Uses {@link RoundingMode#HALF_UP}.
-     * @param ip
+     * @param intBinding the original binding that is wrapped
      */
     public IntToFloatBinding(Binding<Integer> intBinding) {
         this(intBinding, RoundingMode.HALF_UP);
     }
-    
+
     public IntToFloatBinding(Binding<Integer> intBinding, RoundingMode rm) {
         this.intBinding = intBinding;
         this.roundingMode = rm;
@@ -50,7 +49,7 @@ public final class IntToFloatBinding implements Binding<Float> {
     @Override
     public void set(Float value) {
         int val = DoubleMath.roundToInt(value, roundingMode);
-        intBinding.set(Integer.valueOf(val));
+        intBinding.set(val);
     }
 }
 

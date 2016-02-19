@@ -19,21 +19,21 @@ import com.google.common.collect.Lists;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.terasology.engine.bootstrap.EntitySystemBuilder;
+import org.terasology.context.internal.ContextImpl;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
 import org.terasology.engine.module.ModuleManager;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.internal.EngineEntityManager;
 import org.terasology.entitySystem.entity.internal.OwnershipHelper;
 import org.terasology.entitySystem.stubs.OwnerComponent;
 import org.terasology.network.NetworkSystem;
-import org.terasology.reflection.reflect.ReflectionReflectFactory;
+import org.terasology.registry.CoreRegistry;
 import org.terasology.testUtil.ModuleManagerFactory;
 
 import static org.mockito.Mockito.mock;
 import static org.terasology.testUtil.TeraAssert.assertEqualsContent;
 
 /**
- * @author Immortius
  */
 public class OwnershipHelperTest {
 
@@ -48,9 +48,13 @@ public class OwnershipHelperTest {
 
     @Before
     public void setup() {
-        EntitySystemBuilder builder = new EntitySystemBuilder();
-
-        entityManager = builder.build(moduleManager.getEnvironment(), mock(NetworkSystem.class), new ReflectionReflectFactory());
+        ContextImpl context = new ContextImpl();
+        context.put(ModuleManager.class, moduleManager);
+        context.put(NetworkSystem.class, mock(NetworkSystem.class));
+        CoreRegistry.setContext(context);
+        EntitySystemSetupUtil.addReflectionBasedLibraries(context);
+        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);
+        entityManager = context.get(EngineEntityManager.class);
     }
 
     @Test

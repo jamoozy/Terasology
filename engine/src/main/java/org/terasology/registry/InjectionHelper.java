@@ -18,13 +18,18 @@ package org.terasology.registry;
 import org.reflections.ReflectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
+import org.terasology.util.reflection.ParameterProvider;
+import org.terasology.util.reflection.SimpleClassFactory;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Map;
+import java.util.Optional;
 
 /**
- * @author Immortius
  */
 public final class InjectionHelper {
     private static final Logger logger = LoggerFactory.getLogger(InjectionHelper.class);
@@ -32,36 +37,59 @@ public final class InjectionHelper {
     private InjectionHelper() {
     }
 
-    public static void inject(final Object object) {
-        AccessController.doPrivileged(new PrivilegedAction<Object>() {
-            @Override
-            public Object run() {
-                for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(In.class))) {
-                    Object value = CoreRegistry.get(field.getType());
-                    if (value != null) {
-                        try {
-                            field.setAccessible(true);
-                            field.set(object, value);
-                        } catch (IllegalAccessException e) {
-                            logger.error("Failed to inject value {} into field {} of {}", value, field, object, e);
-                        }
+    public static void inject(final Object object, Context context) {
+        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+            for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(In.class))) {
+                Object value = context.get(field.getType());
+                if (value != null) {
+                    try {
+                        field.setAccessible(true);
+                        field.set(object, value);
+                    } catch (IllegalAccessException e) {
+                        logger.error("Failed to inject value {} into field {} of {}", value, field, object, e);
                     }
                 }
-
-                for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(org.terasology.entitySystem.systems.In.class))) {
-                    Object value = CoreRegistry.get(field.getType());
-                    if (value != null) {
-                        try {
-                            field.setAccessible(true);
-                            field.set(object, value);
-                            logger.warn("Injection into field {} of {} using old @In annotation - please update", field, object);
-                        } catch (IllegalAccessException e) {
-                            logger.error("Failed to inject value {} into field {} of {}", value, field, object, e);
-                        }
-                    }
-                }
-                return null;
             }
+
+            return null;
+        });
+    }
+
+    public static void inject(final Object object) {
+        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+            for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(In.class))) {
+                Object value = CoreRegistry.get(field.getType());
+                if (value != null) {
+                    try {
+                        field.setAccessible(true);
+                        field.set(object, value);
+                    } catch (IllegalAccessException e) {
+                        logger.error("Failed to inject value {} into field {} of {}", value, field, object, e);
+                    }
+                }
+            }
+
+            return null;
+        });
+    }
+
+    public static <T> void inject(final Object object, final Class<? extends Annotation> annotation, final Map<Class<? extends T>, T> source) {
+        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+            for (Field field : ReflectionUtils.getAllFields(object.getClass(), ReflectionUtils.withAnnotation(annotation))) {
+                Object value = source.get(field.getType());
+                if (value != null) {
+                    try {
+                        field.setAccessible(true);
+                        field.set(object, value);
+                    } catch (IllegalAccessException e) {
+                        logger.error("Failed to inject value {} into field {}", value, field, e);
+                    }
+                } else {
+                    logger.error("Failed to inject into field {}, nothing to inject", field);
+                }
+            }
+
+            return null;
         });
     }
 
@@ -72,21 +100,16 @@ public final class InjectionHelper {
                 CoreRegistry.put(interfaceType, object);
             }
         }
-
-        org.terasology.entitySystem.systems.Share oldshare = object.getClass().getAnnotation(org.terasology.entitySystem.systems.Share.class);
-        if (oldshare != null && oldshare.value() != null) {
-            for (Class interfaceType : oldshare.value()) {
-                CoreRegistry.put(interfaceType, object);
-            }
-        }
     }
 
-    public static void unshare(Object object) {
-        Share share = object.getClass().getAnnotation(Share.class);
-        if (share != null && share.value() != null) {
-            for (Class interfaceType : share.value()) {
-                CoreRegistry.remove(interfaceType);
+
+    public static <E> E createWithConstructorInjection(Class<? extends E> clazz, Context context) {
+        SimpleClassFactory simpleClassFactory = new SimpleClassFactory(new ParameterProvider() {
+            @Override
+            public <T> Optional<T> get(Class<T> x) {
+                return Optional.of(context.get(x));
             }
-        }
+        });
+        return simpleClassFactory.instantiateClass(clazz).get();
     }
 }

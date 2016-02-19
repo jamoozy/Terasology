@@ -15,6 +15,7 @@
  */
 package org.terasology.rendering.nui.widgets;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +23,12 @@ import org.terasology.asset.Assets;
 import org.terasology.input.Keyboard;
 import org.terasology.input.Keyboard.KeyId;
 import org.terasology.input.MouseInput;
-import org.terasology.input.events.KeyEvent;
-import org.terasology.math.Rect2i;
+import org.terasology.input.device.KeyboardDevice;
+import org.terasology.math.geom.Rect2i;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.FontColor;
+import org.terasology.rendering.FontUnderline;
 import org.terasology.rendering.assets.font.Font;
 import org.terasology.rendering.assets.texture.TextureRegion;
 import org.terasology.rendering.nui.BaseInteractionListener;
@@ -39,6 +41,10 @@ import org.terasology.rendering.nui.SubRegion;
 import org.terasology.rendering.nui.TextLineBuilder;
 import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
 
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
@@ -50,7 +56,6 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class UIText extends CoreWidget {
 
@@ -75,7 +80,8 @@ public class UIText extends CoreWidget {
     private int lastWidth;
     private Font lastFont;
 
-    private List<ActivateEventListener> listeners = Lists.newArrayList();
+    private List<ActivateEventListener> activationListeners = Lists.newArrayList();
+    private List<CursorUpdateEventListener> cursorUpdateListeners = Lists.newArrayList();
 
     private int offset;
 
@@ -83,9 +89,9 @@ public class UIText extends CoreWidget {
         boolean dragging;
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
-                moveCursor(pos, false);
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {
+                moveCursor(event.getRelativeMousePosition(), false, event.getKeyboard());
                 dragging = true;
                 return true;
             }
@@ -93,27 +99,27 @@ public class UIText extends CoreWidget {
         }
 
         @Override
-        public void onMouseDrag(Vector2i pos) {
+        public void onMouseDrag(NUIMouseDragEvent event) {
             if (dragging) {
-                moveCursor(pos, true);
+                moveCursor(event.getRelativeMousePosition(), true, event.getKeyboard());
             }
         }
 
         @Override
-        public void onMouseRelease(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {
                 dragging = false;
             }
         }
     };
 
     public UIText() {
-        cursorTexture = Assets.getTexture("engine:white");
+        cursorTexture = Assets.getTexture("engine:white").get();
     }
 
     public UIText(String id) {
         super(id);
-        cursorTexture = Assets.getTexture("engine:white");
+        cursorTexture = Assets.getTexture("engine:white").get();
     }
 
     @Override
@@ -126,7 +132,7 @@ public class UIText extends CoreWidget {
         canvas.addInteractionRegion(interactionListener, canvas.getRegion());
         correctCursor();
 
-        int widthForDraw = (multiline) ?  canvas.size().x : lastFont.getWidth(getText());
+        int widthForDraw = (multiline) ? canvas.size().x : lastFont.getWidth(getText());
 
         try (SubRegion ignored = canvas.subRegion(canvas.getRegion(), true);
              SubRegion ignored2 = canvas.subRegion(Rect2i.createFromMinAndSize(-offset, 0, widthForDraw + 1, Integer.MAX_VALUE), false)) {
@@ -145,8 +151,8 @@ public class UIText extends CoreWidget {
         Font font = canvas.getCurrentStyle().getFont();
         String currentText = getText();
 
-        int start = Math.min(cursorPosition, selectionStart);
-        int end = Math.max(cursorPosition, selectionStart);
+        int start = Math.min(getCursorPosition(), selectionStart);
+        int end = Math.max(getCursorPosition(), selectionStart);
 
         Color textColor = canvas.getCurrentStyle().getTextColor();
         int canvasWidth = (multiline) ? canvas.size().x : Integer.MAX_VALUE;
@@ -179,7 +185,7 @@ public class UIText extends CoreWidget {
                     Rect2i region = Rect2i.createFromMinAndSize(selectionTopLeft.x, selectionTopLeft.y, selectionWidth, font.getLineHeight());
 
                     canvas.drawTexture(cursorTexture, region, textColor);
-                    canvas.drawTextRaw(FontColor.stripColor(selectionString), font, textColor.inverse(), region);
+                    canvas.drawTextRaw(FontUnderline.strip(FontColor.stripColor(selectionString)), font, textColor.inverse(), region);
                 }
                 currentChar += innerLine.length();
                 lineOffset++;
@@ -192,8 +198,8 @@ public class UIText extends CoreWidget {
         if (blinkCounter < BLINK_RATE) {
             Font font = canvas.getCurrentStyle().getFont();
             String beforeCursor = text.get();
-            if (cursorPosition < text.get().length()) {
-                beforeCursor = beforeCursor.substring(0, cursorPosition);
+            if (getCursorPosition() < text.get().length()) {
+                beforeCursor = beforeCursor.substring(0, getCursorPosition());
             }
             List<String> lines = TextLineBuilder.getLines(font, beforeCursor, canvas.size().x);
 
@@ -228,60 +234,48 @@ public class UIText extends CoreWidget {
     }
 
     @Override
-    public void onKeyEvent(KeyEvent event) {
+    public boolean onKeyEvent(NUIKeyEvent event) {
         correctCursor();
+        boolean eventHandled = false;
         if (event.isDown() && lastFont != null) {
             String fullText = text.get();
 
             switch (event.getKey().getId()) {
                 case KeyId.LEFT: {
-                    if (hasSelection() && !isSelectionModifierActive()) {
-                        cursorPosition = Math.min(cursorPosition, selectionStart);
-                        selectionStart = cursorPosition;
-                    } else if (cursorPosition > 0) {
-                        cursorPosition--;
-                        if (!isSelectionModifierActive()) {
-                            selectionStart = cursorPosition;
-                        }
+                    if (hasSelection() && !isSelectionModifierActive(event.getKeyboard())) {
+                        setCursorPosition(Math.min(getCursorPosition(), selectionStart));
+                    } else if (getCursorPosition() > 0) {
+                        decreaseCursorPosition(1, !isSelectionModifierActive(event.getKeyboard()));
                     }
-                    event.consume();
+                    eventHandled = true;
                     break;
                 }
                 case KeyId.RIGHT: {
-                    if (hasSelection() && !isSelectionModifierActive()) {
-                        cursorPosition = Math.max(cursorPosition, selectionStart);
-                        selectionStart = cursorPosition;
-                    } else if (cursorPosition < fullText.length()) {
-                        cursorPosition++;
-                        if (!isSelectionModifierActive()) {
-                            selectionStart = cursorPosition;
-                        }
+                    if (hasSelection() && !isSelectionModifierActive(event.getKeyboard())) {
+                        setCursorPosition(Math.max(getCursorPosition(), selectionStart));
+                    } else if (getCursorPosition() < fullText.length()) {
+                        increaseCursorPosition(1, !isSelectionModifierActive(event.getKeyboard()));
                     }
-                    event.consume();
+                    eventHandled = true;
                     break;
                 }
                 case KeyId.HOME: {
-                    cursorPosition = 0;
+                    setCursorPosition(0, !isSelectionModifierActive(event.getKeyboard()));
                     offset = 0;
-                    if (!isSelectionModifierActive()) {
-                        selectionStart = cursorPosition;
-                    }
-                    event.consume();
+                    eventHandled = true;
                     break;
                 }
                 case KeyId.END: {
-                    cursorPosition = fullText.length();
-                    if (!isSelectionModifierActive()) {
-                        selectionStart = cursorPosition;
-                    }
-                    event.consume();
+                    setCursorPosition(fullText.length(), !isSelectionModifierActive(event.getKeyboard()));
+                    eventHandled = true;
                     break;
                 }
                 default: {
-                    if (Keyboard.isKeyDown(KeyId.LEFT_CTRL) || Keyboard.isKeyDown(KeyId.RIGHT_CTRL)) {
+                    if (event.getKeyboard().isKeyDown(KeyId.LEFT_CTRL)
+                            || event.getKeyboard().isKeyDown(KeyId.RIGHT_CTRL)) {
                         if (event.getKey() == Keyboard.Key.C) {
                             copySelection();
-                            event.consume();
+                            eventHandled = true;
                             break;
                         }
                     }
@@ -293,68 +287,72 @@ public class UIText extends CoreWidget {
                     case KeyId.BACKSPACE: {
                         if (hasSelection()) {
                             removeSelection();
-                        } else if (cursorPosition > 0) {
-                            String before = fullText.substring(0, cursorPosition - 1);
-                            String after = fullText.substring(cursorPosition);
+                        } else if (getCursorPosition() > 0) {
+                            String before = fullText.substring(0, getCursorPosition() - 1);
+                            String after = fullText.substring(getCursorPosition());
+
+                            if (getCursorPosition() < fullText.length()) {
+                                decreaseCursorPosition(1);
+                            }
+
                             setText(before + after);
-                            cursorPosition--;
-                            selectionStart = cursorPosition;
                         }
-                        event.consume();
+                        eventHandled = true;
                         break;
                     }
                     case KeyId.DELETE: {
                         if (hasSelection()) {
                             removeSelection();
-                        } else if (cursorPosition < fullText.length()) {
-                            String before = fullText.substring(0, cursorPosition);
-                            String after = fullText.substring(cursorPosition + 1);
+                        } else if (getCursorPosition() < fullText.length()) {
+                            String before = fullText.substring(0, getCursorPosition());
+                            String after = fullText.substring(getCursorPosition() + 1);
                             setText(before + after);
                         }
-                        event.consume();
+                        eventHandled = true;
                         break;
                     }
-                    case KeyId.ENTER: {
-                        for (ActivateEventListener listener : listeners) {
+                    case KeyId.ENTER:
+                    case KeyId.NUMPAD_ENTER: {
+                        for (ActivateEventListener listener : activationListeners) {
                             listener.onActivated(this);
                         }
-                        event.consume();
+                        eventHandled = true;
                         break;
                     }
                     default: {
-                        if (Keyboard.isKeyDown(KeyId.LEFT_CTRL) || Keyboard.isKeyDown(KeyId.RIGHT_CTRL)) {
+                        if (event.getKeyboard().isKeyDown(KeyId.LEFT_CTRL)
+                                || event.getKeyboard().isKeyDown(KeyId.RIGHT_CTRL)) {
                             if (event.getKey() == Keyboard.Key.V) {
                                 removeSelection();
                                 paste();
-                                event.consume();
+                                eventHandled = true;
                                 break;
                             } else if (event.getKey() == Keyboard.Key.X) {
                                 copySelection();
                                 removeSelection();
-                                event.consume();
+                                eventHandled = true;
                                 break;
                             }
                         }
                         if (event.getKeyCharacter() != 0 && lastFont.hasCharacter(event.getKeyCharacter())) {
-                            String before = fullText.substring(0, Math.min(cursorPosition, selectionStart));
-                            String after = fullText.substring(Math.max(cursorPosition, selectionStart));
+                            String before = fullText.substring(0, Math.min(getCursorPosition(), selectionStart));
+                            String after = fullText.substring(Math.max(getCursorPosition(), selectionStart));
                             setText(before + event.getKeyCharacter() + after);
-                            cursorPosition = Math.min(cursorPosition, selectionStart) + 1;
-                            selectionStart = cursorPosition;
-                            event.consume();
+                            setCursorPosition(Math.min(getCursorPosition(), selectionStart) + 1);
+                            eventHandled = true;
                         }
                         break;
                     }
                 }
             }
         }
-        correctCursor();
         updateOffset();
+        return eventHandled;
     }
 
     private void updateOffset() {
         if (lastFont != null && !multiline) {
-            String before = getText().substring(0, cursorPosition);
+            String before = getText().substring(0, getCursorPosition());
             int cursorDist = lastFont.getWidth(before);
             if (cursorDist < offset) {
                 offset = cursorDist;
@@ -365,40 +363,38 @@ public class UIText extends CoreWidget {
         }
     }
 
-    private boolean isSelectionModifierActive() {
-        return Keyboard.isKeyDown(KeyId.LEFT_SHIFT) || Keyboard.isKeyDown(KeyId.RIGHT_SHIFT);
+    private boolean isSelectionModifierActive(KeyboardDevice keyboard) {
+        return keyboard.isKeyDown(KeyId.LEFT_SHIFT) || keyboard.isKeyDown(KeyId.RIGHT_SHIFT);
     }
 
     private boolean hasSelection() {
-        return cursorPosition != selectionStart;
+        return getCursorPosition() != selectionStart;
     }
 
     private void removeSelection() {
         if (hasSelection()) {
-            String before = getText().substring(0, Math.min(cursorPosition, selectionStart));
-            String after = getText().substring(Math.max(cursorPosition, selectionStart));
+            String before = getText().substring(0, Math.min(getCursorPosition(), selectionStart));
+            String after = getText().substring(Math.max(getCursorPosition(), selectionStart));
             setText(before + after);
-            cursorPosition = Math.min(cursorPosition, selectionStart);
-            selectionStart = cursorPosition;
+            setCursorPosition(Math.min(getCursorPosition(), selectionStart));
         }
     }
 
     private void copySelection() {
         if (hasSelection()) {
             String fullText = getText();
-            String selection = fullText.substring(Math.min(selectionStart, cursorPosition), Math.max(selectionStart, cursorPosition));
-            setClipboardContents(FontColor.stripColor(selection));
+            String selection = fullText.substring(Math.min(selectionStart, getCursorPosition()), Math.max(selectionStart, getCursorPosition()));
+            setClipboardContents(FontUnderline.strip(FontColor.stripColor(selection)));
         }
     }
 
     private void paste() {
         String fullText = getText();
-        String before = fullText.substring(0, cursorPosition);
-        String after = fullText.substring(cursorPosition);
+        String before = fullText.substring(0, getCursorPosition());
+        String after = fullText.substring(getCursorPosition());
         String pasted = getClipboardContents();
         setText(before + pasted + after);
-        cursorPosition += pasted.length();
-        selectionStart = cursorPosition;
+        increaseCursorPosition(pasted.length());
     }
 
     private String getClipboardContents() {
@@ -419,7 +415,7 @@ public class UIText extends CoreWidget {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(str), null);
     }
 
-    private void moveCursor(Vector2i pos, boolean selecting) {
+    private void moveCursor(Vector2i pos, boolean selecting, KeyboardDevice keyboard) {
         if (lastFont != null) {
             pos.x += offset;
             String rawText = getText();
@@ -458,22 +454,10 @@ public class UIText extends CoreWidget {
                     newCursorPos += lines.get(lineIndex).length() + 1;
                 }
             }
-            cursorPosition = Math.min(newCursorPos, rawText.length());
-            if (!isSelectionModifierActive() && !selecting) {
-                selectionStart = cursorPosition;
-            }
 
+            setCursorPosition(Math.min(newCursorPos, rawText.length()), !isSelectionModifierActive(keyboard) && !selecting);
             updateOffset();
         }
-    }
-
-    public void setCursorPosition(int position) {
-        this.cursorPosition = TeraMath.clamp(position, 0, getText().length());
-        this.selectionStart = cursorPosition;
-    }
-
-    public int getCursorPosition() {
-        return cursorPosition;
     }
 
     public void bindText(Binding<String> binding) {
@@ -485,7 +469,8 @@ public class UIText extends CoreWidget {
     }
 
     public void setText(String val) {
-        text.set(val);
+        text.set(val != null ? val : "");
+        correctCursor();
     }
 
     public boolean isMultiline() {
@@ -505,11 +490,23 @@ public class UIText extends CoreWidget {
     }
 
     public void subscribe(ActivateEventListener listener) {
-        listeners.add(listener);
+        Preconditions.checkNotNull(listener);
+        activationListeners.add(listener);
     }
 
     public void unsubscribe(ActivateEventListener listener) {
-        listeners.remove(listener);
+        Preconditions.checkNotNull(listener);
+        activationListeners.remove(listener);
+    }
+
+    public void subscribe(CursorUpdateEventListener listener) {
+        Preconditions.checkNotNull(listener);
+        cursorUpdateListeners.add(listener);
+    }
+
+    public void unsubscribe(CursorUpdateEventListener listener) {
+        Preconditions.checkNotNull(listener);
+        cursorUpdateListeners.remove(listener);
     }
 
     @Override
@@ -520,6 +517,55 @@ public class UIText extends CoreWidget {
         while (blinkCounter > 2 * BLINK_RATE) {
             blinkCounter -= 2 * BLINK_RATE;
         }
+    }
+
+    public int increaseCursorPosition(int delta, boolean moveSelectionStart) {
+        int newPosition = getCursorPosition() + delta;
+
+        setCursorPosition(newPosition, moveSelectionStart);
+
+        return newPosition;
+    }
+
+    public int increaseCursorPosition(int delta) {
+        return increaseCursorPosition(delta, true);
+    }
+
+    public int decreaseCursorPosition(int delta, boolean moveSelectionStart) {
+        return increaseCursorPosition(-delta, moveSelectionStart);
+    }
+
+    public int decreaseCursorPosition(int delta) {
+        return decreaseCursorPosition(delta, true);
+    }
+
+    public int getCursorPosition() {
+        return cursorPosition;
+    }
+
+    public void setCursorPosition(int position, boolean moveSelectionStart, boolean callEvent) {
+        int previousPosition = cursorPosition;
+        cursorPosition = position;
+
+        if (moveSelectionStart) {
+            selectionStart = position;
+        }
+
+        correctCursor();
+
+        if (callEvent) {
+            for (CursorUpdateEventListener listener : cursorUpdateListeners) {
+                listener.onCursorUpdated(previousPosition, cursorPosition);
+            }
+        }
+    }
+
+    public void setCursorPosition(int position, boolean moveSelectionStart) {
+        setCursorPosition(position, moveSelectionStart, true);
+    }
+
+    public void setCursorPosition(int position) {
+        setCursorPosition(position, true, true);
     }
 
     private void correctCursor() {

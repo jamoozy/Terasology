@@ -16,11 +16,10 @@
 package org.terasology.logic.characters.events;
 
 import org.terasology.entitySystem.event.Event;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.block.Block;
 
 /**
- * @author Immortius
  */
 public class OnEnterBlockEvent implements Event {
     private Block oldBlock;

@@ -17,9 +17,7 @@ package org.terasology.rendering.nui.widgets;
 
 import org.terasology.rendering.nui.UIWidget;
 
-/**
- * @author Immortius
- */
+@FunctionalInterface
 public interface ItemActivateEventListener<U> {
 
     void onItemActivated(UIWidget widget, U item);

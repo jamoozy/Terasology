@@ -43,13 +43,12 @@ import java.util.Map;
 
 /**
  * Converts between the EntityData types and JSON.
- * <p/>
+ * <br><br>
  * This means that serialization between JSON and Entities/Prefabs is a two step process, with EntityData as an
  * intermediate step - it was done this way because it is much simpler to write gson handlers for the small number of
  * EntityData types than to dynamically build handlers for every component type (and have gson properly handle missing
  * types). This can be revisited in the future.
  *
- * @author Immortius <immortius@gmail.com>
  */
 // TODO: More javadoc
 public final class EntityDataJSONFormat {
@@ -128,12 +127,6 @@ public final class EntityDataJSONFormat {
                 JsonPrimitive nextId = jsonObject.getAsJsonPrimitive("next_entity_id");
                 if (nextId != null) {
                     world.setNextEntityId(nextId.getAsInt());
-                }
-                JsonArray freedIdArray = jsonObject.getAsJsonArray("freed_entity_id");
-                if (freedIdArray != null) {
-                    for (JsonElement freedId : freedIdArray) {
-                        world.addFreedEntityId(freedId.getAsInt());
-                    }
                 }
 
             }
@@ -370,8 +363,8 @@ public final class EntityDataJSONFormat {
                 for (JsonElement element : jsonArray) {
                     if (element.isJsonArray()) {
                         value.addValue((EntityData.Value) context.deserialize(element, EntityData.Value.class));
-                    } else if (json.isJsonObject()) {
-                        extractMap(json, context, value);
+                    } else if (element.isJsonObject()) {
+                        value.addValue((EntityData.Value) context.deserialize(element, EntityData.Value.class));
                     } else if (element.isJsonPrimitive()) {
                         extractPrimitive(value, element);
                         if (element.getAsJsonPrimitive().isNumber()) {

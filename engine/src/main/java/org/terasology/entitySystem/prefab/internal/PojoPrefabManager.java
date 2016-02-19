@@ -15,36 +15,40 @@
  */
 package org.terasology.entitySystem.prefab.internal;
 
-import com.google.common.collect.Sets;
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.Assets;
-import org.terasology.registry.CoreRegistry;
+import com.google.api.client.repackaged.com.google.common.base.Strings;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.context.Context;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.entitySystem.prefab.PrefabManager;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 
 /**
  * Basic implementation of PrefabManager.
  *
- * @author Immortius <immortius@gmail.com>
- * @author Rasmus 'Cervator' Praestholm <cervator@gmail.com>
  * @see PrefabManager
  */
 public class PojoPrefabManager implements PrefabManager {
+
+    private final AssetManager assetManager;
+
+    public PojoPrefabManager(Context context) {
+        this.assetManager = context.get(AssetManager.class);
+    }
+
 
     /**
      * {@inheritDoc}
      */
     @Override
     public Prefab getPrefab(String name) {
-        if (!name.isEmpty()) {
-            return Assets.getPrefab(name);
+        if (Strings.isNullOrEmpty(name)) {
+            return null;
         }
-        return null;
-
+        return assetManager.getAsset(name, Prefab.class).orElse(null);
     }
 
     /**
@@ -52,7 +56,10 @@ public class PojoPrefabManager implements PrefabManager {
      */
     @Override
     public boolean exists(String name) {
-        return Assets.getPrefab(name) != null;
+        if (Strings.isNullOrEmpty(name)) {
+            return false;
+        }
+        return assetManager.getAsset(name, Prefab.class).isPresent();
     }
 
     /**
@@ -60,7 +67,7 @@ public class PojoPrefabManager implements PrefabManager {
      */
     @Override
     public Iterable<Prefab> listPrefabs() {
-        return CoreRegistry.get(AssetManager.class).listLoadedAssets(AssetType.PREFAB, Prefab.class);
+        return assetManager.getLoadedAssets(Prefab.class);
     }
 
     /**
@@ -68,14 +75,7 @@ public class PojoPrefabManager implements PrefabManager {
      */
     @Override
     public Collection<Prefab> listPrefabs(Class<? extends Component> comp) {
-        Collection<Prefab> prefabs = Sets.newHashSet();
-
-        for (Prefab p : CoreRegistry.get(AssetManager.class).listLoadedAssets(AssetType.PREFAB, Prefab.class)) {
-            if (p.getComponent(comp) != null) {
-                prefabs.add(p);
-            }
-        }
-
-        return prefabs;
+        return assetManager.getLoadedAssets(Prefab.class).stream().filter(p -> p.getComponent(comp) != null)
+                .collect(Collectors.toCollection(HashSet::new));
     }
 }

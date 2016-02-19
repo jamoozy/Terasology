@@ -19,110 +19,113 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.terasology.asset.Assets;
 import org.terasology.config.Config;
-import org.terasology.editor.EditorRange;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.texture.Texture;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FrameBuffersManager;
 
-import javax.vecmath.Vector4f;
+import java.util.Optional;
 
 import static org.lwjgl.opengl.GL11.glBindTexture;
 
 /**
  * Shader parameters for the Chunk shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersChunk extends ShaderParametersBase {
-    @EditorRange(min = 0.0f, max = 2.0f)
+    @Range(min = 0.0f, max = 2.0f)
     public float waveIntens = 2.0f;
-    @EditorRange(min = 0.0f, max = 2.0f)
+    @Range(min = 0.0f, max = 2.0f)
     public float waveIntensFalloff = 0.85f;
-    @EditorRange(min = 0.0f, max = 2.0f)
+    @Range(min = 0.0f, max = 2.0f)
     public float waveSize = 0.1f;
-    @EditorRange(min = 0.0f, max = 2.0f)
+    @Range(min = 0.0f, max = 2.0f)
     public float waveSizeFalloff = 1.25f;
-    @EditorRange(min = 0.0f, max = 2.0f)
+    @Range(min = 0.0f, max = 2.0f)
     public float waveSpeed = 0.1f;
-    @EditorRange(min = 0.0f, max = 2.0f)
+    @Range(min = 0.0f, max = 2.0f)
     public float waveSpeedFalloff = 0.95f;
-    @EditorRange(min = 0.0f, max = 5.0f)
+    @Range(min = 0.0f, max = 5.0f)
     public float waterOffsetY;
 
-    @EditorRange(min = 0.0f, max = 2.0f)
+    @Range(min = 0.0f, max = 2.0f)
     public float waveOverallScale = 1.0f;
 
-    @EditorRange(min = 0.0f, max = 1.0f)
+    @Range(min = 0.0f, max = 1.0f)
     float waterRefraction = 0.04f;
-    @EditorRange(min = 0.0f, max = 0.1f)
+    @Range(min = 0.0f, max = 0.1f)
     float waterFresnelBias = 0.01f;
-    @EditorRange(min = 0.0f, max = 10.0f)
+    @Range(min = 0.0f, max = 10.0f)
     float waterFresnelPow = 2.5f;
-    @EditorRange(min = 1.0f, max = 100.0f)
+    @Range(min = 1.0f, max = 100.0f)
     float waterNormalBias = 10.0f;
-    @EditorRange(min = 0.0f, max = 1.0f)
+    @Range(min = 0.0f, max = 1.0f)
     float waterTint = 0.24f;
 
-    @EditorRange(min = 0.0f, max = 1024.0f)
+    @Range(min = 0.0f, max = 1024.0f)
     float waterSpecExp = 200.0f;
 
-    @EditorRange(min = 0.0f, max = 0.5f)
+    @Range(min = 0.0f, max = 0.5f)
     float parallaxBias = 0.05f;
-    @EditorRange(min = 0.0f, max = 0.50f)
+    @Range(min = 0.0f, max = 0.50f)
     float parallaxScale = 0.05f;
 
+    @Override
     public void applyParameters(Material program) {
         super.applyParameters(program);
 
-        Texture terrain = Assets.getTexture("engine:terrain");
-        Texture terrainNormal = Assets.getTexture("engine:terrainNormal");
-        Texture terrainHeight = Assets.getTexture("engine:terrainHeight");
+        Optional<Texture> terrain = Assets.getTexture("engine:terrain");
+        Optional<Texture> terrainNormal = Assets.getTexture("engine:terrainNormal");
+        Optional<Texture> terrainHeight = Assets.getTexture("engine:terrainHeight");
 
-        Texture water = Assets.getTexture("engine:waterStill");
-        Texture lava = Assets.getTexture("engine:lavaStill");
-        Texture waterNormal = Assets.getTexture("engine:waterNormal");
-        Texture waterNormalAlt = Assets.getTexture("engine:waterNormalAlt");
-        Texture effects = Assets.getTexture("engine:effects");
+        Optional<Texture> water = Assets.getTexture("engine:waterStill");
+        Optional<Texture> lava = Assets.getTexture("engine:lavaStill");
+        Optional<Texture> waterNormal = Assets.getTexture("engine:waterNormal");
+        Optional<Texture> waterNormalAlt = Assets.getTexture("engine:waterNormalAlt");
+        Optional<Texture> effects = Assets.getTexture("engine:effects");
 
-        if (terrain == null || water == null || lava == null || waterNormal == null || effects == null) {
+        if (!terrain.isPresent() || !water.isPresent() || !lava.isPresent() || !waterNormal.isPresent() || !effects.isPresent()) {
             return;
         }
 
+        FrameBuffersManager buffersManager = CoreRegistry.get(FrameBuffersManager.class);
+
         int texId = 0;
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        glBindTexture(GL11.GL_TEXTURE_2D, terrain.getId());
+        glBindTexture(GL11.GL_TEXTURE_2D, terrain.get().getId());
         program.setInt("textureAtlas", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        glBindTexture(GL11.GL_TEXTURE_2D, water.getId());
+        glBindTexture(GL11.GL_TEXTURE_2D, water.get().getId());
         program.setInt("textureWater", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        glBindTexture(GL11.GL_TEXTURE_2D, lava.getId());
+        glBindTexture(GL11.GL_TEXTURE_2D, lava.get().getId());
         program.setInt("textureLava", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        glBindTexture(GL11.GL_TEXTURE_2D, waterNormal.getId());
+        glBindTexture(GL11.GL_TEXTURE_2D, waterNormal.get().getId());
         program.setInt("textureWaterNormal", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        glBindTexture(GL11.GL_TEXTURE_2D, waterNormalAlt.getId());
+        glBindTexture(GL11.GL_TEXTURE_2D, waterNormalAlt.get().getId());
         program.setInt("textureWaterNormalAlt", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        glBindTexture(GL11.GL_TEXTURE_2D, effects.getId());
+        glBindTexture(GL11.GL_TEXTURE_2D, effects.get().getId());
         program.setInt("textureEffects", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        DefaultRenderingProcess.getInstance().bindFboTexture("sceneReflected");
+        buffersManager.bindFboColorTexture("sceneReflected");
         program.setInt("textureWaterReflection", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        DefaultRenderingProcess.getInstance().bindFboTexture("sceneOpaque");
+        buffersManager.bindFboColorTexture("sceneOpaque");
         program.setInt("texSceneOpaque", texId++, true);
 
         if (CoreRegistry.get(Config.class).getRendering().isNormalMapping()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            glBindTexture(GL11.GL_TEXTURE_2D, terrainNormal.getId());
+            glBindTexture(GL11.GL_TEXTURE_2D, terrainNormal.get().getId());
             program.setInt("textureAtlasNormal", texId++, true);
 
             if (CoreRegistry.get(Config.class).getRendering().isParallaxMapping()) {
                 GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-                glBindTexture(GL11.GL_TEXTURE_2D, terrainHeight.getId());
+                glBindTexture(GL11.GL_TEXTURE_2D, terrainHeight.get().getId());
                 program.setInt("textureAtlasHeight", texId++, true);
             }
         }

@@ -17,20 +17,20 @@
 package org.terasology.engine.modes.loadProcesses;
 
 import com.google.common.collect.Maps;
-
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.engine.module.ModuleManager;
-import org.terasology.module.Module;
-import org.terasology.naming.NameVersion;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.context.Context;
 import org.terasology.engine.GameEngine;
-import org.terasology.engine.bootstrap.ApplyModulesUtil;
+import org.terasology.engine.bootstrap.EnvironmentSwitchHandler;
 import org.terasology.engine.modes.LoadProcess;
 import org.terasology.engine.modes.StateMainMenu;
+import org.terasology.engine.module.ModuleManager;
 import org.terasology.game.Game;
 import org.terasology.game.GameManifest;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
+import org.terasology.naming.NameVersion;
 import org.terasology.network.JoinStatus;
 import org.terasology.network.NetworkSystem;
 import org.terasology.network.ServerInfoMessage;
@@ -41,28 +41,45 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 /**
- * @author Immortius
  */
 public class JoinServer implements LoadProcess {
     private static final Logger logger = LoggerFactory.getLogger(JoinServer.class);
 
-    private NetworkSystem networkSystem = CoreRegistry.get(NetworkSystem.class);
+    private Context context;
+    private NetworkSystem networkSystem;
     private GameManifest gameManifest;
     private JoinStatus joinStatus;
 
-    public JoinServer(GameManifest gameManifest, JoinStatus joinStatus) {
+    private Thread applyModuleThread;
+    private ModuleEnvironment oldEnvironment;
+
+    public JoinServer(Context context, GameManifest gameManifest, JoinStatus joinStatus) {
+        this.context = context;
+        this.networkSystem = context.get(NetworkSystem.class);
         this.gameManifest = gameManifest;
         this.joinStatus = joinStatus;
     }
 
     @Override
     public String getMessage() {
-        return joinStatus.getCurrentActivity();
+        if (applyModuleThread != null) {
+            return "Scanning for Assets...";
+        } else {
+            return joinStatus.getCurrentActivity();
+        }
     }
 
     @Override
     public boolean step() {
-        if (joinStatus.getStatus() == JoinStatus.Status.COMPLETE) {
+        if (applyModuleThread != null) {
+            if (!applyModuleThread.isAlive()) {
+                if (oldEnvironment != null) {
+                    oldEnvironment.close();
+                }
+                return true;
+            }
+            return false;
+        } else if (joinStatus.getStatus() == JoinStatus.Status.COMPLETE) {
             ServerInfoMessage serverInfo = networkSystem.getServer().getInfo();
             gameManifest.setTitle(serverInfo.getGameName());
             for (WorldInfo worldInfo : serverInfo.getWorldInfoList()) {
@@ -78,34 +95,49 @@ public class JoinServer implements LoadProcess {
                     logger.warn("Overwriting Id {} for {} with Id {}", oldId, name, id);
                 }
             }
+            Map<String, Short> biomeMap = Maps.newHashMap();
+            for (Entry<Short, String> entry : serverInfo.getBiomeIds().entrySet()) {
+                String name = entry.getValue();
+                short id = entry.getKey();
+                Short oldId = biomeMap.put(name, id);
+                if (oldId != null && oldId != id) {
+                    logger.warn("Overwriting Biome Id {} for {} with Id {}", oldId, name, id);
+                }
+            }
             gameManifest.setRegisteredBlockFamilies(serverInfo.getRegisterBlockFamilyList());
             gameManifest.setBlockIdMap(blockMap);
+            gameManifest.setBiomeIdMap(biomeMap);
             gameManifest.setTime(networkSystem.getServer().getInfo().getTime());
 
-            ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);
+            ModuleManager moduleManager = context.get(ModuleManager.class);
 
             Set<Module> moduleSet = Sets.newLinkedHashSet();
             for (NameVersion moduleInfo : networkSystem.getServer().getInfo().getModuleList()) {
                 Module module = moduleManager.getRegistry().getModule(moduleInfo.getName(), moduleInfo.getVersion());
                 if (module == null) {
                     StateMainMenu mainMenu = new StateMainMenu("Missing required module: " + moduleInfo);
-                    CoreRegistry.get(GameEngine.class).changeState(mainMenu);
+                    context.get(GameEngine.class).changeState(mainMenu);
                     return false;
                 } else {
-
-                    logger.debug("Activating module: {}:{}", moduleInfo.getName(), moduleInfo.getVersion());
+                    logger.info("Activating module: {}:{}", moduleInfo.getName(), moduleInfo.getVersion());
                     gameManifest.addModule(module.getId(), module.getVersion());
                     moduleSet.add(module);
                 }
             }
 
-            CoreRegistry.get(Game.class).load(gameManifest);
-            ApplyModulesUtil.applyModules();
+            oldEnvironment = moduleManager.getEnvironment();
+            moduleManager.loadEnvironment(moduleSet, true);
 
-            return true;
+            context.get(Game.class).load(gameManifest);
+
+            EnvironmentSwitchHandler environmentSwitchHandler = context.get(EnvironmentSwitchHandler.class);
+            applyModuleThread = new Thread(() -> environmentSwitchHandler.handleSwitchToGameEnvironment(context));
+            applyModuleThread.start();
+
+            return false;
         } else if (joinStatus.getStatus() == JoinStatus.Status.FAILED) {
             StateMainMenu mainMenu = new StateMainMenu("Failed to connect to server: " + joinStatus.getErrorMessage());
-            CoreRegistry.get(GameEngine.class).changeState(mainMenu);
+            context.get(GameEngine.class).changeState(mainMenu);
         }
         return false;
     }

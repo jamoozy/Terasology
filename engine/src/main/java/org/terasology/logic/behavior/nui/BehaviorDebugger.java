@@ -15,19 +15,22 @@
  */
 package org.terasology.logic.behavior.nui;
 
+import org.terasology.logic.behavior.BehaviorNodeFactory;
 import org.terasology.logic.behavior.asset.BehaviorTree;
 import org.terasology.logic.behavior.tree.Interpreter;
 import org.terasology.logic.behavior.tree.Node;
 import org.terasology.logic.behavior.tree.Status;
 
 /**
- * @author synopia
  */
 public class BehaviorDebugger implements Interpreter.Debugger {
     private BehaviorTree tree;
     private int ticksToRun = -1;
 
-    public BehaviorDebugger() {
+    private BehaviorNodeFactory nodeFactory;
+
+    public BehaviorDebugger(BehaviorNodeFactory nodeFactory) {
+        this.nodeFactory = nodeFactory;
     }
 
     public void pause() {
@@ -69,7 +72,7 @@ public class BehaviorDebugger implements Interpreter.Debugger {
         if (tree == null) {
             return;
         }
-        for (RenderableNode renderableNode : tree.getRenderableNodes()) {
+        for (RenderableNode renderableNode : tree.getRenderableNodes(nodeFactory)) {
             renderableNode.setStatus(null);
         }
     }

@@ -18,8 +18,9 @@ package org.terasology.utilities.procedural;
 
 /**
  * Provides or generates 3D noise
- * @author Martin Steiger
+ * @deprecated use {@link Noise} instead
  */
+@Deprecated
 public interface Noise3D {
 
     /**
@@ -30,6 +31,6 @@ public interface Noise3D {
      * @param z Position on the z-axis
      * @return The noise value
      */
-    double noise(double x, double y, double z);
+    float noise(float x, float y, float z);
 
 }

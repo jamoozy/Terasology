@@ -16,23 +16,22 @@
 
 package org.terasology.engine.modes.loadProcesses;
 
-import com.google.common.collect.Lists;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
-import org.terasology.asset.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.context.Context;
 import org.terasology.entitySystem.prefab.Prefab;
 
 import java.util.Iterator;
 
 /**
- * @author Immortius
  */
 public class LoadPrefabs extends StepBasedLoadProcess {
-    private static final Logger logger = LoggerFactory.getLogger(LoadPrefabs.class);
+    private final AssetManager assetManager;
+    private Iterator<ResourceUrn> prefabs;
 
-    private Iterator<AssetUri> prefabs;
+    public LoadPrefabs(Context context) {
+        this.assetManager = context.get(AssetManager.class);
+    }
 
     @Override
     public String getMessage() {
@@ -42,7 +41,7 @@ public class LoadPrefabs extends StepBasedLoadProcess {
     @Override
     public boolean step() {
         if (prefabs.hasNext()) {
-            Assets.get(prefabs.next(), Prefab.class);
+            assetManager.getAsset(prefabs.next(), Prefab.class);
             stepDone();
         }
         return !prefabs.hasNext();
@@ -50,8 +49,8 @@ public class LoadPrefabs extends StepBasedLoadProcess {
 
     @Override
     public void begin() {
-        prefabs = Assets.list(AssetType.PREFAB).iterator();
-        setTotalSteps(Lists.newArrayList(Assets.list(AssetType.PREFAB)).size());
+        prefabs = assetManager.getAvailableAssets(Prefab.class).iterator();
+        setTotalSteps(assetManager.getAvailableAssets(Prefab.class).size());
     }
 
     @Override

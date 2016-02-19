@@ -16,48 +16,60 @@
 package org.terasology.audio.openAL.streamingSound;
 
 import org.lwjgl.openal.AL10;
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
-import org.terasology.audio.AudioManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.audio.StreamingSound;
 import org.terasology.audio.StreamingSoundData;
 import org.terasology.audio.openAL.OpenALException;
+import org.terasology.audio.openAL.OpenALManager;
+import org.terasology.engine.GameThread;
 
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.util.Optional;
 
 import static org.lwjgl.openal.AL10.AL_SIZE;
 import static org.lwjgl.openal.AL10.alGetBufferi;
 
-public final class OpenALStreamingSound extends AbstractAsset<StreamingSoundData> implements StreamingSound {
+public final class OpenALStreamingSound extends StreamingSound {
     private static final int BUFFER_POOL_SIZE = 8;
     private static final int BUFFER_SIZE = 4096 * 8;
 
-    protected int[] buffers = new int[0];
-    protected int lastUpdatedBuffer;
+    private static final Logger logger = LoggerFactory.getLogger(OpenALStreamingSound.class);
 
-    private AudioManager audioManager;
+    private final OpenALManager audioManager;
     private StreamingSoundData stream;
     private ByteBuffer dataBuffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
 
-    public OpenALStreamingSound(AssetUri uri, StreamingSoundData data, AudioManager audioManager) {
-        super(uri);
+    private InternalResources internalResources;
+    private int lastUpdatedBuffer;
+
+    public OpenALStreamingSound(ResourceUrn urn, AssetType<?, StreamingSoundData> assetType, StreamingSoundData data, OpenALManager audioManager) {
+        super(urn, assetType);
+        this.internalResources = new InternalResources(urn, this);
         this.audioManager = audioManager;
+        getDisposalHook().setDisposeAction(internalResources);
         reload(data);
     }
 
     public int[] getBuffers() {
-        return this.buffers;
+        return this.internalResources.buffers;
     }
 
     public boolean updateBuffer(int buffer) {
         stream.readNextInto(dataBuffer);
 
         if (dataBuffer.limit() == 0) {
+            // rewind to ensure that limit is reset to capacity
+            dataBuffer.clear();
             return false;
         }
 
-        AL10.alBufferData(buffer, stream.getChannels() == 1 ? AL10.AL_FORMAT_MONO16 : AL10.AL_FORMAT_STEREO16,
-                dataBuffer, stream.getSamplingRate());
+        int format = stream.getChannels() == 1 ? AL10.AL_FORMAT_MONO16 : AL10.AL_FORMAT_STEREO16;
+        AL10.alBufferData(buffer, format, dataBuffer, stream.getSamplingRate());
         OpenALException.checkState("Uploading buffer data");
 
         this.lastUpdatedBuffer = buffer;
@@ -66,15 +78,15 @@ public final class OpenALStreamingSound extends AbstractAsset<StreamingSoundData
     }
 
     private void initializeBuffers() {
-        if (buffers.length == 0) {
-            buffers = new int[BUFFER_POOL_SIZE];
+        if (internalResources.buffers.length == 0) {
+            internalResources.buffers = new int[BUFFER_POOL_SIZE];
 
-            for (int i = 0; i < buffers.length; i++) {
-                buffers[i] = AL10.alGenBuffers();
+            for (int i = 0; i < internalResources.buffers.length; i++) {
+                internalResources.buffers[i] = AL10.alGenBuffers();
                 OpenALException.checkState("Creating buffer");
             }
 
-            this.lastUpdatedBuffer = buffers[0];
+            lastUpdatedBuffer = internalResources.buffers[0];
         }
     }
 
@@ -112,30 +124,58 @@ public final class OpenALStreamingSound extends AbstractAsset<StreamingSoundData
     }
 
     @Override
-    public void dispose() {
-        // TODO: Fix this - probably failing if sound is playing
-        for (int buffer : buffers) {
-            if (buffer != 0) {
-                AL10.alDeleteBuffers(buffer);
-            }
-        }
-        OpenALException.checkState("Deleting buffer data");
-        buffers = new int[0];
-    }
-
-    @Override
-    public void reload(StreamingSoundData data) {
-        stream = data;
-        this.initializeBuffers();
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return buffers.length == 0;
-    }
-
-    @Override
     public void reset() {
         stream.reset();
+    }
+
+    @Override
+    protected void doReload(StreamingSoundData data) {
+        stream = data;
+        try {
+            GameThread.synch(this::initializeBuffers);
+        } catch (InterruptedException e) {
+            logger.error("Failed to reload {}", getUrn(), e);
+        }
+    }
+
+    @Override
+    protected Optional<? extends Asset<StreamingSoundData>> doCreateCopy(ResourceUrn copyUrn, AssetType<?, StreamingSoundData> parentAssetType) {
+        return Optional.of(new OpenALStreamingSound(copyUrn, parentAssetType, stream, audioManager));
+    }
+
+    private static class InternalResources implements Runnable {
+
+        protected int[] buffers = new int[0];
+
+        private final ResourceUrn urn;
+        private final WeakReference<OpenALStreamingSound> asset;
+
+        public InternalResources(ResourceUrn urn, OpenALStreamingSound asset) {
+            this.urn = urn;
+            this.asset = new WeakReference<>(asset);
+        }
+
+        @Override
+        public void run() {
+            try {
+                GameThread.synch(() -> {
+                    OpenALStreamingSound sound = asset.get();
+                    if (sound != null) {
+                        sound.audioManager.purgeSound(sound);
+                    }
+
+                    // TODO: Fix this - probably failing if sound is playing
+                    for (int buffer : buffers) {
+                        if (buffer != 0) {
+                            AL10.alDeleteBuffers(buffer);
+                        }
+                    }
+                    OpenALException.checkState("Deleting buffer data");
+                    buffers = new int[0];
+                });
+            } catch (InterruptedException e) {
+                logger.error("Failed to dispose {}", urn, e);
+            }
+        }
     }
 }

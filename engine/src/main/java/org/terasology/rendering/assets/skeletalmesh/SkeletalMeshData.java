@@ -15,23 +15,21 @@
  */
 package org.terasology.rendering.assets.skeletalmesh;
 
-import com.bulletphysics.linearmath.QuaternionUtil;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
-import org.terasology.asset.AssetData;
+import org.terasology.assets.AssetData;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector2f;
-import javax.vecmath.Vector3f;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 public class SkeletalMeshData implements AssetData {
 
@@ -97,7 +95,7 @@ public class SkeletalMeshData implements AssetData {
                 int weightIndex = vertexStartWeights.get(i) + weightIndexOffset;
                 BoneWeight weight = weights.get(weightIndex);
 
-                Vector3f current = QuaternionUtil.quatRotate(boneRotations.get(weight.getBoneIndex()), weight.getPosition(), new Vector3f());
+                Vector3f current = boneRotations.get(weight.getBoneIndex()).rotate(weight.getPosition(), new Vector3f());
                 current.add(bonePositions.get(weight.getBoneIndex()));
                 current.scale(weight.getBias());
                 vertexPos.add(current);
@@ -115,7 +113,7 @@ public class SkeletalMeshData implements AssetData {
                 int weightIndex = vertexStartWeights.get(i) + weightIndexOffset;
                 BoneWeight weight = weights.get(weightIndex);
 
-                Vector3f current = QuaternionUtil.quatRotate(boneRotations.get(weight.getBoneIndex()), weight.getNormal(), new Vector3f());
+                Vector3f current = boneRotations.get(weight.getBoneIndex()).rotate(weight.getNormal(), new Vector3f());
                 current.scale(weight.getBias());
                 vertexNorm.add(current);
             }
@@ -162,9 +160,7 @@ public class SkeletalMeshData implements AssetData {
             normals.get(indices.get(i * 3 + 2)).add(norm);
         }
 
-        for (Vector3f normal : normals) {
-            normal.normalize();
-        }
+        normals.forEach(Vector3f::normalize);
 
         Quat4f inverseRot = new Quat4f();
         for (int vertIndex = 0; vertIndex < vertices.size(); ++vertIndex) {
@@ -172,9 +168,67 @@ public class SkeletalMeshData implements AssetData {
             for (int weightIndex = 0; weightIndex < vertexWeightCounts.get(vertIndex); ++weightIndex) {
                 BoneWeight weight = weights.get(weightIndex + vertexStartWeights.get(vertIndex));
                 inverseRot.inverse(bones.get(weight.getBoneIndex()).getObjectRotation());
-                QuaternionUtil.quatRotate(inverseRot, normal, norm);
+                inverseRot.rotate(normal, norm);
                 weight.setNormal(norm);
             }
         }
+    }
+
+    /**
+     * Outputs the skeletal mesh as md5mesh file
+     */
+    public String toMD5(String shader) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("MD5Version 10\n" +
+                "commandline \"Exported from Terasology MD5SkeletonLoader\"\n" +
+                "\n");
+        sb.append("numJoints ").append(bones.size()).append("\n");
+        sb.append("numMeshes 1\n\n");
+        sb.append("joints {\n");
+        for (Bone bone : bones) {
+
+            sb.append("\t\"").append(bone.getName()).append("\" ").append(bone.getParentIndex()).append(" ( ");
+            sb.append(bone.getObjectPosition().x).append(" ");
+            sb.append(bone.getObjectPosition().y).append(" ");
+            sb.append(bone.getObjectPosition().z).append(" ) ( ");
+            Quat4f rot = new Quat4f(bone.getObjectRotation());
+            rot.normalize();
+            if (rot.w > 0) {
+                rot.x = -rot.x;
+                rot.y = -rot.y;
+                rot.z = -rot.z;
+            }
+            sb.append(rot.x).append(" ");
+            sb.append(rot.y).append(" ");
+            sb.append(rot.z).append(" )\n");
+        }
+        sb.append("}\n\n");
+
+        sb.append("mesh {\n");
+        sb.append("\tshader \"" + shader + "\"\n");
+        sb.append("\tnumverts ").append(uvs.size()).append("\n");
+        for (int i = 0; i < uvs.size(); i++) {
+            sb.append("\tvert ").append(i).append(" (").append(uvs.get(i).x).append(" ").append(uvs.get(i).y).append(") ");
+            sb.append(vertexStartWeights.get(i)).append(" ").append(vertexWeightCounts.get(i)).append("\n");
+        }
+        sb.append("\n");
+        sb.append("\tnumtris ").append(indices.size() / 3).append("\n");
+        for (int i = 0; i < indices.size() / 3; i++) {
+            int i1 = indices.get(i * 3);
+            int i2 = indices.get(i * 3 + 1);
+            int i3 = indices.get(i * 3 + 2);
+            sb.append("\ttri ").append(i).append(" ").append(i1).append(" ").append(i2).append(" ").append(i3).append("\n");
+        }
+        sb.append("\n");
+        sb.append("\tnumweights ").append(weights.size()).append("\n");
+        int meshId = 0;
+        for (BoneWeight weight : weights) {
+            sb.append("\tweight ").append(meshId).append(" ").append(weight.getBoneIndex()).append(" ");
+            sb.append(weight.getBias()).append(" ( ");
+            sb.append(weight.getPosition().x).append(" ").append(weight.getPosition().y).append(" ").append(weight.getPosition().z).append(")\n");
+            meshId++;
+        }
+        sb.append("}\n");
+        return sb.toString();
     }
 }

@@ -15,34 +15,49 @@
  */
 package org.terasology.core.world.generator.worldGenerators;
 
-import org.terasology.core.logic.generators.DefaultGenerators;
-import org.terasology.core.world.generator.AbstractBaseWorldGenerator;
-import org.terasology.core.world.generator.chunkGenerators.FlatTerrainGenerator;
-import org.terasology.core.world.generator.chunkGenerators.FloraGenerator;
-import org.terasology.core.world.generator.chunkGenerators.ForestGenerator;
-import org.terasology.core.world.generator.chunkGenerators.OreGenerator;
-import org.terasology.core.world.liquid.LiquidsGenerator;
+import org.terasology.core.world.generator.facetProviders.BiomeProvider;
+import org.terasology.core.world.generator.facetProviders.DefaultFloraProvider;
+import org.terasology.core.world.generator.facetProviders.DefaultTreeProvider;
+import org.terasology.core.world.generator.facetProviders.FlatSurfaceHeightProvider;
+import org.terasology.core.world.generator.facetProviders.PerlinHumidityProvider;
+import org.terasology.core.world.generator.facetProviders.PerlinSurfaceTemperatureProvider;
+import org.terasology.core.world.generator.facetProviders.SeaLevelProvider;
+import org.terasology.core.world.generator.facetProviders.SurfaceToDensityProvider;
+import org.terasology.core.world.generator.rasterizers.FloraRasterizer;
+import org.terasology.core.world.generator.rasterizers.SolidRasterizer;
+import org.terasology.core.world.generator.rasterizers.TreeRasterizer;
 import org.terasology.engine.SimpleUri;
+import org.terasology.registry.In;
+import org.terasology.world.generation.BaseFacetedWorldGenerator;
+import org.terasology.world.generation.WorldBuilder;
 import org.terasology.world.generator.RegisterWorldGenerator;
+import org.terasology.world.generator.plugin.WorldGeneratorPluginLibrary;
 
-/**
- * @author Immortius
- */
 @RegisterWorldGenerator(id = "flat", displayName = "Flat")
-public class FlatWorldGenerator extends AbstractBaseWorldGenerator {
+public class FlatWorldGenerator extends BaseFacetedWorldGenerator {
 
     public FlatWorldGenerator(SimpleUri uri) {
         super(uri);
     }
 
+    @In
+    private WorldGeneratorPluginLibrary worldGeneratorPluginLibrary;
+
     @Override
-    public void initialize() {
-        register(new FlatTerrainGenerator());
-        register(new FloraGenerator());
-        register(new LiquidsGenerator());
-        register(new OreGenerator());
-        ForestGenerator forestGenerator = new ForestGenerator();
-        DefaultGenerators.addDefaultForestGenerators(forestGenerator);
-        register(forestGenerator);
+    protected WorldBuilder createWorld() {
+        return new WorldBuilder(worldGeneratorPluginLibrary)
+                .addProvider(new SeaLevelProvider(32))
+                        // height of 40 so that it is far enough from sea level so that it doesnt just create beachfront
+                .addProvider(new FlatSurfaceHeightProvider(40))
+                .addProvider(new PerlinHumidityProvider())
+                .addProvider(new PerlinSurfaceTemperatureProvider())
+                .addProvider(new BiomeProvider())
+                .addProvider(new SurfaceToDensityProvider())
+                .addProvider(new DefaultFloraProvider())
+                .addProvider(new DefaultTreeProvider())
+                .addRasterizer(new FloraRasterizer())
+                .addRasterizer(new TreeRasterizer())
+                .addRasterizer(new SolidRasterizer())
+                .addPlugins();
     }
 }

@@ -17,43 +17,43 @@ package org.terasology.world.chunks.internal;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.registry.CoreRegistry;
 import org.terasology.math.AABB;
 import org.terasology.math.Region3i;
-import org.terasology.math.Vector3i;
-import org.terasology.monitoring.ChunkMonitor;
+import org.terasology.math.geom.BaseVector3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.monitoring.chunk.ChunkMonitor;
 import org.terasology.protobuf.EntityData;
 import org.terasology.rendering.primitives.ChunkMesh;
+import org.terasology.world.biomes.Biome;
+import org.terasology.world.biomes.BiomeManager;
 import org.terasology.world.block.Block;
 import org.terasology.world.block.BlockManager;
 import org.terasology.world.chunks.Chunk;
 import org.terasology.world.chunks.ChunkBlockIterator;
 import org.terasology.world.chunks.ChunkConstants;
-import org.terasology.world.chunks.Chunks;
 import org.terasology.world.chunks.blockdata.TeraArray;
-import org.terasology.world.chunks.blockdata.TeraArrays;
+import org.terasology.world.chunks.blockdata.TeraDenseArray16Bit;
+import org.terasology.world.chunks.blockdata.TeraDenseArray8Bit;
 import org.terasology.world.chunks.deflate.TeraDeflator;
 import org.terasology.world.chunks.deflate.TeraStandardDeflator;
 import org.terasology.world.liquid.LiquidData;
 
-import javax.vecmath.Vector3f;
 import java.text.DecimalFormat;
-import java.util.Map;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Chunks are the basic components of the world. Each chunk contains a fixed amount of blocks
  * determined by its dimensions. They are used to manage the world efficiently and
  * to reduce the batch count within the render loop.
- * <p/>
+ * <br><br>
  * Chunks are tessellated on creation and saved to vertex arrays. From those VBOs are generated
  * which are then used for the actual rendering process.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
- * @author Manuel Brotz <manu.brotz@gmx.ch>
  */
 public class ChunkImpl implements Chunk {
 
@@ -62,175 +62,141 @@ public class ChunkImpl implements Chunk {
     private static final DecimalFormat PERCENT_FORMAT = new DecimalFormat("0.##");
     private static final DecimalFormat SIZE_FORMAT = new DecimalFormat("#,###");
 
-
-    public static enum State {
-        ADJACENCY_GENERATION_PENDING(EntityData.ChunkState.ADJACENCY_GENERATION_PENDING),
-        INTERNAL_LIGHT_GENERATION_PENDING(EntityData.ChunkState.INTERNAL_LIGHT_GENERATION_PENDING),
-        COMPLETE(EntityData.ChunkState.COMPLETE);
-
-        private static final Map<EntityData.ChunkState, State> LOOKUP;
-
-        private final EntityData.ChunkState protobufState;
-
-        static {
-            LOOKUP = Maps.newHashMap();
-            for (State s : State.values()) {
-                LOOKUP.put(s.protobufState, s);
-            }
-        }
-
-        private State(EntityData.ChunkState protobufState) {
-            this.protobufState = Preconditions.checkNotNull(protobufState);
-        }
-
-        public static State lookup(EntityData.ChunkState state) {
-            State result = LOOKUP.get(Preconditions.checkNotNull(state, "The parameter 'state' must not be null"));
-            if (result == null) {
-                return INTERNAL_LIGHT_GENERATION_PENDING;
-            }
-            return result;
-        }
-    }
-
-
     private final Vector3i chunkPos = new Vector3i();
 
     private BlockManager blockManager;
+    private BiomeManager biomeManager;
+
+    private TeraArray sunlightData;
+    private TeraArray sunlightRegenData;
+    private TeraArray lightData;
 
     private TeraArray blockData;
-    private TeraArray sunlightData;
-    private TeraArray lightData;
+    private volatile TeraArray blockDataSnapshot;
     private TeraArray extraData;
+    private volatile TeraArray extraDataSnapshot;
+    private TeraArray biomeData;
+    private volatile TeraArray biomeDataSnapshot;
 
-    private boolean initialGenerationComplete;
-    private State chunkState = State.ADJACENCY_GENERATION_PENDING;
-    private boolean dirty;
-    private boolean animated;
     private AABB aabb;
     private Region3i region;
 
-    // Rendering
-    private ChunkMesh[] activeMesh;
-    private ChunkMesh[] pendingMesh;
-    private AABB[] subMeshAABB;
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
-    private ReentrantLock lock = new ReentrantLock();
     private boolean disposed;
-
     private boolean ready;
+    private boolean dirty;
+    private boolean animated;
 
-    protected ChunkImpl() {
-        final Chunks c = Chunks.getInstance();
-        blockData = c.getBlockDataEntry().factory.create(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());
-        sunlightData = c.getSunlightDataEntry().factory.create(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());
-        lightData = c.getLightDataEntry().factory.create(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());
-        extraData = c.getExtraDataEntry().factory.create(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());
-        dirty = true;
-        blockManager = CoreRegistry.get(BlockManager.class);
+    // Rendering
+    private ChunkMesh activeMesh;
+    private ChunkMesh pendingMesh;
+    private boolean adjacentChunksReady;
+
+    public ChunkImpl(int x, int y, int z, BlockManager blockManager, BiomeManager biomeManager) {
+        this(new Vector3i(x, y, z), blockManager, biomeManager);
     }
 
-    public ChunkImpl(int x, int y, int z) {
-        this();
-        chunkPos.x = x;
-        chunkPos.y = y;
-        chunkPos.z = z;
-        region = Region3i.createFromMinAndSize(new Vector3i(x * ChunkConstants.SIZE_X, y * ChunkConstants.SIZE_Y, z * ChunkConstants.SIZE_Z), ChunkConstants.CHUNK_SIZE);
-        ChunkMonitor.fireChunkCreated(this);
+    public ChunkImpl(Vector3i chunkPos, BlockManager blockManager, BiomeManager biomeManager) {
+        this(chunkPos, new TeraDenseArray16Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z),
+                new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z),
+                new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z),
+                blockManager, biomeManager);
     }
 
-    public ChunkImpl(Vector3i chunkPos) {
-        this(chunkPos.x, chunkPos.y, chunkPos.z);
-    }
-
-    public ChunkImpl(Vector3i chunkPos, State chunkState, TeraArray blocks, TeraArray sunlight, TeraArray light, TeraArray liquid, boolean loaded) {
+    public ChunkImpl(Vector3i chunkPos, TeraArray blocks, TeraArray liquid, TeraArray biome, BlockManager blockManager,
+                     BiomeManager biomeManager) {
         this.chunkPos.set(Preconditions.checkNotNull(chunkPos));
         this.blockData = Preconditions.checkNotNull(blocks);
-        this.sunlightData = Preconditions.checkNotNull(sunlight);
-        this.lightData = Preconditions.checkNotNull(light);
         this.extraData = Preconditions.checkNotNull(liquid);
-        this.chunkState = Preconditions.checkNotNull(chunkState);
+        this.biomeData = Preconditions.checkNotNull(biome);
+        sunlightData = new TeraDenseArray8Bit(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());
+        sunlightRegenData = new TeraDenseArray8Bit(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());
+        lightData = new TeraDenseArray8Bit(getChunkSizeX(), getChunkSizeY(), getChunkSizeZ());
         dirty = true;
-        blockManager = CoreRegistry.get(BlockManager.class);
+        this.blockManager = blockManager;
+        this.biomeManager = biomeManager;
         region = Region3i.createFromMinAndSize(new Vector3i(chunkPos.x * ChunkConstants.SIZE_X, chunkPos.y * ChunkConstants.SIZE_Y, chunkPos.z * ChunkConstants.SIZE_Z),
                 ChunkConstants.CHUNK_SIZE);
-        initialGenerationComplete = loaded;
         ChunkMonitor.fireChunkCreated(this);
     }
 
-    public void lock() {
-        lock.lock();
+    @Override
+    public void readLock() {
+        readWriteLock.readLock().lock();
     }
 
-    public void unlock() {
-        lock.unlock();
+    @Override
+    public void readUnlock() {
+        readWriteLock.readLock().unlock();
     }
 
+    @Override
+    public void writeLock() {
+        readWriteLock.writeLock().lock();
+    }
+
+    @Override
+    public void writeUnlock() {
+        readWriteLock.writeLock().unlock();
+    }
+
+    @Override
     public boolean isLocked() {
-        return lock.isLocked();
+        if (readWriteLock.writeLock().tryLock()) {
+            readWriteLock.writeLock().unlock();
+            return false;
+        }
+        return true;
     }
 
-    public Vector3i getPos() {
+    @Override
+    public Vector3i getPosition() {
         return new Vector3i(chunkPos);
     }
 
-    public boolean isInBounds(int x, int y, int z) {
-        return x >= 0 && y >= 0 && z >= 0 && x < getChunkSizeX() && y < getChunkSizeY() && z < getChunkSizeZ();
-    }
-
-    public State getChunkState() {
-        return chunkState;
-    }
-
-    public void setChunkState(State chunkState) {
-        Preconditions.checkNotNull(chunkState);
-        if (chunkState != this.chunkState) {
-            State old = this.chunkState;
-            this.chunkState = chunkState;
-            ChunkMonitor.fireStateChanged(this, old);
-        }
-
-    }
-
-    public boolean isInitialGenerationComplete() {
-        return initialGenerationComplete;
-    }
-
-    public void setInitialGenerationComplete() {
-        initialGenerationComplete = true;
-    }
-
+    @Override
     public boolean isDirty() {
         return dirty;
     }
 
+    @Override
     public void setDirty(boolean dirty) {
-        lock();
+        writeLock();
         try {
             this.dirty = dirty;
         } finally {
-            unlock();
+            writeUnlock();
         }
     }
 
+    @Override
     public int getEstimatedMemoryConsumptionInBytes() {
         return blockData.getEstimatedMemoryConsumptionInBytes()
                 + sunlightData.getEstimatedMemoryConsumptionInBytes()
+                + sunlightRegenData.getEstimatedMemoryConsumptionInBytes()
                 + lightData.getEstimatedMemoryConsumptionInBytes()
-                + extraData.getEstimatedMemoryConsumptionInBytes();
+                + extraData.getEstimatedMemoryConsumptionInBytes()
+                + biomeData.getEstimatedMemoryConsumptionInBytes();
     }
 
     @Override
-    public Block getBlock(Vector3i pos) {
-        return blockManager.getBlock((short) blockData.get(pos.x, pos.y, pos.z));
+    public final Block getBlock(BaseVector3i pos) {
+        short id = (short) blockData.get(pos.x(), pos.y(), pos.z());
+        return blockManager.getBlock(id);
     }
 
     @Override
-    public Block getBlock(int x, int y, int z) {
-        return blockManager.getBlock((short) blockData.get(x, y, z));
+    public final Block getBlock(int x, int y, int z) {
+        short id = (short) blockData.get(x, y, z);
+        return blockManager.getBlock(id);
     }
 
     @Override
     public Block setBlock(int x, int y, int z, Block block) {
+        if (blockData == blockDataSnapshot) {
+            blockData = blockData.copy();
+        }
         int oldValue = blockData.set(x, y, z, block.getId());
         if (oldValue != block.getId()) {
             if (!block.isLiquid()) {
@@ -241,58 +207,90 @@ public class ChunkImpl implements Chunk {
     }
 
     @Override
-    public Block setBlock(Vector3i pos, Block block) {
-        return setBlock(pos.x, pos.y, pos.z, block);
+    public Block setBlock(BaseVector3i pos, Block block) {
+        return setBlock(pos.x(), pos.y(), pos.z(), block);
     }
 
-    public byte getSunlight(Vector3i pos) {
-        return getSunlight(pos.x, pos.y, pos.z);
+    @Override
+    public byte getSunlight(BaseVector3i pos) {
+        return getSunlight(pos.x(), pos.y(), pos.z());
     }
 
+    @Override
     public byte getSunlight(int x, int y, int z) {
         return (byte) sunlightData.get(x, y, z);
     }
 
-    public boolean setSunlight(Vector3i pos, byte amount) {
-        return setSunlight(pos.x, pos.y, pos.z, amount);
+    @Override
+    public boolean setSunlight(BaseVector3i pos, byte amount) {
+        return setSunlight(pos.x(), pos.y(), pos.z(), amount);
     }
 
+    @Override
     public boolean setSunlight(int x, int y, int z, byte amount) {
-        Preconditions.checkArgument(amount >= 0 && amount <= 15);
+        Preconditions.checkArgument(amount >= 0 && amount <= ChunkConstants.MAX_SUNLIGHT);
         return sunlightData.set(x, y, z, amount) != amount;
     }
 
-    public byte getLight(Vector3i pos) {
-        return getLight(pos.x, pos.y, pos.z);
+    @Override
+    public byte getSunlightRegen(BaseVector3i pos) {
+        return getSunlightRegen(pos.x(), pos.y(), pos.z());
     }
 
+    @Override
+    public byte getSunlightRegen(int x, int y, int z) {
+        return (byte) sunlightRegenData.get(x, y, z);
+    }
+
+    @Override
+    public boolean setSunlightRegen(BaseVector3i pos, byte amount) {
+        return setSunlightRegen(pos.x(), pos.y(), pos.z(), amount);
+    }
+
+    @Override
+    public boolean setSunlightRegen(int x, int y, int z, byte amount) {
+        Preconditions.checkArgument(amount >= 0 && amount <= ChunkConstants.MAX_SUNLIGHT_REGEN);
+        return sunlightRegenData.set(x, y, z, amount) != amount;
+    }
+
+    @Override
+    public byte getLight(BaseVector3i pos) {
+        return getLight(pos.x(), pos.y(), pos.z());
+    }
+
+    @Override
     public byte getLight(int x, int y, int z) {
         return (byte) lightData.get(x, y, z);
     }
 
-    public boolean setLight(Vector3i pos, byte amount) {
-        return setLight(pos.x, pos.y, pos.z, amount);
+    @Override
+    public boolean setLight(BaseVector3i pos, byte amount) {
+        return setLight(pos.x(), pos.y(), pos.z(), amount);
     }
 
+    @Override
     public boolean setLight(int x, int y, int z, byte amount) {
-        Preconditions.checkArgument(amount >= 0 && amount <= 15);
+        Preconditions.checkArgument(amount >= 0 && amount <= ChunkConstants.MAX_LIGHT);
         return lightData.set(x, y, z, amount) != amount;
     }
 
     @Override
-    public void setLiquid(Vector3i pos, LiquidData state) {
-        setLiquid(pos.x, pos.y, pos.z, state);
+    public void setLiquid(BaseVector3i pos, LiquidData state) {
+        setLiquid(pos.x(), pos.y(), pos.z(), state);
     }
 
     @Override
     public void setLiquid(int x, int y, int z, LiquidData newState) {
         byte newValue = newState.toByte();
+        if (extraData == extraDataSnapshot) {
+            extraData = extraData.copy();
+        }
         extraData.set(x, y, z, newValue);
     }
 
     @Override
-    public LiquidData getLiquid(Vector3i pos) {
-        return getLiquid(pos.x, pos.y, pos.z);
+    public LiquidData getLiquid(BaseVector3i pos) {
+        return getLiquid(pos.x(), pos.y(), pos.z());
     }
 
     @Override
@@ -301,53 +299,69 @@ public class ChunkImpl implements Chunk {
     }
 
     @Override
-    public Vector3i getChunkWorldPos() {
-        return new Vector3i(getChunkWorldPosX(), getChunkWorldPosY(), getChunkWorldPosZ());
+    public Biome getBiome(int x, int y, int z) {
+        return biomeManager.getBiomeByShortId((short) biomeData.get(x, y, z));
     }
 
     @Override
-    public int getChunkWorldPosX() {
+    public Biome setBiome(int x, int y, int z, Biome biome) {
+        if (biomeData == biomeDataSnapshot) {
+            biomeData = biomeData.copy();
+        }
+        short shortId = biomeManager.getBiomeShortId(biome);
+        short previousShortId = (short) biomeData.set(x, y, z, shortId);
+        return biomeManager.getBiomeByShortId(previousShortId);
+    }
+
+    @Override
+    public Vector3i getChunkWorldOffset() {
+        return new Vector3i(getChunkWorldOffsetX(), getChunkWorldOffsetY(), getChunkWorldOffsetZ());
+    }
+
+    @Override
+    public int getChunkWorldOffsetX() {
         return chunkPos.x * getChunkSizeX();
     }
 
     @Override
-    public int getChunkWorldPosY() {
+    public int getChunkWorldOffsetY() {
         return chunkPos.y * getChunkSizeY();
     }
 
     @Override
-    public int getChunkWorldPosZ() {
+    public int getChunkWorldOffsetZ() {
         return chunkPos.z * getChunkSizeZ();
     }
 
     @Override
-    public Vector3i getBlockWorldPos(Vector3i blockPos) {
-        return getBlockWorldPos(blockPos.x, blockPos.y, blockPos.z);
+    public Vector3i chunkToWorldPosition(BaseVector3i blockPos) {
+        return chunkToWorldPosition(blockPos.x(), blockPos.y(), blockPos.z());
     }
 
     @Override
-    public Vector3i getBlockWorldPos(int x, int y, int z) {
-        return new Vector3i(getBlockWorldPosX(x), getBlockWorldPosY(y), getBlockWorldPosZ(z));
+    public Vector3i chunkToWorldPosition(int x, int y, int z) {
+        return new Vector3i(chunkToWorldPositionX(x), chunkToWorldPositionY(y), chunkToWorldPositionZ(z));
     }
 
     @Override
-    public int getBlockWorldPosX(int x) {
-        return x + getChunkWorldPosX();
+    public int chunkToWorldPositionX(int x) {
+        return x + getChunkWorldOffsetX();
     }
 
     @Override
-    public int getBlockWorldPosY(int y) {
-        return y + getChunkWorldPosY();
+    public int chunkToWorldPositionY(int y) {
+        return y + getChunkWorldOffsetY();
     }
 
     @Override
-    public int getBlockWorldPosZ(int z) {
-        return z + getChunkWorldPosZ();
+    public int chunkToWorldPositionZ(int z) {
+        return z + getChunkWorldOffsetZ();
     }
 
+    @Override
     public AABB getAABB() {
         if (aabb == null) {
-            Vector3f min = getChunkWorldPos().toVector3f();
+            Vector3f min = getChunkWorldOffset().toVector3f();
             Vector3f max = ChunkConstants.CHUNK_SIZE.toVector3f();
             max.add(min);
             aabb = AABB.createMinMax(min, max);
@@ -356,61 +370,102 @@ public class ChunkImpl implements Chunk {
         return aabb;
     }
 
+    @Override
     public void deflate() {
-        lock();
-        try {
-            final TeraDeflator def = new TeraStandardDeflator();
-            if (logger.isDebugEnabled()) {
-                int blocksSize = blockData.getEstimatedMemoryConsumptionInBytes();
-                int sunlightSize = sunlightData.getEstimatedMemoryConsumptionInBytes();
-                int lightSize = lightData.getEstimatedMemoryConsumptionInBytes();
-                int liquidSize = extraData.getEstimatedMemoryConsumptionInBytes();
-                int totalSize = blocksSize + sunlightSize + lightSize + liquidSize;
+        final TeraDeflator def = new TeraStandardDeflator();
+        if (logger.isDebugEnabled()) {
+            int blocksSize = blockData.getEstimatedMemoryConsumptionInBytes();
+            int sunlightSize = sunlightData.getEstimatedMemoryConsumptionInBytes();
+            int sunlightRegenSize = sunlightRegenData.getEstimatedMemoryConsumptionInBytes();
+            int lightSize = lightData.getEstimatedMemoryConsumptionInBytes();
+            int liquidSize = extraData.getEstimatedMemoryConsumptionInBytes();
+            int biomeSize = biomeData.getEstimatedMemoryConsumptionInBytes();
+            int totalSize = blocksSize + sunlightRegenSize + sunlightSize + lightSize + liquidSize + biomeSize;
 
-                blockData = def.deflate(blockData);
-                sunlightData = def.deflate(sunlightData);
-                lightData = def.deflate(lightData);
-                extraData = def.deflate(extraData);
+            blockData = def.deflate(blockData);
+            lightData = def.deflate(lightData);
+            extraData = def.deflate(extraData);
+            biomeData = def.deflate(biomeData);
 
-                int blocksReduced = blockData.getEstimatedMemoryConsumptionInBytes();
-                int sunlightReduced = sunlightData.getEstimatedMemoryConsumptionInBytes();
-                int lightReduced = lightData.getEstimatedMemoryConsumptionInBytes();
-                int liquidReduced = extraData.getEstimatedMemoryConsumptionInBytes();
-                int totalReduced = blocksReduced + sunlightReduced + lightReduced + liquidReduced;
+            int blocksReduced = blockData.getEstimatedMemoryConsumptionInBytes();
+            int lightReduced = lightData.getEstimatedMemoryConsumptionInBytes();
+            int liquidReduced = extraData.getEstimatedMemoryConsumptionInBytes();
+            int biomeReduced = biomeData.getEstimatedMemoryConsumptionInBytes();
+            int totalReduced = blocksReduced + sunlightRegenSize + sunlightSize + lightReduced + liquidReduced + biomeReduced;
 
-                double blocksPercent = 100d - (100d / blocksSize * blocksReduced);
-                double sunlightPercent = 100d - (100d / sunlightSize * sunlightReduced);
-                double lightPercent = 100d - (100d / lightSize * lightReduced);
-                double liquidPercent = 100d - (100d / liquidSize * liquidReduced);
-                double totalPercent = 100d - (100d / totalSize * totalReduced);
+            double blocksPercent = 100d - (100d / blocksSize * blocksReduced);
+            double lightPercent = 100d - (100d / lightSize * lightReduced);
+            double liquidPercent = 100d - (100d / liquidSize * liquidReduced);
+            double biomePercent = 100d - (100d / biomeSize * biomeReduced);
+            double totalPercent = 100d - (100d / totalSize * totalReduced);
 
-                logger.debug("chunk {}: " +
-                        "size-before: {} " +
-                        "bytes, size-after: {} " +
-                        "bytes, total-deflated-by: {}%, " +
-                        "blocks-deflated-by={}%, " +
-                        "sunlight-deflated-by={}%, " +
-                        "light-deflated-by={}%, " +
-                        "liquid-deflated-by={}%",
-                        chunkPos,
-                        SIZE_FORMAT.format(totalSize),
-                        SIZE_FORMAT.format(totalReduced),
-                        PERCENT_FORMAT.format(totalPercent),
-                        PERCENT_FORMAT.format(blocksPercent),
-                        PERCENT_FORMAT.format(sunlightPercent),
-                        PERCENT_FORMAT.format(lightPercent),
-                        PERCENT_FORMAT.format(liquidPercent));
-                ChunkMonitor.fireChunkDeflated(this, totalSize, totalReduced);
-            } else {
-                final int oldSize = getEstimatedMemoryConsumptionInBytes();
-                blockData = def.deflate(blockData);
-                sunlightData = def.deflate(sunlightData);
-                lightData = def.deflate(lightData);
-                extraData = def.deflate(extraData);
-                ChunkMonitor.fireChunkDeflated(this, oldSize, getEstimatedMemoryConsumptionInBytes());
-            }
-        } finally {
-            unlock();
+            logger.debug("chunk {}: " +
+                            "size-before: {} " +
+                            "bytes, size-after: {} " +
+                            "bytes, total-deflated-by: {}%, " +
+                            "blocks-deflated-by={}%, " +
+                            "light-deflated-by={}%, " +
+                            "liquid-deflated-by={}%, " +
+                            "biome-deflated-by={}%",
+                    chunkPos,
+                    SIZE_FORMAT.format(totalSize),
+                    SIZE_FORMAT.format(totalReduced),
+                    PERCENT_FORMAT.format(totalPercent),
+                    PERCENT_FORMAT.format(blocksPercent),
+                    PERCENT_FORMAT.format(lightPercent),
+                    PERCENT_FORMAT.format(liquidPercent),
+                    PERCENT_FORMAT.format(biomePercent));
+            ChunkMonitor.fireChunkDeflated(this, totalSize, totalReduced);
+        } else {
+            final int oldSize = getEstimatedMemoryConsumptionInBytes();
+            blockData = def.deflate(blockData);
+            lightData = def.deflate(lightData);
+            extraData = def.deflate(extraData);
+            biomeData = def.deflate(biomeData);
+            ChunkMonitor.fireChunkDeflated(this, oldSize, getEstimatedMemoryConsumptionInBytes());
+        }
+    }
+
+    @Override
+    public void deflateSunlight() {
+        final TeraDeflator def = new TeraStandardDeflator();
+        if (logger.isDebugEnabled()) {
+            int blocksSize = blockData.getEstimatedMemoryConsumptionInBytes();
+            int sunlightSize = sunlightData.getEstimatedMemoryConsumptionInBytes();
+            int sunlightRegenSize = sunlightRegenData.getEstimatedMemoryConsumptionInBytes();
+            int lightSize = lightData.getEstimatedMemoryConsumptionInBytes();
+            int liquidSize = extraData.getEstimatedMemoryConsumptionInBytes();
+            int totalSize = blocksSize + sunlightRegenSize + sunlightSize + lightSize + liquidSize;
+
+            sunlightData = def.deflate(sunlightData);
+            sunlightRegenData = def.deflate(sunlightRegenData);
+
+            int sunlightReduced = sunlightData.getEstimatedMemoryConsumptionInBytes();
+            int sunlightRegenReduced = sunlightRegenData.getEstimatedMemoryConsumptionInBytes();
+            int totalReduced = blocksSize + sunlightRegenReduced + sunlightReduced + lightSize + liquidSize;
+
+            double sunlightPercent = 100d - (100d / sunlightSize * sunlightReduced);
+            double sunlightRegenPercent = 100d - (100d / sunlightRegenSize * sunlightRegenReduced);
+            double totalPercent = 100d - (100d / totalSize * totalReduced);
+
+            logger.debug("chunk {}: " +
+                            "size-before: {} " +
+                            "bytes, size-after: {} " +
+                            "bytes, total-deflated-by: {}%, " +
+                            "sunlight-deflated-by={}%, " +
+                            "sunlight-regen-deflated-by={}%, " +
+                            chunkPos,
+                    SIZE_FORMAT.format(totalSize),
+                    SIZE_FORMAT.format(totalReduced),
+                    PERCENT_FORMAT.format(totalPercent),
+                    PERCENT_FORMAT.format(sunlightPercent),
+                    PERCENT_FORMAT.format(sunlightRegenPercent));
+            ChunkMonitor.fireChunkDeflated(this, totalSize, totalReduced);
+        } else {
+            final int oldSize = getEstimatedMemoryConsumptionInBytes();
+            sunlightData = def.deflate(sunlightData);
+            sunlightRegenData = def.deflate(sunlightRegenData);
+            ChunkMonitor.fireChunkDeflated(this, oldSize, getEstimatedMemoryConsumptionInBytes());
         }
     }
 
@@ -424,92 +479,101 @@ public class ChunkImpl implements Chunk {
         return Objects.hashCode(chunkPos);
     }
 
-    public void setMesh(ChunkMesh[] mesh) {
+    @Override
+    public void setMesh(ChunkMesh mesh) {
         this.activeMesh = mesh;
     }
 
-    public void setPendingMesh(ChunkMesh[] mesh) {
+    @Override
+    public void setPendingMesh(ChunkMesh mesh) {
         this.pendingMesh = mesh;
     }
 
+    @Override
     public void setAnimated(boolean animated) {
         this.animated = animated;
     }
 
-    public boolean getAnimated() {
+    @Override
+    public boolean isAnimated() {
         return animated;
     }
 
+    @Override
+    public boolean hasMesh() {
+        return activeMesh != null;
+    }
 
-    public ChunkMesh[] getMesh() {
+    @Override
+    public boolean hasPendingMesh() {
+        return pendingMesh != null;
+    }
+
+    @Override
+    public ChunkMesh getMesh() {
         return activeMesh;
     }
 
-    public ChunkMesh[] getPendingMesh() {
+    @Override
+    public ChunkMesh getPendingMesh() {
         return pendingMesh;
     }
 
-    public AABB getSubMeshAABB(int subMesh) {
-        if (subMeshAABB == null) {
-            subMeshAABB = new AABB[ChunkConstants.VERTICAL_SEGMENTS];
-
-            int heightHalf = ChunkConstants.SIZE_Y / ChunkConstants.VERTICAL_SEGMENTS / 2;
-
-            for (int i = 0; i < subMeshAABB.length; i++) {
-                Vector3f dimensions = new Vector3f(8, heightHalf, 8);
-                Vector3f position = new Vector3f(getChunkWorldPosX() - 0.5f, (i * heightHalf * 2) - 0.5f, getChunkWorldPosZ() - 0.5f);
-                position.add(dimensions);
-                subMeshAABB[i] = AABB.createCenterExtent(position, dimensions);
-            }
-        }
-
-        return subMeshAABB[subMesh];
-    }
-
+    @Override
     public void markReady() {
         ready = true;
     }
 
+    @Override
     public void prepareForReactivation() {
         if (disposed) {
             disposed = false;
-            Chunks c = Chunks.getInstance();
-            sunlightData = c.getSunlightDataEntry().factory.create(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
-            lightData = c.getLightDataEntry().factory.create(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
+            sunlightData = new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
+            sunlightRegenData = new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
+            lightData = new TeraDenseArray8Bit(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
         }
     }
 
+    @Override
     public void dispose() {
         disposed = true;
         ready = false;
-        if (activeMesh != null) {
-            for (ChunkMesh chunkMesh : activeMesh) {
-                chunkMesh.dispose();
-            }
-            activeMesh = null;
-        }
+        disposeMesh();
         lightData = null;
         sunlightData = null;
+        sunlightRegenData = null;
         ChunkMonitor.fireChunkDisposed(this);
     }
 
+    @Override
     public void disposeMesh() {
         if (activeMesh != null) {
-            for (ChunkMesh chunkMesh : activeMesh) {
-                chunkMesh.dispose();
-            }
+            activeMesh.dispose();
             activeMesh = null;
         }
     }
 
+    @Override
     public boolean isReady() {
         return ready;
     }
 
+    @Override
+    public void setAdjacentChunksReady(boolean value) {
+        this.adjacentChunksReady = value;
+    }
+
+    @Override
+    public boolean areAdjacentChunksReady() {
+        return this.adjacentChunksReady;
+    }
+
+    @Override
     public boolean isDisposed() {
         return disposed;
     }
 
+    @Override
     public Region3i getRegion() {
         return region;
     }
@@ -529,63 +593,40 @@ public class ChunkImpl implements Chunk {
         return ChunkConstants.SIZE_Z;
     }
 
+    @Override
     public ChunkBlockIterator getBlockIterator() {
-        return new ChunkBlockIteratorImpl(blockManager, getChunkWorldPos(), blockData);
+        return new ChunkBlockIteratorImpl(blockManager, getChunkWorldOffset(), blockData);
+    }
+
+    @Override
+    public EntityData.ChunkStore.Builder encode() {
+        return ChunkSerializer.encode(chunkPos, blockData, extraData, biomeData);
     }
 
     /**
-     * ProtobufHandler implements support for encoding/decoding chunks into/from protobuf messages.
-     *
-     * @author Manuel Brotz <manu.brotz@gmx.ch>
-     * @todo Add support for chunk data extensions.
+     * Calling this method results in a (cheap) snapshot to be taken of the current state of the chunk.
+     * This snapshot can then be obtained and rleased by calling {@link #encodeAndReleaseSnapshot()}.
      */
-    public static class ProtobufHandler {
-
-        public EntityData.ChunkStore.Builder encode(ChunkImpl chunk, boolean coreOnly) {
-            Preconditions.checkNotNull(chunk, "The parameter 'chunk' must not be null");
-            final TeraArrays t = TeraArrays.getInstance();
-            final EntityData.ChunkStore.Builder b = EntityData.ChunkStore.newBuilder()
-                    .setX(chunk.chunkPos.x).setY(chunk.chunkPos.y).setZ(chunk.chunkPos.z)
-                    .setState(chunk.chunkState.protobufState)
-                    .setBlockData(t.encode(chunk.blockData));
-            if (!coreOnly) {
-                b.setLiquidData(t.encode(chunk.extraData));
-            }
-            return b;
-        }
-
-        public ChunkImpl decode(EntityData.ChunkStore message) {
-            Preconditions.checkNotNull(message, "The parameter 'message' must not be null");
-            if (!message.hasX() || !message.hasY() || !message.hasZ()) {
-                throw new IllegalArgumentException("Ill-formed protobuf message. Missing chunk position.");
-            }
-            Vector3i pos = new Vector3i(message.getX(), message.getY(), message.getZ());
-            if (!message.hasState()) {
-                throw new IllegalArgumentException("Ill-formed protobuf message. Missing chunk state.");
-            }
-            State state = State.lookup(message.getState());
-            if (!message.hasBlockData()) {
-                throw new IllegalArgumentException("Ill-formed protobuf message. Missing block data.");
-            }
-
-            final TeraArrays t = TeraArrays.getInstance();
-            final TeraArray blockData = t.decode(message.getBlockData());
-
-            Chunks c = Chunks.getInstance();
-            TeraArray sunlightData = c.getSunlightDataEntry().factory.create(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
-            TeraArray lightData = c.getLightDataEntry().factory.create(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
-            TeraArray extraData;
-            if (message.hasLiquidData()) {
-                extraData = t.decode(message.getLiquidData());
-            } else {
-                extraData = c.getExtraDataEntry().factory.create(ChunkConstants.SIZE_X, ChunkConstants.SIZE_Y, ChunkConstants.SIZE_Z);
-            }
-
-            boolean previouslyComplete = state == State.COMPLETE;
-            if (previouslyComplete) {
-                state = State.INTERNAL_LIGHT_GENERATION_PENDING;
-            }
-            return new ChunkImpl(pos, state, blockData, sunlightData, lightData, extraData, previouslyComplete);
-        }
+    public void createSnapshot() {
+        this.blockDataSnapshot = this.blockData;
+        this.extraDataSnapshot = this.extraData;
+        this.biomeDataSnapshot = this.biomeData;
     }
+
+    /**
+     * This method can only be
+     * called once after {@link #createSnapshot()} has been called. It can be called from a different thread than
+     * {@link #createSnapshot()}, but it must be made sure that neither method is still running when the other gets
+     * called.
+     *
+     * @return an encoded version of the snapshot taken with {@link #createSnapshot()}.
+     */
+    public EntityData.ChunkStore.Builder encodeAndReleaseSnapshot() {
+        EntityData.ChunkStore.Builder result = ChunkSerializer.encode(chunkPos, blockDataSnapshot, extraDataSnapshot, biomeDataSnapshot);
+        this.blockDataSnapshot = null;
+        this.extraDataSnapshot = null;
+        this.biomeDataSnapshot = null;
+        return result;
+    }
+
 }

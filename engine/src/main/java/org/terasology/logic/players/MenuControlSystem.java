@@ -16,9 +16,8 @@
 
 package org.terasology.logic.players;
 
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
 import org.terasology.asset.Assets;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.audio.AudioManager;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.ReceiveEvent;
@@ -27,6 +26,7 @@ import org.terasology.entitySystem.systems.RegisterMode;
 import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.input.ButtonState;
 import org.terasology.input.Keyboard;
+import org.terasology.input.binds.general.OnlinePlayersButton;
 import org.terasology.input.binds.general.PauseButton;
 import org.terasology.input.binds.inventory.InventoryButton;
 import org.terasology.input.events.KeyDownEvent;
@@ -38,11 +38,11 @@ import org.terasology.rendering.nui.ControlWidget;
 import org.terasology.rendering.nui.NUIManager;
 import org.terasology.rendering.nui.asset.UIData;
 import org.terasology.rendering.nui.asset.UIElement;
+import org.terasology.rendering.nui.layers.ingame.OnlinePlayersOverlay;
 import org.terasology.rendering.nui.layers.ingame.inventory.TransferItemCursor;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.opengl.PostProcessor;
 
 /**
- * @author Immortius
  */
 @RegisterSystem(RegisterMode.CLIENT)
 public class MenuControlSystem extends BaseComponentSystem {
@@ -54,7 +54,7 @@ public class MenuControlSystem extends BaseComponentSystem {
     public void initialise() {
         nuiManager.getHUD().addHUDElement("toolbar");
         TransferItemCursor cursor = new TransferItemCursor();
-        UIElement cursorElement = Assets.generateAsset(new AssetUri(AssetType.UI_ELEMENT, "engine:transferItemCursor"), new UIData(cursor), UIElement.class);
+        UIElement cursorElement = Assets.generateAsset(new ResourceUrn("engine:transferItemCursor"), new UIData(cursor), UIElement.class);
         nuiManager.addOverlay(cursorElement, ControlWidget.class);
     }
 
@@ -78,8 +78,8 @@ public class MenuControlSystem extends BaseComponentSystem {
     public void onKeyDown(KeyDownEvent event, EntityRef entity) {
         switch (event.getKey().getId()) {
             case Keyboard.KeyId.F12:
-                DefaultRenderingProcess.getInstance().takeScreenshot();
-                CoreRegistry.get(AudioManager.class).playSound(Assets.getSound("engine:camera"));
+                CoreRegistry.get(PostProcessor.class).takeScreenshot();
+                CoreRegistry.get(AudioManager.class).playSound(Assets.getSound("engine:camera").get());
                 break;
             default:
                 break;
@@ -91,6 +91,19 @@ public class MenuControlSystem extends BaseComponentSystem {
         if (entity.getComponent(ClientComponent.class).local) {
             nuiManager.pushScreen("engine:deathScreen");
         }
+    }
+
+    @ReceiveEvent(components = ClientComponent.class)
+    public void onShowOnlinePlayers(OnlinePlayersButton event, EntityRef entity) {
+        boolean show = event.isDown();
+        String onlinePlayersOverlay = "engine:onlinePlayersOverlay";
+
+        if (show) {
+            nuiManager.addOverlay(onlinePlayersOverlay, OnlinePlayersOverlay.class);
+        } else {
+            nuiManager.removeOverlay(onlinePlayersOverlay);
+        }
+        event.consume();
     }
 
 }

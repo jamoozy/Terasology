@@ -18,11 +18,10 @@ package org.terasology.entitySystem.entity.internal;
 import org.terasology.entitySystem.entity.LowLevelEntityManager;
 
 /**
- * @author Immortius
  */
 public class DefaultRefStrategy implements RefStrategy {
     @Override
-    public BaseEntityRef createRefFor(int id, LowLevelEntityManager entityManager) {
+    public BaseEntityRef createRefFor(long id, LowLevelEntityManager entityManager) {
         return new PojoEntityRef(entityManager, id);
     }
 }

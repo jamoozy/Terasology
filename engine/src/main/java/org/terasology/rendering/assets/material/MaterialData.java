@@ -16,7 +16,7 @@
 package org.terasology.rendering.assets.material;
 
 import com.google.common.collect.Maps;
-import org.terasology.asset.AssetData;
+import org.terasology.assets.AssetData;
 import org.terasology.rendering.assets.shader.Shader;
 import org.terasology.rendering.assets.texture.Texture;
 
@@ -25,7 +25,6 @@ import java.util.Map;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * @author Immortius
  */
 public class MaterialData implements AssetData {
     private Shader shader;

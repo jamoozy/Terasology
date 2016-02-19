@@ -15,13 +15,11 @@
  */
 package org.terasology.reflection.copy.strategy;
 
+import org.terasology.math.geom.Vector3f;
 import org.terasology.reflection.copy.CopyStrategy;
 import org.terasology.reflection.copy.RegisterCopyStrategy;
 
-import javax.vecmath.Vector3f;
-
 /**
- * @author Immortius
  */
 @RegisterCopyStrategy
 public class Vector3fCopyStrategy implements CopyStrategy<Vector3f> {

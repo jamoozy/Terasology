@@ -20,6 +20,8 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Comparator;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -29,7 +31,6 @@ import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * @author Immortius
  */
 public final class TaskMaster<T extends Task> {
     private static final Logger logger = LoggerFactory.getLogger(TaskMaster.class);
@@ -51,15 +52,19 @@ public final class TaskMaster<T extends Task> {
     }
 
     public static <T extends Task> TaskMaster<T> createFIFOTaskMaster(String name, int threads) {
-        return new TaskMaster<>(name, threads, new LinkedBlockingQueue<T>());
+        return new TaskMaster<>(name, threads, new LinkedBlockingQueue<>());
     }
 
     public static <T extends Task & Comparable<? super T>> TaskMaster<T> createPriorityTaskMaster(String name, int threads, int queueSize) {
-        return new TaskMaster<>(name, threads, new PriorityBlockingQueue<T>(queueSize));
+        return new TaskMaster<>(name, threads, new PriorityBlockingQueue<>(queueSize));
     }
 
     public static <T extends Task> TaskMaster<T> createPriorityTaskMaster(String name, int threads, int queueSize, Comparator<T> comparator) {
-        return new TaskMaster<>(name, threads, new PriorityBlockingQueue<T>(queueSize, comparator));
+        return new TaskMaster<>(name, threads, new PriorityBlockingQueue<>(queueSize, comparator));
+    }
+
+    public static <T extends Task> TaskMaster<T> createDynamicPriorityTaskMaster(String name, int threads, Comparator<T> comparator) {
+        return new TaskMaster<>(name, threads, new DynamicPriorityBlockingQueue<>(comparator));
     }
 
     /**
@@ -95,16 +100,19 @@ public final class TaskMaster<T extends Task> {
                 logger.error("Failed to enqueue shutdown request", e);
             }
         }
-        executorService.shutdown();
-        try {
-            if (!executorService.awaitTermination(20, TimeUnit.SECONDS)) {
-                logger.warn("Timed out awaiting thread termination");
+        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+            executorService.shutdown();
+            try {
+                if (!executorService.awaitTermination(20, TimeUnit.SECONDS)) {
+                    logger.warn("Timed out awaiting thread termination");
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                logger.warn("Interrupted awaiting chunk thread termination");
                 executorService.shutdownNow();
             }
-        } catch (InterruptedException e) {
-            logger.warn("Interrupted awaiting chunk thread termination");
-            executorService.shutdownNow();
-        }
+            return null;
+        });
         running = false;
     }
 
@@ -112,9 +120,10 @@ public final class TaskMaster<T extends Task> {
         if (!running) {
             executorService = Executors.newFixedThreadPool(threads);
             for (int i = 0; i < threads; ++i) {
-                executorService.execute(new TaskProcessor(name + "-" + i, taskQueue));
+                executorService.execute(new TaskProcessor<>(name + "-" + i, taskQueue));
             }
             running = true;
         }
     }
+
 }

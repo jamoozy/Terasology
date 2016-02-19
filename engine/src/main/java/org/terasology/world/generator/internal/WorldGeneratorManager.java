@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
 import org.terasology.engine.SimpleUri;
 import org.terasology.engine.module.ModuleManager;
 import org.terasology.module.DependencyResolver;
@@ -26,7 +27,7 @@ import org.terasology.module.Module;
 import org.terasology.module.ModuleEnvironment;
 import org.terasology.module.ResolutionResult;
 import org.terasology.naming.Name;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.registry.InjectionHelper;
 import org.terasology.world.generator.RegisterWorldGenerator;
 import org.terasology.world.generator.UnresolvedWorldGeneratorException;
 import org.terasology.world.generator.WorldGenerator;
@@ -36,19 +37,21 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class WorldGeneratorManager {
     private static final Logger logger = LoggerFactory.getLogger(WorldGeneratorManager.class);
 
+    private Context context;
+
     private ImmutableList<WorldGeneratorInfo> generatorInfo;
 
-    public WorldGeneratorManager() {
+    public WorldGeneratorManager(Context context) {
+        this.context = context;
         refresh();
     }
 
     public void refresh() {
-        ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);
+        ModuleManager moduleManager = context.get(ModuleManager.class);
         List<WorldGeneratorInfo> infos = Lists.newArrayList();
         for (Name moduleId : moduleManager.getRegistry().getModuleIds()) {
             Module module = moduleManager.getRegistry().getLatestModuleVersion(moduleId);
@@ -72,6 +75,8 @@ public class WorldGeneratorManager {
                     } catch (Exception e) {
                         logger.error("Error loading world generator in module {}, skipping", module.getId(), e);
                     }
+                } else {
+                    logger.warn("Could not resolve dependencies for module: {}", module);
                 }
             }
         }
@@ -93,11 +98,12 @@ public class WorldGeneratorManager {
     }
 
     /**
-     * @param uri
+     * @param uri uri of the world generator to create.
+     * @param context objects from this context will be injected into the
      * @return The instantiated world generator.
      */
-    public WorldGenerator createGenerator(SimpleUri uri) throws UnresolvedWorldGeneratorException {
-        ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);
+    public static WorldGenerator createGenerator(SimpleUri uri, Context context) throws UnresolvedWorldGeneratorException {
+        ModuleManager moduleManager = context.get(ModuleManager.class);
         Module module = moduleManager.getEnvironment().get(uri.getModuleName());
         if (module == null) {
             DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());
@@ -110,25 +116,33 @@ public class WorldGeneratorManager {
                 }
             }
             try (ModuleEnvironment environment = moduleManager.loadEnvironment(result.getModules(), false)) {
-                return searchForWorldGenerator(uri, environment);
+                return createWorldGenerator(uri, context, environment);
             }
         } else {
-            return searchForWorldGenerator(uri, moduleManager.getEnvironment());
+            return createWorldGenerator(uri, context, moduleManager.getEnvironment());
         }
     }
 
-    private WorldGenerator searchForWorldGenerator(SimpleUri uri, ModuleEnvironment environment) throws UnresolvedWorldGeneratorException {
+    /**
+     * @param uri uri of the world generator to create.
+     * @param context that will be used to inject teh world generator.
+     * @param environment to be searched for the world generator class.
+     * @return a new world generator with the specified uri.
+     */
+    public static WorldGenerator createWorldGenerator(SimpleUri uri, Context context, ModuleEnvironment environment) throws UnresolvedWorldGeneratorException {
         for (Class<?> generatorClass : environment.getTypesAnnotatedWith(RegisterWorldGenerator.class)) {
             RegisterWorldGenerator annotation = generatorClass.getAnnotation(RegisterWorldGenerator.class);
             SimpleUri generatorUri = new SimpleUri(environment.getModuleProviding(generatorClass), annotation.id());
             if (generatorUri.equals(uri)) {
-                return loadGenerator(generatorClass, generatorUri);
+                WorldGenerator worldGenerator = loadGenerator(generatorClass, generatorUri);
+                InjectionHelper.inject(worldGenerator, context);
+                return worldGenerator;
             }
         }
         throw new UnresolvedWorldGeneratorException("Unable to resolve world generator '" + uri + "' - not found");
     }
 
-    private WorldGenerator loadGenerator(Class<?> generatorClass, SimpleUri uri) throws UnresolvedWorldGeneratorException {
+    private static WorldGenerator loadGenerator(Class<?> generatorClass, SimpleUri uri) throws UnresolvedWorldGeneratorException {
         if (isValidWorldGenerator(generatorClass)) {
             try {
                 return (WorldGenerator) generatorClass.getConstructor(SimpleUri.class).newInstance(uri);
@@ -140,11 +154,16 @@ public class WorldGeneratorManager {
         }
     }
 
-    private boolean isValidWorldGenerator(Class<?> generatorClass) {
+    private static boolean isValidWorldGenerator(Class<?> generatorClass) {
         try {
-            return WorldGenerator.class.isAssignableFrom(generatorClass) && generatorClass.getConstructor(SimpleUri.class) != null;
+            if (WorldGenerator.class.isAssignableFrom(generatorClass)) {
+                if (generatorClass.getConstructor(SimpleUri.class) != null) {
+                    return true;
+                }
+            }
+            return false;
             // Being generous in catching here, because if the module is broken due to code changes or missing classes the world generator is invalid
-        } catch (Throwable e) {
+        } catch (NoSuchMethodException | RuntimeException e) {
             return false;
         }
     }

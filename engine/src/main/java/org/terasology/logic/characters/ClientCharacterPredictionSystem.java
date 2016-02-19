@@ -18,6 +18,7 @@ package org.terasology.logic.characters;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terasology.engine.Time;
@@ -32,18 +33,17 @@ import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
 import org.terasology.logic.location.LocationComponent;
 import org.terasology.logic.players.LocalPlayer;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.network.ClientComponent;
 import org.terasology.physics.engine.PhysicsEngine;
 import org.terasology.utilities.collection.CircularBuffer;
 import org.terasology.world.WorldProvider;
 
-import javax.vecmath.Vector3f;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 @RegisterSystem(RegisterMode.REMOTE_CLIENT)
 public class ClientCharacterPredictionSystem extends BaseComponentSystem implements UpdateSubscriberSystem {
@@ -67,10 +67,12 @@ public class ClientCharacterPredictionSystem extends BaseComponentSystem impleme
     private Deque<CharacterMoveInputEvent> inputs = Queues.newArrayDeque();
     private CharacterStateEvent predictedState;
     private CharacterStateEvent authoritiveState;
+    private CharacterMovementSystemUtility characterMovementSystemUtility;
 
     @Override
     public void initialise() {
         characterMover = new KinematicCharacterMover(worldProvider, physics);
+        characterMovementSystemUtility = new CharacterMovementSystemUtility(physics);
     }
 
     @ReceiveEvent(components = {CharacterMovementComponent.class, LocationComponent.class})
@@ -112,7 +114,7 @@ public class ClientCharacterPredictionSystem extends BaseComponentSystem impleme
                 }
             }
             logger.trace("Resultant input size {}", inputs.size());
-            CharacterStateEvent.setToState(entity, newState);
+            characterMovementSystemUtility.setToState(entity, newState);
             // TODO: soft correct predicted state
             predictedState = newState;
         } else {
@@ -133,7 +135,7 @@ public class ClientCharacterPredictionSystem extends BaseComponentSystem impleme
         CharacterStateEvent newState = stepState(input, predictedState, entity);
         predictedState = newState;
 
-        CharacterStateEvent.setToState(entity, newState);
+        characterMovementSystemUtility.setToState(entity, newState);
     }
 
     private CharacterStateEvent createInitialState(EntityRef entity) {
@@ -161,9 +163,9 @@ public class ClientCharacterPredictionSystem extends BaseComponentSystem impleme
             }
             if (previous != null) {
                 if (next != null) {
-                    CharacterStateEvent.setToInterpolateState(entry.getKey(), previous, next, renderTime);
+                    characterMovementSystemUtility.setToInterpolateState(entry.getKey(), previous, next, renderTime);
                 } else {
-                    CharacterStateEvent.setToExtrapolateState(entry.getKey(), previous, renderTime);
+                    characterMovementSystemUtility.setToExtrapolateState(entry.getKey(), previous, renderTime);
                 }
             }
         }

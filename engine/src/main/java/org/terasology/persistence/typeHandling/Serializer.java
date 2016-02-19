@@ -17,16 +17,15 @@ package org.terasology.persistence.typeHandling;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.terasology.persistence.serializers.DeserializeFieldCheck;
 import org.terasology.reflection.metadata.ClassMetadata;
 import org.terasology.reflection.metadata.FieldMetadata;
-import org.terasology.persistence.serializers.DeserializeFieldCheck;
 
 import java.util.Map;
 
 /**
  * A serializer provides low-level serialization support for a type, using a mapping of type handlers for each field of that type.
  *
- * @author Immortius
  */
 public class Serializer {
 
@@ -44,7 +43,6 @@ public class Serializer {
      * @param field The metadata for a field of the type handled by this serializer.
      * @return The TypeHandler for the given field
      */
-    @SuppressWarnings("unchecked")
     public TypeHandler<?> getHandlerFor(FieldMetadata<?, ?> field) {
         return fieldHandlers.get(field);
     }
@@ -71,7 +69,7 @@ public class Serializer {
 
     /**
      * Serializes the given value, that was originally obtained from the given field.
-     * <p/>
+     * <br><br>
      * This is provided for performance, to avoid obtaining the same value twice.
      *
      * @param rawValue The value to serialize
@@ -92,8 +90,10 @@ public class Serializer {
      */
     public void deserializeOnto(Object target, FieldMetadata<?, ?> fieldMetadata, PersistedData data, DeserializationContext context) {
         TypeHandler<?> handler = getHandlerFor(fieldMetadata);
-        Object deserializedValue = handler.deserialize(data, context);
-        if (deserializedValue != null) {
+        if (handler == null) {
+            logger.error("No type handler for type {} used by {}::{}", fieldMetadata.getType(), target.getClass(), fieldMetadata);
+        } else {
+            Object deserializedValue = handler.deserialize(data, context);
             fieldMetadata.setValue(target, deserializedValue);
         }
     }

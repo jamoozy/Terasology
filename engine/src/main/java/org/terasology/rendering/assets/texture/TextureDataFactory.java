@@ -18,16 +18,16 @@ package org.terasology.rendering.assets.texture;
 
 import java.nio.ByteBuffer;
 
+import org.terasology.math.TeraMath;
 import org.terasology.rendering.assets.texture.Texture.FilterMode;
 import org.terasology.rendering.assets.texture.Texture.WrapMode;
 import org.terasology.rendering.nui.Color;
-
-import com.google.common.primitives.UnsignedBytes;
+import org.terasology.utilities.random.FastRandom;
+import org.terasology.utilities.random.Random;
 
 /**
  * Creates TextureData objects based on specific criteria
- * 
- * @author mkienenb
+ *
  */
 public final class TextureDataFactory {
     // Lwjgl 2.x currently requires textures to be powers of 16, although this should change in 3.0.
@@ -44,14 +44,14 @@ public final class TextureDataFactory {
      */
     public static TextureData newInstance(Color color) {
 
-        byte red = UnsignedBytes.checkedCast(color.r());
-        byte green = UnsignedBytes.checkedCast(color.g());
-        byte blue = UnsignedBytes.checkedCast(color.b());
-        byte alpha = UnsignedBytes.checkedCast(color.a());
+        byte red = (byte) color.r();
+        byte green = (byte) color.g();
+        byte blue = (byte) color.b();
+        byte alpha = (byte) color.a();
 
         ByteBuffer data = ByteBuffer.allocateDirect(4 * TEXTURE_WIDTH * TEXTURE_HEIGHT);
-        for (int width = 0; width < TEXTURE_WIDTH; width++) {
-            for (int height = 0; height < TEXTURE_HEIGHT; height++) {
+        for (int height = 0; height < TEXTURE_HEIGHT; height++) {
+            for (int width = 0; width < TEXTURE_WIDTH; width++) {
                 data.put(red).put(green).put(blue).put(alpha);
             }
         }
@@ -60,5 +60,27 @@ public final class TextureDataFactory {
         data.rewind();
 
         return new TextureData(TEXTURE_WIDTH, TEXTURE_HEIGHT, new ByteBuffer[]{data}, WrapMode.REPEAT, FilterMode.NEAREST);
+    }
+
+    public static TextureData createWhiteNoiseTexture(int size, long seed, int min, int max) {
+        int width = size;
+        int height = size;
+        ByteBuffer data = ByteBuffer.allocateDirect(4 * width * height);
+
+        Random rng = new FastRandom(seed);
+
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                data.put((byte) TeraMath.clamp(rng.nextInt(min, max), 0, 255));
+                data.put((byte) TeraMath.clamp(rng.nextInt(min, max), 0, 255));
+                data.put((byte) TeraMath.clamp(rng.nextInt(min, max), 0, 255));
+                data.put((byte) 255);
+            }
+        }
+
+        // The buffer must be reset back to the initial position before passing it onward.
+        data.rewind();
+
+        return new TextureData(width, height, new ByteBuffer[]{data}, WrapMode.REPEAT, FilterMode.NEAREST);
     }
 }

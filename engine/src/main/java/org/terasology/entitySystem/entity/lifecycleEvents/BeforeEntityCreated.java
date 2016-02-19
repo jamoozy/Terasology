@@ -27,7 +27,6 @@ import java.util.Set;
 
 /**
  * @deprecated Use the prefab delta system instead (create a json file under /deltas/moduleName/prefabs/prefabName.prefab with the desired changes)
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 @Deprecated
 public class BeforeEntityCreated implements Event {
@@ -61,12 +60,7 @@ public class BeforeEntityCreated implements Event {
     }
 
     public Iterable<Component> getResultComponents() {
-        return new Iterable<Component>() {
-            @Override
-            public Iterator<Component> iterator() {
-                return new IteratorImpl();
-            }
-        };
+        return IteratorImpl::new;
     }
 
     private final class IteratorImpl implements Iterator<Component> {

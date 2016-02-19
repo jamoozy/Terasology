@@ -27,18 +27,23 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class NumberTypeHandler implements TypeHandler<Number> {
 
     @Override
     public PersistedData serialize(Number value, SerializationContext context) {
-        return context.create(value.doubleValue());
+        if (value != null) {
+            return context.create(value.doubleValue());
+        }
+        return context.createNull();
     }
 
     @Override
     public Number deserialize(PersistedData data, DeserializationContext context) {
-        return data.getAsDouble();
+        if (data.isNumber()) {
+            return data.getAsDouble();
+        }
+        return null;
     }
 
     @Override

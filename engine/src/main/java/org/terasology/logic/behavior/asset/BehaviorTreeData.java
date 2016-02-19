@@ -21,12 +21,11 @@ import org.abego.treelayout.TreeForTreeLayout;
 import org.abego.treelayout.TreeLayout;
 import org.abego.treelayout.util.DefaultConfiguration;
 import org.abego.treelayout.util.FixedNodeExtentProvider;
-import org.terasology.asset.AssetData;
+import org.terasology.assets.AssetData;
 import org.terasology.logic.behavior.BehaviorNodeComponent;
 import org.terasology.logic.behavior.BehaviorNodeFactory;
 import org.terasology.logic.behavior.nui.RenderableNode;
 import org.terasology.logic.behavior.tree.Node;
-import org.terasology.registry.CoreRegistry;
 
 import java.awt.geom.Rectangle2D;
 import java.util.Collections;
@@ -34,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author synopia
  */
 public class BehaviorTreeData implements AssetData {
     private Map<Node, RenderableNode> renderableNodes = Maps.newHashMap();
@@ -49,23 +47,23 @@ public class BehaviorTreeData implements AssetData {
         this.renderableRoot = renderableRoot;
     }
 
-    public RenderableNode createNode(Node node) {
-        BehaviorNodeComponent nodeComponent = CoreRegistry.get(BehaviorNodeFactory.class).getNodeComponent(node);
+    public RenderableNode createNode(Node node, BehaviorNodeFactory factory) {
+        BehaviorNodeComponent nodeComponent = factory.getNodeComponent(node);
         RenderableNode self = new RenderableNode(nodeComponent);
         self.setNode(node);
         renderableNodes.put(node, self);
         return self;
     }
 
-    public void createRenderable() {
-        renderableRoot = createRenderable(root);
+    public void createRenderable(BehaviorNodeFactory factory) {
+        renderableRoot = createRenderable(root, factory);
     }
 
-    public RenderableNode createRenderable(Node node) {
+    public RenderableNode createRenderable(Node node, BehaviorNodeFactory factory) {
         return node.visit(null, new Node.Visitor<RenderableNode>() {
             @Override
-            public RenderableNode visit(RenderableNode parent, Node node) {
-                RenderableNode self = createNode(node);
+            public RenderableNode visit(RenderableNode parent, Node n) {
+                RenderableNode self = createNode(n, factory);
                 if (parent != null) {
                     parent.withoutModel().insertChild(-1, self);
                 }
@@ -81,7 +79,7 @@ public class BehaviorTreeData implements AssetData {
         } else {
             layoutTree = new LayoutTree(start);
         }
-        TreeLayout<RenderableNode> layout = new TreeLayout<>(layoutTree, new FixedNodeExtentProvider<RenderableNode>(10, 5), new DefaultConfiguration<RenderableNode>(4, 2));
+        TreeLayout<RenderableNode> layout = new TreeLayout<>(layoutTree, new FixedNodeExtentProvider<>(10, 5), new DefaultConfiguration<>(4, 2));
         Map<RenderableNode, Rectangle2D.Double> bounds = layout.getNodeBounds();
         for (Map.Entry<RenderableNode, Rectangle2D.Double> entry : bounds.entrySet()) {
             RenderableNode node = entry.getKey();
@@ -100,12 +98,9 @@ public class BehaviorTreeData implements AssetData {
 
     public List<RenderableNode> getRenderableNodes() {
         final List<RenderableNode> result = Lists.newArrayList();
-        root.visit(null, new Node.Visitor<RenderableNode>() {
-            @Override
-            public RenderableNode visit(RenderableNode item, Node node) {
-                result.add(renderableNodes.get(node));
-                return null;
-            }
+        root.visit(null, (Node.Visitor<RenderableNode>) (item, node) -> {
+            result.add(renderableNodes.get(node));
+            return null;
         });
         return result;
     }

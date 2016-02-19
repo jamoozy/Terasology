@@ -16,15 +16,12 @@
 package org.terasology.world.block;
 
 import org.terasology.entitySystem.Component;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.network.Replicate;
-
-import javax.vecmath.Tuple3i;
 
 /**
  * Used for entities representing a block in the world
  *
- * @author Immortius <immortius@gmail.com>
  */
 public final class BlockComponent implements Component {
     @Replicate
@@ -35,7 +32,7 @@ public final class BlockComponent implements Component {
     public BlockComponent() {
     }
 
-    public BlockComponent(Block block, Tuple3i pos) {
+    public BlockComponent(Block block, Vector3i pos) {
         this.block = block;
         this.position.set(pos);
     }
@@ -44,7 +41,7 @@ public final class BlockComponent implements Component {
         return position;
     }
 
-    public void setPosition(Tuple3i pos) {
+    public void setPosition(Vector3i pos) {
         position.set(pos);
     }
 

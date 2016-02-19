@@ -30,7 +30,6 @@ import java.util.concurrent.Semaphore;
  * <li>Some asset acquisition (if it involves a Display or Audio context)</li>
  * </ul>
  *
- * @author Immortius
  */
 public final class GameThread {
 
@@ -49,7 +48,7 @@ public final class GameThread {
 
     /**
      * Runs a process on the game thread, not waiting for it to run.
-     * <p/>
+     * <br><br>
      * If the current thread is the game thread, then the process runs immediately
      *
      * @param process
@@ -64,7 +63,7 @@ public final class GameThread {
 
     /**
      * Runs a process on the game thread, waiting for it to run (the current thread is blocked).
-     * <p/>
+     * <br><br>
      * If the current thread is the game thread, then the process runs immediately
      *
      * @param process
@@ -86,9 +85,7 @@ public final class GameThread {
         if (Thread.currentThread() == gameThread) {
             List<Runnable> processes = Lists.newArrayList();
             pendingRunnables.drainTo(processes);
-            for (Runnable process : processes) {
-                process.run();
-            }
+            processes.forEach(Runnable::run);
         }
     }
 
@@ -104,7 +101,7 @@ public final class GameThread {
     /**
      * Sets the game thread. This can only be done once.
      */
-    public static void setGameThread() {
+    public static void setToCurrentThread() {
         if (gameThread == null) {
             gameThread = Thread.currentThread();
         }

@@ -15,7 +15,7 @@
  */
 package org.terasology.logic.behavior;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.junit.Test;
 import org.terasology.logic.behavior.tree.Interpreter;
 import org.terasology.logic.behavior.tree.Node;
@@ -29,7 +29,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
- * @author synopia
  */
 public class RepeatTest {
     @Test
@@ -90,12 +89,7 @@ public class RepeatTest {
     @Test
     public void testRepeatEndless() {
         Interpreter interpreter = new Interpreter(null);
-        RepeatNode repeat = new RepeatNode(create(new Mocker() {
-            @Override
-            public void mock(Task spy) {
-                when(spy.update(anyInt())).thenReturn(Status.SUCCESS);
-            }
-        }));
+        RepeatNode repeat = new RepeatNode(create(spy -> when(spy.update(anyInt())).thenReturn(Status.SUCCESS)));
 
         Task task = interpreter.start(repeat);
         interpreter.tick(0);
@@ -113,12 +107,7 @@ public class RepeatTest {
     @Test
     public void testRepeat() {
         Interpreter interpreter = new Interpreter(null);
-        RepeatNode repeat = new RepeatNode(create(new Mocker() {
-            @Override
-            public void mock(Task spy) {
-                when(spy.update(anyInt())).thenReturn(Status.RUNNING, Status.SUCCESS);
-            }
-        }));
+        RepeatNode repeat = new RepeatNode(create(spy -> when(spy.update(anyInt())).thenReturn(Status.RUNNING, Status.SUCCESS)));
 
         Task task = interpreter.start(repeat);
         interpreter.tick(0);
@@ -134,12 +123,7 @@ public class RepeatTest {
     @Test
     public void testFilter() {
         Interpreter interpreter = new Interpreter(null);
-        Node mock = create(new Mocker() {
-            @Override
-            public void mock(Task spy) {
-                when(spy.update(anyInt())).thenReturn(Status.RUNNING);
-            }
-        });
+        Node mock = create(spy -> when(spy.update(anyInt())).thenReturn(Status.RUNNING));
 
         ParallelNode move = new ParallelNode(ParallelNode.Policy.RequireOne, ParallelNode.Policy.RequireOne);
 

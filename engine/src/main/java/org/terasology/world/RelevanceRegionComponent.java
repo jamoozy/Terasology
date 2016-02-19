@@ -16,12 +16,12 @@
 package org.terasology.world;
 
 import org.terasology.entitySystem.Component;
+import org.terasology.math.geom.Vector3i;
 
 /**
- * @author Immortius
  */
 public class RelevanceRegionComponent implements Component {
 
-    public int distance;
+    public Vector3i distance = Vector3i.one();
 
 }

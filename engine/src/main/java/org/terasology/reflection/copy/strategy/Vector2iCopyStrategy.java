@@ -16,11 +16,10 @@
 package org.terasology.reflection.copy.strategy;
 
 import org.terasology.reflection.copy.CopyStrategy;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.reflection.copy.RegisterCopyStrategy;
 
 /**
- * @author Immortius
  */
 @RegisterCopyStrategy
 public class Vector2iCopyStrategy implements CopyStrategy<Vector2i> {

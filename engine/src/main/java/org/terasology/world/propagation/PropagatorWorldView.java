@@ -15,13 +15,12 @@
  */
 package org.terasology.world.propagation;
 
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.block.Block;
 
 /**
  * A view providing access to the world for batch propagation
  *
- * @author Immortius
  */
 public interface PropagatorWorldView {
 

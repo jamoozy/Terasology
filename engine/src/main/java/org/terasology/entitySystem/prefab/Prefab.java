@@ -15,12 +15,10 @@
  */
 package org.terasology.entitySystem.prefab;
 
-import com.google.common.base.Objects;
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.Asset;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.entitySystem.ComponentContainer;
-import org.terasology.entitySystem.prefab.internal.NullPrefab;
 
 import java.util.List;
 
@@ -28,18 +26,15 @@ import java.util.List;
  * An entity prefab describes the recipe for creating an entity.
  * Like an entity it groups a collection of components.
  *
- * @author Immortius <immortius@gmail.com>
  */
-public abstract class Prefab extends AbstractAsset<PrefabData> implements ComponentContainer, Asset<PrefabData> {
+public abstract class Prefab extends Asset<PrefabData> implements ComponentContainer {
 
-    public static final Prefab NULL = new NullPrefab();
-
-    public Prefab(AssetUri uri) {
-        super(uri);
+    protected Prefab(ResourceUrn urn, AssetType<?, PrefabData> assetType) {
+        super(urn, assetType);
     }
 
     public final String getName() {
-        return getURI().toSimpleString();
+        return getUrn().toString();
     }
 
     /**
@@ -58,24 +53,8 @@ public abstract class Prefab extends AbstractAsset<PrefabData> implements Compon
     public abstract boolean exists();
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o instanceof Prefab) {
-            return Objects.equal(getURI(), ((Prefab) o).getURI());
-        }
-        return false;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hashCode(getURI());
-    }
-
-    @Override
     public String toString() {
-        return "Prefab(" + getURI() + "){ components: " + this.iterateComponents() + ", parent: " + this.getParent() + " }";
+        return "Prefab(" + getUrn() + "){ components: " + this.iterateComponents() + ", parent: " + this.getParent() + " }";
     }
 
 }

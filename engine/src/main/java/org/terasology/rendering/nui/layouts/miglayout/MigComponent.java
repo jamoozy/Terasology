@@ -17,7 +17,7 @@ package org.terasology.rendering.nui.layouts.miglayout;
 
 import net.miginfocom.layout.ComponentWrapper;
 import net.miginfocom.layout.ContainerWrapper;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.UIWidget;
 
@@ -193,13 +193,18 @@ public class MigComponent implements ComponentWrapper {
     }
 
     @Override
-    public void paintDebugOutline() {
+    public void paintDebugOutline(boolean showVisualPadding) {
 
     }
 
     @Override
-    public int getComponetType(boolean disregardScrollPane) {
+    public int getComponentType(boolean disregardScrollPane) {
         return TYPE_UNKNOWN;
+    }
+
+    @Override
+    public int getContentBias() {
+        return -1;
     }
 
     @Override

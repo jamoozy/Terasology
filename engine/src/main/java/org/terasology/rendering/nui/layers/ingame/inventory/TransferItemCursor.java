@@ -33,7 +33,6 @@ import org.terasology.rendering.nui.widgets.CursorAttachment;
 import org.terasology.world.block.items.BlockItemComponent;
 
 /**
- * @author Immortius
  */
 public class TransferItemCursor extends CursorAttachment implements ControlWidget {
 
@@ -58,8 +57,8 @@ public class TransferItemCursor extends CursorAttachment implements ControlWidge
                             return itemComp.icon;
                         }
                         BlockItemComponent blockItemComp = getItem().getComponent(BlockItemComponent.class);
-                        if (blockItemComp == null) {
-                            return Assets.getTextureRegion("engine:items.questionMark");
+                        if (blockItemComp == null || blockItemComp.blockFamily == null) {
+                            return Assets.getTextureRegion("engine:items#questionMark").orElse(null);
                         }
                     }
                     return null;
@@ -69,13 +68,13 @@ public class TransferItemCursor extends CursorAttachment implements ControlWidge
                 @Override
                 public Mesh get() {
                     BlockItemComponent blockItemComp = getItem().getComponent(BlockItemComponent.class);
-                    if (blockItemComp != null) {
-                        return blockItemComp.blockFamily.getArchetypeBlock().getMesh();
+                    if (blockItemComp != null && blockItemComp.blockFamily != null) {
+                        return blockItemComp.blockFamily.getArchetypeBlock().getMeshGenerator().getStandaloneMesh();
                     }
                     return null;
                 }
             });
-            icon.setMeshTexture(Assets.getTexture("engine:terrain"));
+            icon.setMeshTexture(Assets.getTexture("engine:terrain").get());
             icon.bindQuantity(new ReadOnlyBinding<Integer>() {
                 @Override
                 public Integer get() {

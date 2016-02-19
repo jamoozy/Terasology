@@ -19,34 +19,44 @@ import org.lwjgl.LWJGLException;
 import org.lwjgl.openal.OpenALException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetType;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
 import org.terasology.audio.AudioManager;
+import org.terasology.audio.StaticSound;
+import org.terasology.audio.StreamingSound;
 import org.terasology.audio.nullAudio.NullAudioManager;
 import org.terasology.audio.openAL.OpenALManager;
 import org.terasology.config.Config;
-import org.terasology.engine.ComponentSystemManager;
+import org.terasology.context.Context;
+import org.terasology.engine.GameEngine;
 import org.terasology.engine.modes.GameState;
-import org.terasology.registry.CoreRegistry;
 
 public class LwjglAudio extends BaseLwjglSubsystem {
 
     private static final Logger logger = LoggerFactory.getLogger(LwjglAudio.class);
-    
+
     private AudioManager audioManager;
 
     @Override
-    public synchronized void preInitialise() {
-        super.preInitialise();
+    public String getName() {
+        return "Audio";
     }
 
     @Override
-    public void postInitialise(Config config) {
-        initOpenAL(config);
+    public void initialise(GameEngine engine, Context rootContext) {
+        Config config = rootContext.get(Config.class);
+        try {
+            audioManager = new OpenALManager(config.getAudio());
+        } catch (LWJGLException | OpenALException e) {
+            logger.warn("Could not load OpenAL manager - sound is disabled", e);
+            audioManager = new NullAudioManager();
+        }
+        rootContext.put(AudioManager.class, audioManager);
     }
 
     @Override
-    public void preUpdate(GameState currentState, float delta) {
+    public void registerCoreAssetTypes(ModuleAwareAssetTypeManager assetTypeManager) {
+        assetTypeManager.registerCoreAssetType(StaticSound.class, audioManager.getStaticSoundFactory(), "sounds");
+        assetTypeManager.registerCoreAssetType(StreamingSound.class, audioManager.getStreamingSoundFactory(), "music");
     }
 
     @Override
@@ -55,33 +65,9 @@ public class LwjglAudio extends BaseLwjglSubsystem {
     }
 
     @Override
-    public void shutdown(Config config) {
-    }
-
-    @Override
-    public void dispose() {
-        audioManager.dispose();
-    }
-
-    private void initOpenAL(Config config) {
-        if (config.getAudio().isDisableSound()) {
-            audioManager = new NullAudioManager();
-        } else {
-            try {
-                audioManager = new OpenALManager(config.getAudio());
-            } catch (LWJGLException | OpenALException e) {
-                logger.warn("Could not load OpenAL manager - sound is disabled", e);
-                audioManager = new NullAudioManager();
-            }
+    public void shutdown() {
+        if (audioManager != null) {
+            audioManager.dispose();
         }
-        CoreRegistry.putPermanently(AudioManager.class, audioManager);
-        AssetManager assetManager = CoreRegistry.get(AssetManager.class);
-        assetManager.setAssetFactory(AssetType.SOUND, audioManager.getStaticSoundFactory());
-        assetManager.setAssetFactory(AssetType.MUSIC, audioManager.getStreamingSoundFactory());
     }
-
-    @Override
-    public void registerSystems(ComponentSystemManager componentSystemManager) {
-    }
-
 }

@@ -17,20 +17,21 @@
 package org.terasology.network.internal;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.terasology.TerasologyTestingEnvironment;
 import org.terasology.engine.ComponentSystemManager;
 import org.terasology.engine.EngineTime;
-import org.terasology.engine.bootstrap.EntitySystemBuilder;
+import org.terasology.engine.bootstrap.EntitySystemSetupUtil;
 import org.terasology.engine.module.ModuleManager;
 import org.terasology.entitySystem.entity.EntityBuilder;
+import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.internal.EngineEntityManager;
+import org.terasology.entitySystem.entity.internal.PojoEntityManager;
 import org.terasology.entitySystem.metadata.EntitySystemLibrary;
+import org.terasology.entitySystem.metadata.EventLibrary;
 import org.terasology.network.NetworkComponent;
-import org.terasology.reflection.reflect.ReflectionReflectFactory;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.network.NetworkSystem;
 import org.terasology.testUtil.ModuleManagerFactory;
 import org.terasology.world.BlockEntityRegistry;
 
@@ -41,7 +42,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author Immortius
  */
 public class NetworkOwnershipTest extends TerasologyTestingEnvironment {
 
@@ -50,28 +50,29 @@ public class NetworkOwnershipTest extends TerasologyTestingEnvironment {
     private NetClient client;
     private EntityRef clientEntity;
 
-    @BeforeClass
-    public static void initialise() throws Exception {
-        ModuleManager moduleManager = ModuleManagerFactory.create();
-        CoreRegistry.put(ModuleManager.class, moduleManager);
-    }
 
     @Before
     public void setup() throws Exception {
         super.setup();
+        ModuleManager moduleManager = ModuleManagerFactory.create();
+        context.put(ModuleManager.class, moduleManager);
         EngineTime mockTime = mock(EngineTime.class);
-        networkSystem = new NetworkSystemImpl(mockTime);
+        networkSystem = new NetworkSystemImpl(mockTime, context);
+        context.put(NetworkSystem.class, networkSystem);
 
-        entityManager = new EntitySystemBuilder().build(CoreRegistry.get(ModuleManager.class).getEnvironment(), networkSystem, new ReflectionReflectFactory());
-        CoreRegistry.put(ComponentSystemManager.class, new ComponentSystemManager());
+        EntitySystemSetupUtil.addReflectionBasedLibraries(context);
+        EntitySystemSetupUtil.addEntityManagementRelatedClasses(context);
+        entityManager = (PojoEntityManager) context.get(EntityManager.class);
+        context.put(ComponentSystemManager.class, new ComponentSystemManager(context));
         entityManager.clear();
         client = mock(NetClient.class);
         NetworkComponent clientNetComp = new NetworkComponent();
         clientNetComp.replicateMode = NetworkComponent.ReplicateMode.OWNER;
         clientEntity = entityManager.create(clientNetComp);
         when(client.getEntity()).thenReturn(clientEntity);
+        when(client.getId()).thenReturn("dummyID");
         networkSystem.mockHost();
-        networkSystem.connectToEntitySystem(entityManager, CoreRegistry.get(EntitySystemLibrary.class), mock(BlockEntityRegistry.class));
+        networkSystem.connectToEntitySystem(entityManager, context.get(EventLibrary.class), mock(BlockEntityRegistry.class));
         networkSystem.registerNetworkEntity(clientEntity);
     }
 

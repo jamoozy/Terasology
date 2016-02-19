@@ -20,7 +20,6 @@ import org.terasology.monitoring.ThreadMonitor;
 import org.terasology.monitoring.impl.SingleThreadMonitor;
 
 /**
- * @author Immortius
  */
 final class RunningThreadsMode extends MetricsMode {
 
@@ -33,14 +32,12 @@ final class RunningThreadsMode extends MetricsMode {
         StringBuilder builder = new StringBuilder();
         builder.append(getName());
         builder.append("\n");
-        for (SingleThreadMonitor threads : ThreadMonitor.getThreadMonitors(true)) {
-            if (threads.isActive()) {
-                builder.append(threads.getName());
-                builder.append(" - ");
-                builder.append(threads.getLastTask());
-                builder.append("\n");
-            }
-        }
+        ThreadMonitor.getThreadMonitors(true).stream().filter(SingleThreadMonitor::isActive).forEach(threads -> {
+            builder.append(threads.getName());
+            builder.append(" - ");
+            builder.append(threads.getLastTask());
+            builder.append("\n");
+        });
         return builder.toString();
     }
 

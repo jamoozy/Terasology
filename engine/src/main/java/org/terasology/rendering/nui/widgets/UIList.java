@@ -17,16 +17,19 @@ package org.terasology.rendering.nui.widgets;
 
 import com.google.common.collect.Lists;
 import org.terasology.input.MouseInput;
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
 import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDoubleClickEvent;
 import org.terasology.rendering.nui.itemRendering.ItemRenderer;
 import org.terasology.rendering.nui.itemRendering.ToStringTextRenderer;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -37,11 +40,13 @@ public class UIList<T> extends CoreWidget {
 
     private Binding<Boolean> selectable = new DefaultBinding<>(true);
     private Binding<T> selection = new DefaultBinding<>();
-    private Binding<List<T>> list = new DefaultBinding<List<T>>(Lists.<T>newArrayList());
+    private Binding<List<T>> list = new DefaultBinding<>(new ArrayList<>());
 
     private ItemRenderer<T> itemRenderer = new ToStringTextRenderer<>();
-    private List<ItemInteractionListener> itemListeners = Lists.newArrayList();
-    private List<ItemActivateEventListener<T>> eventListeners = Lists.newArrayList();
+
+    private final List<ItemInteractionListener> itemListeners = Lists.newArrayList();
+    private final List<ItemActivateEventListener<T>> activateListeners = Lists.newArrayList();
+    private final List<ItemSelectEventListener<T>> selectionListeners = Lists.newArrayList();
 
 
     public UIList() {
@@ -136,18 +141,29 @@ public class UIList<T> extends CoreWidget {
         return selection.get();
     }
 
-    public void setSelection(T val) {
+    public void setSelection(T item) {
         if (isSelectable()) {
-            selection.set(val);
+            selection.set(item);
+            for (ItemSelectEventListener<T> listener : selectionListeners) {
+                listener.onItemSelected(this, item);
+            }
         }
     }
 
     public void subscribe(ItemActivateEventListener<T> eventListener) {
-        eventListeners.add(eventListener);
+        activateListeners.add(eventListener);
     }
 
     public void unsubscribe(ItemActivateEventListener<T> eventListener) {
-        eventListeners.remove(eventListener);
+        activateListeners.remove(eventListener);
+    }
+
+    public void subscribeSelection(ItemSelectEventListener<T> eventListener) {
+        selectionListeners.add(eventListener);
+    }
+
+    public void unsubscribeSelection(ItemSelectEventListener<T> eventListener) {
+        selectionListeners.remove(eventListener);
     }
 
     public void select(int index) {
@@ -160,7 +176,7 @@ public class UIList<T> extends CoreWidget {
     private void activate(int index) {
         if (index < list.get().size()) {
             T item = list.get().get(index);
-            for (ItemActivateEventListener<T> listener : eventListeners) {
+            for (ItemActivateEventListener<T> listener : activateListeners) {
                 listener.onItemActivated(this, item);
             }
         }
@@ -182,8 +198,8 @@ public class UIList<T> extends CoreWidget {
         }
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT && isSelectable()) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT && isSelectable()) {
                 select(index);
                 return true;
             }
@@ -191,8 +207,8 @@ public class UIList<T> extends CoreWidget {
         }
 
         @Override
-        public boolean onMouseDoubleClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT && isSelectable()) {
+        public boolean onMouseDoubleClick(NUIMouseDoubleClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT && isSelectable()) {
                 activate(index);
                 return true;
             }

@@ -21,7 +21,6 @@ import java.text.NumberFormat;
 /**
  * PrintToConsoleCallback implements BenchmarkCallback and simply prints everything to the console.
  *
- * @author Manuel Brotz <manu.brotz@gmx.ch>
  */
 public class PrintToConsoleCallback implements BenchmarkCallback {
 

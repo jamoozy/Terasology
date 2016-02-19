@@ -16,24 +16,26 @@
 
 package org.terasology.config;
 
+import com.google.common.base.Preconditions;
+
+
 /**
- * @author Immortius
  */
 public class ServerInfo {
     private String name;
     private String address;
+    private String owner;
     private int port;
+    private boolean active = true;
+
+    ServerInfo() {
+        // for serialization purposes
+    }
 
     public ServerInfo(String name, String address, int port) {
-        if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException("Server name must not be null or empty");
-        }
-        if (address == null || address.isEmpty()) {
-            throw new IllegalArgumentException("Server address must not be null or empty");
-        }
-        this.name = name;
-        this.address = address;
-        this.port = port;
+        setName(name);
+        setAddress(address);
+        setPort(port);
     }
 
     public String getName() {
@@ -41,9 +43,8 @@ public class ServerInfo {
     }
 
     public void setName(String name) {
-        if (name != null && !name.isEmpty()) {
-            this.name = name;
-        }
+        Preconditions.checkArgument(name != null && !name.isEmpty(), "Server name must not be null or empty");
+        this.name = name;
     }
 
     public String getAddress() {
@@ -51,9 +52,8 @@ public class ServerInfo {
     }
 
     public void setAddress(String address) {
-        if (address != null && !address.isEmpty()) {
-            this.address = address;
-        }
+        Preconditions.checkArgument(address != null && !address.isEmpty(), "Server address must not be null or empty");
+        this.address = address;
     }
 
     public int getPort() {
@@ -61,6 +61,29 @@ public class ServerInfo {
     }
 
     public void setPort(int port) {
+        Preconditions.checkArgument(port >= 0 && port <= 65535, "Server port must be in the range [0..65535]");
         this.port = port;
+    }
+
+    public String getOwner() {
+        return owner;
+    }
+
+    public void setOwner(String owner) {
+        this.owner = owner;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    @Override
+    public String toString() {
+        return "ServerInfo [name=" + name + ", address=" + address + ", port=" + port +
+                ", owner=" + owner + ", active=" + active + "]";
     }
 }

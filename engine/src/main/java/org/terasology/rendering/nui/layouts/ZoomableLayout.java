@@ -16,19 +16,23 @@
 package org.terasology.rendering.nui.layouts;
 
 import com.google.common.collect.Lists;
+
 import org.terasology.input.Keyboard;
-import org.terasology.input.MouseInput;
-import org.terasology.math.Rect2i;
+import org.terasology.math.geom.Rect2i;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector2f;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreLayout;
 import org.terasology.rendering.nui.InteractionListener;
 import org.terasology.rendering.nui.LayoutHint;
 import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
+import org.terasology.rendering.nui.events.NUIMouseWheelEvent;
 
-import javax.vecmath.Vector2f;
 import java.util.Iterator;
 import java.util.List;
 
@@ -36,7 +40,6 @@ import java.util.List;
  * A layout that allows positioning to a virtual coordinate system, which is mapped to screen coordinates using a
  * viewport.
  *
- * @author synopia
  */
 public class ZoomableLayout extends CoreLayout {
     private List<PositionalWidget> widgets = Lists.newArrayList();
@@ -49,29 +52,29 @@ public class ZoomableLayout extends CoreLayout {
 
     private InteractionListener dragListener = new BaseInteractionListener() {
         @Override
-        public void onMouseOver(Vector2i pos, boolean topMostElement) {
-            last = new Vector2i(pos);
+        public void onMouseOver(NUIMouseOverEvent event) {
+            last = new Vector2i(event.getRelativeMousePosition());
         }
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
             return true;
         }
 
         @Override
-        public void onMouseDrag(Vector2i pos) {
+        public void onMouseDrag(NUIMouseDragEvent event) {
             Vector2f p = screenToWorld(last);
-            p.sub(screenToWorld(pos));
+            p.sub(screenToWorld(event.getRelativeMousePosition()));
             p.add(windowPosition);
 
             setWindowPosition(p);
         }
 
         @Override
-        public boolean onMouseWheel(int wheelTurns, Vector2i pos) {
-            if (Keyboard.isKeyDown(Keyboard.Key.LEFT_SHIFT.getId())) {
-                float scale = 1 + wheelTurns * 0.05f;
-                zoom(scale, scale, pos);
+        public boolean onMouseWheel(NUIMouseWheelEvent event) {
+            if (event.getKeyboard().isKeyDown(Keyboard.Key.LEFT_SHIFT.getId())) {
+                float scale = 1 + event.getWheelTurns() * 0.05f;
+                zoom(scale, scale, event.getRelativeMousePosition());
             }
             return false;
         }
@@ -96,6 +99,14 @@ public class ZoomableLayout extends CoreLayout {
         if (widget != null) {
             widgets.add(widget);
             widget.onAdded(this);
+        }
+    }
+
+    @Override
+    public void removeWidget(UIWidget element) {
+        if (element instanceof PositionalWidget) {
+            PositionalWidget positionalWidget = (PositionalWidget) element;
+            removeWidget(positionalWidget);
         }
     }
 

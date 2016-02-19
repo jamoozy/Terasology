@@ -18,12 +18,11 @@ package org.terasology.rendering.assets.animation;
 import com.google.common.collect.ImmutableList;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
-import org.terasology.asset.AssetData;
+import org.terasology.assets.AssetData;
 
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class MeshAnimationData implements AssetData {
 

@@ -16,11 +16,14 @@
 package org.terasology.engine.subsystem;
 
 public interface DisplayDevice {
-    boolean isActive();
+
+    boolean hasFocus();
 
     boolean isCloseRequested();
 
     void setFullscreen(boolean state);
+
+    boolean isFullscreen();
 
     // TODO: this breaks the nice API we have so far.
     // From the lwjgl docs:

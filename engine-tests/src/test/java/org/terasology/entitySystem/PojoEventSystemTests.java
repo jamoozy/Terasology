@@ -18,6 +18,7 @@ package org.terasology.entitySystem;
 import com.google.common.collect.Lists;
 import org.junit.Before;
 import org.junit.Test;
+import org.terasology.context.internal.ContextImpl;
 import org.terasology.engine.SimpleUri;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.internal.PojoEntityManager;
@@ -37,6 +38,7 @@ import org.terasology.persistence.typeHandling.TypeSerializationLibrary;
 import org.terasology.reflection.copy.CopyStrategyLibrary;
 import org.terasology.reflection.reflect.ReflectFactory;
 import org.terasology.reflection.reflect.ReflectionReflectFactory;
+import org.terasology.registry.CoreRegistry;
 
 import java.util.List;
 
@@ -46,7 +48,6 @@ import static org.mockito.Mockito.when;
 
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class PojoEventSystemTests {
 
@@ -57,15 +58,17 @@ public class PojoEventSystemTests {
 
     @Before
     public void setup() {
+        ContextImpl context = new ContextImpl();
+        CoreRegistry.setContext(context);
         ReflectFactory reflectFactory = new ReflectionReflectFactory();
         CopyStrategyLibrary copyStrategies = new CopyStrategyLibrary(reflectFactory);
         TypeSerializationLibrary serializationLibrary = new TypeSerializationLibrary(reflectFactory, copyStrategies);
 
-        EntitySystemLibrary entitySystemLibrary = new EntitySystemLibrary(reflectFactory, copyStrategies, serializationLibrary);
+        EntitySystemLibrary entitySystemLibrary = new EntitySystemLibrary(context, serializationLibrary);
         compLibrary = entitySystemLibrary.getComponentLibrary();
         entityManager = new PojoEntityManager();
-        entityManager.setEntitySystemLibrary(entitySystemLibrary);
-        entityManager.setPrefabManager(new PojoPrefabManager());
+        entityManager.setComponentLibrary(entitySystemLibrary.getComponentLibrary());
+        entityManager.setPrefabManager(new PojoPrefabManager(context));
         NetworkSystem networkSystem = mock(NetworkSystem.class);
         when(networkSystem.getMode()).thenReturn(NetworkMode.NONE);
         eventSystem = new EventSystemImpl(entitySystemLibrary.getEventLibrary(), networkSystem);

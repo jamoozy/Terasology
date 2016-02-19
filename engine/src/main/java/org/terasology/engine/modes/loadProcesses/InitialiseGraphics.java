@@ -15,22 +15,27 @@
  */
 package org.terasology.engine.modes.loadProcesses;
 
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
+
+import org.terasology.assets.ResourceUrn;
+import org.terasology.context.Context;
 import org.terasology.engine.TerasologyConstants;
-import org.terasology.registry.CoreRegistry;
-import org.terasology.rendering.ShaderManager;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.naming.Name;
 import org.terasology.rendering.nui.NUIManager;
 import org.terasology.rendering.nui.internal.NUIManagerInternal;
 import org.terasology.rendering.primitives.Tessellator;
 import org.terasology.rendering.primitives.TessellatorHelper;
 
-import javax.vecmath.Vector4f;
-
 /**
- * @author Immortius
  */
 public class InitialiseGraphics extends SingleStepLoadProcess {
+
+    private final Context context;
+
+    public InitialiseGraphics(Context context) {
+        this.context = context;
+    }
+
     @Override
     public String getMessage() {
         return "Initialising Graphics";
@@ -38,9 +43,8 @@ public class InitialiseGraphics extends SingleStepLoadProcess {
 
     @Override
     public boolean step() {
-        CoreRegistry.get(ShaderManager.class).initShaders();
-
-        NUIManager nuiManager = CoreRegistry.get(NUIManager.class);
+        // Refresh widget library after modules got laoded:
+        NUIManager nuiManager = context.get(NUIManager.class);
         ((NUIManagerInternal) nuiManager).refreshWidgetsLibrary();
 
         // TODO: This should be elsewhere
@@ -48,7 +52,7 @@ public class InitialiseGraphics extends SingleStepLoadProcess {
         Tessellator tessellator = new Tessellator();
         TessellatorHelper.addBlockMesh(tessellator, new Vector4f(1.0f, 1.0f, 1.0f, 1.0f), 0.8f, 0.8f, 0.6f, 0f, 0f, 0f);
         TessellatorHelper.addBlockMesh(tessellator, new Vector4f(1.0f, 1.0f, 1.0f, 0.6f), 1.0f, 1.0f, 0.8f, 0f, 0f, 0f);
-        tessellator.generateMesh(new AssetUri(AssetType.MESH, TerasologyConstants.ENGINE_MODULE, "gelatinousCube"));
+        tessellator.generateMesh(new ResourceUrn(TerasologyConstants.ENGINE_MODULE, new Name("gelatinousCube")));
         return true;
     }
 

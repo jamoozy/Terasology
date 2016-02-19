@@ -22,24 +22,25 @@
                     "type" : "UILabel",
                     "id" : "subtitle",
                     "family" : "title",
-                    "text" : "Select Modules...",
+                    "text" : "${engine:menu#select-modules-title}",
                     "layoutInfo" : {
                         "height" : 48,
                         "position-horizontal-center" : {},
                         "position-top" : {
                             "target" : "BOTTOM",
-                            "offset" : 16,
                             "widget" : "title"
                         }
                     }
                 },
                 {
                     "type" : "UIBox",
+                    "id" : "container",
                     "layoutInfo" : {
                         "width" : 600,
                         "position-horizontal-center" : {},
                         "position-top" : {
                             "target" : "BOTTOM",
+                            "offset" : 16,
                             "widget" : "subtitle"
                         },
                         "position-bottom" : {
@@ -58,8 +59,8 @@
                         "width" : 584,
                         "position-horizontal-center" : {},
                         "position-top" : {
-                            "target" : "BOTTOM",
-                            "widget" : "subtitle",
+                            "target" : "TOP",
+                            "widget" : "container",
                             "offset" : 8
                         },
                         "position-bottom" : {
@@ -100,13 +101,8 @@
                                     "contents" : [
                                         {
                                             "type" : "UIButton",
-                                            "id" : "enableAll",
-                                            "text" : "Enable All"
-                                        },
-                                        {
-                                            "type" : "UIButton",
                                             "id" : "disableAll",
-                                            "text" : "Disable All"
+                                            "text" : "${engine:menu#disable-all-modules}"
                                         }
                                     ],
                                     "layoutInfo" : {
@@ -128,12 +124,12 @@
                                     "type" : "ColumnLayout",
                                     "id" : "simpleItems",
                                     "columns" : 2,
-                                    "columnWidths" : [0.3, 0.7],
+                                    "column-widths" : [0.3, 0.7],
                                     "verticalSpacing" : 8,
                                     "contents" : [
                                         {
                                             "type" : "UILabel",
-                                            "text" : "Name: "
+                                            "text" : "${engine:menu#module-name}: "
                                         },
                                         {
                                             "type" : "UILabel",
@@ -142,12 +138,30 @@
                                         },
                                         {
                                             "type" : "UILabel",
-                                            "text" : "Version: "
+                                            "text" : "${engine:menu#module-version-installed}: "
                                         },
                                         {
                                             "type" : "UILabel",
-                                            "id" : "version",
+                                            "id" : "installedVersion",
                                             "text" : "Module Version Goes Here"
+                                        },
+                                        {
+                                            "type" : "UILabel",
+                                            "text" : "${engine:menu#module-version-available}: "
+                                        },
+                                        {
+                                            "type" : "UILabel",
+                                            "id" : "onlineVersion",
+                                            "text" : "Module Version Goes Here"
+                                        },
+                                        {
+                                            "type" : "UILabel",
+                                            "text" : "${engine:menu#module-status}: "
+                                        },
+                                        {
+                                            "type" : "UILabel",
+                                            "id" : "status",
+                                            "text" : "Module Status Goes Here"
                                         }
                                     ],
                                     "layoutInfo" : {
@@ -155,19 +169,6 @@
                                         "position-horizontal-center" : {},
                                         "position-top" : {
                                             "target" : "TOP"
-                                        }
-                                    }
-                                },
-                                {
-                                    "type" : "UILabel",
-                                    "id" : "descriptionTitle",
-                                    "text" : "Description:",
-                                    "layoutInfo" : {
-                                        "use-content-height" : true,
-                                        "position-top" : {
-                                            "target" : "BOTTOM",
-                                            "widget" : "simpleItems",
-                                            "offset" : 8
                                         }
                                     }
                                 },
@@ -182,32 +183,34 @@
                                         "position-horizontal-center" : {},
                                         "position-top" : {
                                             "target" : "BOTTOM",
-                                            "widget" : "descriptionTitle",
+                                            "widget" : "simpleItems",
                                             "offset" : 8
                                         },
                                         "position-bottom" : {
                                             "target" : "TOP",
-                                            "widget" : "toggleActivation",
+                                            "widget" : "buttonRow",
                                             "offset" : 8
                                         }
                                     }
                                 },
                                 {
-                                    "type" : "UIButton",
-                                    "id" : "toggleActivation",
-                                    "text" : "Activate",
-                                    "layoutInfo" : {
-                                        "height" : 24,
-                                        "position-bottom" : {
-                                            "target" : "BOTTOM"
+                                    "type" : "ColumnLayout",
+                                    "id" : "buttonRow",
+                                    "columns" : 2,
+                                    "horizontalSpacing" : 8,
+                                    "verticalSpacing" : 8,
+                                    "contents" : [
+                                        {
+                                            "type" : "UIButton",
+                                            "id" : "toggleActivation",
+                                            "text" : "${engine:menu#activate-module}"
+                                        },
+                                        {
+                                            "type" : "UIButton",
+                                            "id" : "download",
+                                            "text" : "${engine:menu#download-module}"
                                         }
-                                    }
-                                },
-                                {
-                                    "type" : "UILabel",
-                                    "id" : "errorMessage",
-                                    "text" : "Error",
-                                    "family" : "error",
+                                    ],
                                     "layoutInfo" : {
                                         "height" : 24,
                                         "position-bottom" : {
@@ -221,7 +224,7 @@
                 },
                 {
                     "type" : "UIButton",
-                    "text" : "Back",
+                    "text" : "${engine:menu#back}",
                     "id" : "close",
                     "layoutInfo" : {
                         "width" : 128,

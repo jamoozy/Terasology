@@ -3,8 +3,7 @@
         "name" : "Coal"
     },
     "Item" : {
-        "icon" : "engine:items.coal",
-        "renderWithIcon" : true,
+        "icon" : "engine:items#coal",
         "stackId" : "coal"
     }
 }

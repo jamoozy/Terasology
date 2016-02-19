@@ -28,7 +28,6 @@ import com.google.common.collect.Sets;
  * <p>
  * http://stackoverflow.com/questions/745415/regex-to-match-from-partial-or-camel-case-string
  * </p>
- * @author Martin Steiger
  */
 public final class CamelCaseMatcher {
 
@@ -37,11 +36,11 @@ public final class CamelCaseMatcher {
     }
 
     /**
-     * @param commandName
+     * @param queryStr
      * @param commands
      * @return
      */
-    public static Set<String> getMatches(String queryStr, Collection<String> commands) {
+    public static Set<String> getMatches(String queryStr, Collection<String> commands, boolean includeCaseInsensitiveStartingWith) {
         Set<String> matches = Sets.newHashSet();
 
         String query = queryStr.replaceAll("\\*", ".*?");
@@ -51,13 +50,17 @@ public final class CamelCaseMatcher {
         Pattern regex = Pattern.compile(re);
 
         for (String cmd : commands) {
+            if (includeCaseInsensitiveStartingWith && cmd.toLowerCase().startsWith(queryStr.toLowerCase())) {
+                matches.add(cmd);
+            }
+
             Matcher m = regex.matcher(cmd);
 
             if (m.find()) {
                 matches.add(m.group());
-            } 
+            }
         }
-        
+
         return matches;
     }
 }

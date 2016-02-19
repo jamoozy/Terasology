@@ -18,16 +18,12 @@ package org.terasology.world.chunks.blockdata;
 
 import com.google.common.base.Preconditions;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import java.nio.ByteBuffer;
 
 
 /**
  * TeraDenseArrayByte is the base class used to implement dense arrays with elements of size 4 bit or 8 bit.
  *
- * @author Manuel Brotz <manu.brotz@gmx.ch>
  */
 public abstract class TeraDenseArrayByte extends TeraDenseArray {
 
@@ -78,18 +74,6 @@ public abstract class TeraDenseArrayByte extends TeraDenseArray {
         byte[] result = new byte[dataSize()];
         System.arraycopy(data, 0, result, 0, dataSize());
         return createDense(result);
-    }
-
-    @Override
-    public final void writeExternal(ObjectOutput out) throws IOException {
-        writeExternalHeader(out);
-        out.writeObject(data);
-    }
-
-    @Override
-    public final void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        readExternalHeader(in);
-        data = (byte[]) in.readObject();
     }
 
     protected abstract static class SerializationHandler<T extends TeraDenseArrayByte> extends TeraArray.BasicSerializationHandler<T> {

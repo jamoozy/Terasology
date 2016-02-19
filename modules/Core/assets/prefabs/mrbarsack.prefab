@@ -4,8 +4,7 @@
         "name" : "Mr Barsack's Axe"
     },
     "Item" : {
-        "icon" : "engine:items.Axe",
-        "renderWithIcon" : true,
+        "icon" : "engine:items#Axe",
         "baseDamage" : 50
     }
 }

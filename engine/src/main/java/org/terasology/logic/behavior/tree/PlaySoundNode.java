@@ -15,29 +15,30 @@
  */
 package org.terasology.logic.behavior.tree;
 
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
 import org.terasology.audio.AudioEndListener;
 import org.terasology.audio.AudioManager;
 import org.terasology.audio.StaticSound;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.registry.In;
 import org.terasology.rendering.nui.properties.OneOf;
 import org.terasology.rendering.nui.properties.Range;
 
-import javax.vecmath.Vector3f;
+import java.util.Optional;
 
 /**
- * <b>Properties</b>: <b>sound</b>, <b>volume</b><br/>
- * <br/>
- * <b>RUNNING</b>: while sound is playing<br/>
- * <b>SUCCESS</b>: once sound ends playing<br/>
- * <b>FAILURE</b>: otherwise<br/>
- * <br/>
+ * <b>Properties</b>: <b>sound</b>, <b>volume</b><br>
+ * <br>
+ * <b>RUNNING</b>: while sound is playing<br>
+ * <b>SUCCESS</b>: once sound ends playing<br>
+ * <b>FAILURE</b>: otherwise<br>
+ * <br>
  * Auto generated javadoc - modify README.markdown instead!
  */
 public class PlaySoundNode extends Node {
     @OneOf.Provider(name = "sounds")
-    private AssetUri sound;
+    private ResourceUrn sound;
     @Range(min = 0, max = 1)
     private float volume;
 
@@ -60,15 +61,15 @@ public class PlaySoundNode extends Node {
 
         @Override
         public void onInitialize() {
-            AssetUri uri = getNode().sound;
+            ResourceUrn uri = getNode().sound;
             if (uri != null) {
-                StaticSound snd = assetManager.loadAsset(uri, StaticSound.class);
-                if (snd != null) {
+                Optional<StaticSound> snd = assetManager.getAsset(uri, StaticSound.class);
+                if (snd.isPresent()) {
                     if (actor().hasLocation()) {
                         Vector3f worldPosition = actor().location().getWorldPosition();
-                        audioManager.playSound(snd, worldPosition, getNode().volume, AudioManager.PRIORITY_NORMAL, this);
+                        audioManager.playSound(snd.get(), worldPosition, getNode().volume, AudioManager.PRIORITY_NORMAL, this);
                     } else {
-                        audioManager.playSound(snd, new Vector3f(), getNode().volume, AudioManager.PRIORITY_NORMAL, this);
+                        audioManager.playSound(snd.get(), new Vector3f(), getNode().volume, AudioManager.PRIORITY_NORMAL, this);
                     }
                     playing = true;
                 }

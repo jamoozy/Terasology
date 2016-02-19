@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MovingBlocks
+ * Copyright 2015 MovingBlocks
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,8 @@ import org.terasology.logic.common.ActivateEvent;
 import org.terasology.logic.health.DoDamageEvent;
 import org.terasology.logic.health.EngineDamageTypes;
 import org.terasology.logic.location.LocationComponent;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.physics.Physics;
 import org.terasology.registry.In;
 import org.terasology.utilities.random.FastRandom;
@@ -35,16 +36,20 @@ import org.terasology.world.BlockEntityRegistry;
 import org.terasology.world.WorldProvider;
 import org.terasology.world.block.Block;
 
-import javax.vecmath.Vector3f;
-
-/**
- * @author Immortius <immortius@gmail.com>
- */
 @RegisterSystem(RegisterMode.AUTHORITY)
 public class TunnelAction extends BaseComponentSystem {
 
-    private static final int MAX_DESTROYED_BLOCKS = 1000;
+    /** The most blocks that can be destroyed before the action ends (counts duplicates, so actually way lower) */
+    private static final int MAX_DESTROYED_BLOCKS = 5000;
+
+    /** How many effects to display at the most */
     private static final int MAX_PARTICLE_EFFECTS = 4;
+
+    /** The max number of "steps" we'll take along the direction of the tunnel to pick explosive points */
+    private static final int MAX_TUNNEL_DEPTH = 64;
+
+    /** The max number of rays to cast at each chosen spot in the path of the tunnel to hit target blocks */
+    private static final int MAX_RAYS_CAST = 512;
 
     @In
     private WorldProvider worldProvider;
@@ -79,13 +84,13 @@ public class TunnelAction extends BaseComponentSystem {
 
         int particleEffects = 0;
         int blockCounter = MAX_DESTROYED_BLOCKS;
-        for (int s = 0; s <= 512; s++) {
+        for (int s = 0; s <= MAX_TUNNEL_DEPTH; s++) {
             origin.add(dir);
             if (!worldProvider.isBlockRelevant(origin)) {
                 break;
             }
 
-            for (int i = 0; i < 64; i++) {
+            for (int i = 0; i < MAX_RAYS_CAST; i++) {
                 Vector3f direction = random.nextVector3f(1.0f);
                 Vector3f impulse = new Vector3f(direction);
                 impulse.scale(200);

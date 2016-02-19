@@ -15,12 +15,11 @@
  */
 package org.terasology.world.propagation;
 
-import org.terasology.math.Vector3i;
-import org.terasology.world.internal.ChunkViewCore;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.block.Block;
+import org.terasology.world.internal.ChunkViewCore;
 
 /**
- * @author Immortius
  */
 public abstract class AbstractChunkView implements PropagatorWorldView {
 

@@ -15,37 +15,52 @@
  */
 package org.terasology.rendering.nui.asset;
 
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
+
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.module.sandbox.API;
 import org.terasology.rendering.nui.UIWidget;
 
 /**
- * @author Immortius
  */
 @API
-public class UIElement extends AbstractAsset<UIData> {
+public class UIElement extends Asset<UIData> {
 
     private UIWidget rootWidget;
 
-    public UIElement(AssetUri uri, UIData data) {
-        super(uri);
+    private final List<Consumer<UIElement>> reloadListeners = new CopyOnWriteArrayList<>();
+
+    public UIElement(ResourceUrn urn, AssetType<?, UIData> assetType, UIData data) {
+        super(urn, assetType);
         reload(data);
     }
 
+    /**
+     * Subscribe to reload events.
+     * @param reloadListener the listener to add
+     */
+    public void subscribe(Consumer<UIElement> reloadListener) {
+        reloadListeners.add(reloadListener);
+    }
+
+    /**
+     * Unsubscribe from reload events.
+     * @param reloadListener the listener to remove. Non-existing entries will be ignored.
+     */
+    public void unsubscribe(Consumer<UIElement> reloadListener) {
+        reloadListeners.remove(reloadListener);
+    }
+
     @Override
-    public void reload(UIData data) {
+    protected void doReload(UIData data) {
         rootWidget = data.getRootWidget();
-    }
-
-    @Override
-    public void dispose() {
-        rootWidget = null;
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return rootWidget == null;
+        for (Consumer<UIElement> listener : reloadListeners) {
+            listener.accept(this);
+        }
     }
 
     public UIWidget getRootWidget() {

@@ -15,10 +15,11 @@
  */
 package org.terasology.rendering.nui.layers.ingame.inventory;
 
-import com.bulletphysics.linearmath.QuaternionUtil;
 import org.terasology.asset.Assets;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.rendering.assets.mesh.Mesh;
 import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.rendering.assets.texture.TextureRegion;
@@ -35,13 +36,10 @@ import org.terasology.rendering.nui.widgets.TooltipLine;
 import org.terasology.rendering.nui.widgets.TooltipLineRenderer;
 import org.terasology.rendering.nui.widgets.UIList;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class ItemIcon extends CoreWidget {
 
@@ -61,10 +59,10 @@ public class ItemIcon extends CoreWidget {
     public ItemIcon() {
         tooltip = new UIList<>();
         tooltip.setSelectable(false);
-        final UISkin defaultSkin = Assets.getSkin("Engine:itemTooltip");
+        final UISkin defaultSkin = Assets.getSkin("Engine:itemTooltip").get();
         tooltip.setSkin(defaultSkin);
         tooltip.setItemRenderer(new TooltipLineRenderer(defaultSkin));
-        tooltip.bindList(new DefaultBinding<List<TooltipLine>>(new ArrayList<TooltipLine>()));
+        tooltip.bindList(new DefaultBinding<>(new ArrayList<>()));
     }
 
     @Override
@@ -72,8 +70,7 @@ public class ItemIcon extends CoreWidget {
         if (getIcon() != null) {
             canvas.drawTexture(getIcon());
         } else if (getMesh() != null && getMeshTexture() != null) {
-            Quat4f rot = new Quat4f(0, 0, 0, 1);
-            QuaternionUtil.setEuler(rot, TeraMath.PI / 6, -TeraMath.PI / 12, 0);
+            Quat4f rot = new Quat4f(TeraMath.PI / 6, -TeraMath.PI / 12, 0);
             canvas.drawMesh(getMesh(), getMeshTexture(), canvas.getRegion(), rot, new Vector3f(), 1.0f);
         }
         if (getQuantity() > 1) {

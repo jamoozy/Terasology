@@ -17,15 +17,22 @@ package org.terasology.input;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.terasology.config.BindsConfig;
 import org.terasology.config.Config;
-import org.terasology.engine.GameEngine;
+import org.terasology.config.ControllerConfig.ControllerInfo;
 import org.terasology.engine.SimpleUri;
+import org.terasology.engine.Time;
+import org.terasology.engine.module.ModuleManager;
+import org.terasology.engine.subsystem.DisplayDevice;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
 import org.terasology.input.cameraTarget.CameraTargetSystem;
-import org.terasology.input.device.InputAction;
+import org.terasology.input.device.ControllerAction;
+import org.terasology.input.device.KeyboardAction;
+import org.terasology.input.device.MouseAction;
 import org.terasology.input.device.KeyboardDevice;
 import org.terasology.input.device.MouseDevice;
+import org.terasology.input.device.nulldevices.NullControllerDevice;
 import org.terasology.input.device.nulldevices.NullKeyboardDevice;
 import org.terasology.input.device.nulldevices.NullMouseDevice;
 import org.terasology.input.events.InputEvent;
@@ -44,19 +51,22 @@ import org.terasology.input.events.MouseXAxisEvent;
 import org.terasology.input.events.MouseYAxisEvent;
 import org.terasology.input.events.RightMouseDownButtonEvent;
 import org.terasology.input.events.RightMouseUpButtonEvent;
+import org.terasology.input.internal.AbstractBindableAxis;
 import org.terasology.input.internal.BindableAxisImpl;
 import org.terasology.input.internal.BindableButtonImpl;
+import org.terasology.input.internal.BindableRealAxis;
 import org.terasology.logic.players.LocalPlayer;
-import org.terasology.math.Vector2i;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.registry.In;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * This system processes input, sending it out as events against the LocalPlayer entity.
- * <p/>
+ * <br><br>
  * In addition to raw keyboard and mouse input, the system handles Bind Buttons and Bind Axis, which can be mapped
  * to one or more inputs.
  */
@@ -66,37 +76,39 @@ public class InputSystem extends BaseComponentSystem {
     private Config config;
 
     @In
-    private GameEngine engine;
+    private DisplayDevice display;
+
+    @In
+    private Time time;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    @In
+    private CameraTargetSystem targetSystem;
+
+    @In
+    private ModuleManager moduleManager;
 
     private MouseDevice mouse = new NullMouseDevice();
     private KeyboardDevice keyboard = new NullKeyboardDevice();
+    private ControllerDevice controllers = new NullControllerDevice();
 
-    private Map<String, BindableAxisImpl> axisLookup = Maps.newHashMap();
+    private Map<String, BindableRealAxis> axisLookup = Maps.newHashMap();
     private Map<SimpleUri, BindableButtonImpl> buttonLookup = Maps.newHashMap();
 
-    private List<BindableAxisImpl> axisBinds = Lists.newArrayList();
+    private List<AbstractBindableAxis> axisBinds = Lists.newArrayList();
     private List<BindableButtonImpl> buttonBinds = Lists.newArrayList();
 
     // Links between primitive inputs and bind buttons
     private Map<Integer, BindableButtonImpl> keyBinds = Maps.newHashMap();
     private Map<MouseInput, BindableButtonImpl> mouseButtonBinds = Maps.newHashMap();
+    private Map<ControllerInput, BindableButtonImpl> controllerBinds = Maps.newHashMap();
+    private Map<Input, BindableRealAxis> controllerAxisBinds = Maps.newHashMap();
     private BindableButtonImpl mouseWheelUpBind;
     private BindableButtonImpl mouseWheelDownBind;
 
-    private LocalPlayer localPlayer;
-    private CameraTargetSystem targetSystem;
-
-    @Override
-    public void initialise() {
-        localPlayer = CoreRegistry.get(LocalPlayer.class);
-        targetSystem = CoreRegistry.get(CameraTargetSystem.class);
-    }
-
-    @Override
-    public void shutdown() {
-        localPlayer = null;
-        targetSystem = null;
-    }
+    private boolean capturingMouse = true;
 
     public void setMouseDevice(MouseDevice mouseDevice) {
         this.mouse = mouseDevice;
@@ -114,12 +126,26 @@ public class InputSystem extends BaseComponentSystem {
         return keyboard;
     }
 
+    public ControllerDevice getControllerDevice() {
+        return controllers;
+    }
+
+    public void setControllerDevice(ControllerDevice controllerDevice) {
+        this.controllers = controllerDevice;
+    }
+
     public BindableButton registerBindButton(SimpleUri bindId, String displayName) {
         return registerBindButton(bindId, displayName, new BindButtonEvent());
     }
 
+    @Override
+    public void initialise() {
+        BindsConfig bindsConfig = config.getInput().getBinds();
+        bindsConfig.applyBinds(this, moduleManager);
+    }
+
     public BindableButton registerBindButton(SimpleUri bindId, String displayName, BindButtonEvent event) {
-        BindableButtonImpl bind = new BindableButtonImpl(bindId, displayName, event);
+        BindableButtonImpl bind = new BindableButtonImpl(bindId, displayName, event, time);
         buttonLookup.put(bindId, bind);
         buttonBinds.add(bind);
         return bind;
@@ -131,6 +157,8 @@ public class InputSystem extends BaseComponentSystem {
         axisLookup.clear();
         axisBinds.clear();
         keyBinds.clear();
+        controllerBinds.clear();
+        controllerAxisBinds.clear();
         mouseButtonBinds.clear();
         mouseWheelUpBind = null;
         mouseWheelDownBind = null;
@@ -152,19 +180,17 @@ public class InputSystem extends BaseComponentSystem {
             case MOUSE_WHEEL:
                 linkBindButtonToMouseWheel(input.getId(), bindId);
                 break;
+            case CONTROLLER_BUTTON:
+                linkBindButtonToController((ControllerInput) input, bindId);
+                break;
             default:
                 break;
         }
     }
 
-    public void linkBindButtonToInput(InputEvent input, SimpleUri bindId) {
-        if (input instanceof KeyEvent) {
-            linkBindButtonToKey(((KeyEvent) input).getKey().getId(), bindId);
-        } else if (input instanceof MouseButtonEvent) {
-            linkBindButtonToMouse(((MouseButtonEvent) input).getButton(), bindId);
-        } else if (input instanceof MouseWheelEvent) {
-            linkBindButtonToMouseWheel(((MouseWheelEvent) input).getWheelTurns(), bindId);
-        }
+    public void linkAxisToInput(Input input, SimpleUri bindId) {
+        BindableRealAxis bindInfo = axisLookup.get(bindId.toString());
+        controllerAxisBinds.put(input, bindInfo);
     }
 
     public void linkBindButtonToKey(int key, SimpleUri bindId) {
@@ -185,6 +211,41 @@ public class InputSystem extends BaseComponentSystem {
         }
     }
 
+    public void linkBindButtonToController(ControllerInput button, SimpleUri bindId) {
+        BindableButtonImpl bindInfo = buttonLookup.get(bindId);
+        controllerBinds.put(button, bindInfo);
+    }
+
+    /**
+     * Enumerates all active input bindings for a given binding.
+     * @param bindId the ID
+     * @return a list of keyboard/mouse inputs that trigger the binding.
+     */
+    public List<Input> getInputsForBindButton(SimpleUri bindId) {
+        List<Input> inputs = new ArrayList<>();
+        for (Entry<Integer, BindableButtonImpl> entry : keyBinds.entrySet()) {
+            if (entry.getValue().getId().equals(bindId)) {
+                inputs.add(InputType.KEY.getInput(entry.getKey()));
+            }
+        }
+
+        for (Entry<MouseInput, BindableButtonImpl> entry : mouseButtonBinds.entrySet()) {
+            if (entry.getValue().getId().equals(bindId)) {
+                inputs.add(entry.getKey());
+            }
+        }
+
+        if (mouseWheelUpBind.getId().equals(bindId)) {
+            inputs.add(MouseInput.WHEEL_UP);
+        }
+
+        if (mouseWheelDownBind.getId().equals(bindId)) {
+            inputs.add(MouseInput.WHEEL_DOWN);
+        }
+
+        return inputs;
+    }
+
     public BindableAxis registerBindAxis(String id, BindableButton positiveButton, BindableButton negativeButton) {
         return registerBindAxis(id, new BindAxisEvent(), positiveButton, negativeButton);
     }
@@ -196,6 +257,12 @@ public class InputSystem extends BaseComponentSystem {
     public BindableAxis registerBindAxis(String id, BindAxisEvent event, BindableButton positiveButton, BindableButton negativeButton) {
         BindableAxisImpl axis = new BindableAxisImpl(id, event, positiveButton, negativeButton);
         axisBinds.add(axis);
+        return axis;
+    }
+
+    public BindableAxis registerRealBindAxis(String id, BindAxisEvent event) {
+        BindableRealAxis axis = new BindableRealAxis(id.toString(), event);
+        axisBinds.add(axis);
         axisLookup.put(id, axis);
         return axis;
     }
@@ -203,12 +270,21 @@ public class InputSystem extends BaseComponentSystem {
     public void update(float delta) {
         processMouseInput(delta);
         processKeyboardInput(delta);
+        processControllerInput(delta);
         processBindRepeats(delta);
         processBindAxis(delta);
     }
 
+    public boolean isCapturingMouse() {
+        return capturingMouse && display.hasFocus();
+    }
+
+    public void setCapturingMouse(boolean capturingMouse) {
+        this.capturingMouse = capturingMouse;
+    }
+
     private void processMouseInput(float delta) {
-        if (!engine.hasFocus()) {
+        if (!isCapturingMouse()) {
             return;
         }
 
@@ -227,7 +303,8 @@ public class InputSystem extends BaseComponentSystem {
 
         //process mouse movement y axis
         if (deltaMouse.y != 0) {
-            MouseAxisEvent event = new MouseYAxisEvent(deltaMouse.y * config.getInput().getMouseSensitivity(), delta);
+            int yMovement = config.getInput().isMouseYAxisInverted() ? deltaMouse.y * -1 : deltaMouse.y;
+            MouseAxisEvent event = new MouseYAxisEvent(yMovement * config.getInput().getMouseSensitivity(), delta);
             setupTarget(event);
             for (EntityRef entity : getInputEntities()) {
                 entity.send(event);
@@ -238,7 +315,7 @@ public class InputSystem extends BaseComponentSystem {
         }
 
         //process mouse clicks
-        for (InputAction action : mouse.getInputQueue()) {
+        for (MouseAction action : mouse.getInputQueue()) {
             switch (action.getInput().getType()) {
                 case MOUSE_BUTTON:
                     int id = action.getInput().getId();
@@ -296,7 +373,7 @@ public class InputSystem extends BaseComponentSystem {
                         }
                     }
                     break;
-                case KEY:
+                default:
                     break;
             }
         }
@@ -308,8 +385,43 @@ public class InputSystem extends BaseComponentSystem {
         }
     }
 
+    private void processControllerInput(float delta) {
+        for (ControllerAction action : controllers.getInputQueue()) {
+            // TODO: send event to entity system
+            boolean consumed = false;
+
+            // Update button bind
+            Input input = action.getInput();
+            if (input.getType() == InputType.CONTROLLER_BUTTON) {
+                BindableButtonImpl bind = controllerBinds.get(input);
+                if (bind != null) {
+                    bind.updateBindState(
+                            input,
+                            (action.getState() == ButtonState.DOWN),
+                            delta, getInputEntities(),
+                            targetSystem.getTarget(),
+                            targetSystem.getTargetBlockPosition(),
+                            targetSystem.getHitPosition(),
+                            targetSystem.getHitNormal(),
+                            consumed
+                    );
+                }
+            } else if (input.getType() == InputType.CONTROLLER_AXIS) {
+                BindableRealAxis axis = controllerAxisBinds.get(input);
+                if (axis != null) {
+                    ControllerInfo info = config.getInput().getControllers().getController(action.getController());
+                    boolean isX = action.getInput().getId() == ControllerId.X_AXIS;
+                    boolean isY = action.getInput().getId() == ControllerId.Y_AXIS;
+                    boolean isZ = action.getInput().getId() == ControllerId.Z_AXIS;
+                    float f = (isX && info.isInvertX() || isY && info.isInvertY() || isZ && info.isInvertZ()) ? -1 : 1;
+                    axis.setTargetValue(action.getAxisValue() * f);
+                }
+            }
+        }
+    }
+
     private void processKeyboardInput(float delta) {
-        for (InputAction action : keyboard.getInputQueue()) {
+        for (KeyboardAction action : keyboard.getInputQueue()) {
             boolean consumed = sendKeyEvent(action.getInput(), action.getInputChar(), action.getState(), delta);
 
             // Update bind
@@ -330,9 +442,8 @@ public class InputSystem extends BaseComponentSystem {
     }
 
     private void processBindAxis(float delta) {
-        for (BindableAxisImpl axis : axisBinds) {
+        for (AbstractBindableAxis axis : axisBinds) {
             axis.update(getInputEntities(), delta, targetSystem.getTarget(), targetSystem.getTargetBlockPosition(),
-
                     targetSystem.getHitPosition(), targetSystem.getHitNormal());
         }
     }
@@ -415,5 +526,13 @@ public class InputSystem extends BaseComponentSystem {
         return new EntityRef[]{localPlayer.getClientEntity(), localPlayer.getCharacterEntity()};
     }
 
+    /**
+     * Drop all pending/unprocessed input events.
+     */
+    public void drainQueues() {
+        mouse.getInputQueue();
+        keyboard.getInputQueue();
+        controllers.getInputQueue();
+    }
 }
 

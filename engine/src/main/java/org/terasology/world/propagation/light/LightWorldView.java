@@ -15,13 +15,12 @@
  */
 package org.terasology.world.propagation.light;
 
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.chunks.ChunkProvider;
-import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.chunks.LitChunk;
 import org.terasology.world.propagation.AbstractFullWorldView;
 
 /**
- * @author Immortius
  */
 public class LightWorldView extends AbstractFullWorldView {
 
@@ -30,12 +29,12 @@ public class LightWorldView extends AbstractFullWorldView {
     }
 
     @Override
-    protected byte getValueAt(ChunkImpl chunk, Vector3i pos) {
+    protected byte getValueAt(LitChunk chunk, Vector3i pos) {
         return chunk.getLight(pos);
     }
 
     @Override
-    protected void setValueAt(ChunkImpl chunk, Vector3i pos, byte value) {
+    protected void setValueAt(LitChunk chunk, Vector3i pos, byte value) {
         chunk.setLight(pos, value);
     }
 }

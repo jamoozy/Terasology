@@ -17,14 +17,17 @@
 package org.terasology.world.internal;
 
 import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.math.Vector3i;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.WorldChangeListener;
+import org.terasology.world.biomes.Biome;
 import org.terasology.world.block.Block;
 import org.terasology.world.liquid.LiquidData;
 import org.terasology.world.time.WorldTime;
 
+import java.util.Collection;
+
 /**
- * @author Immortius
  */
 public class AbstractWorldProviderDecorator implements WorldProviderCore {
 
@@ -85,6 +88,11 @@ public class AbstractWorldProviderDecorator implements WorldProviderCore {
     }
 
     @Override
+    public boolean isRegionRelevant(Region3i region) {
+        return base.isRegionRelevant(region);
+    }
+
+    @Override
     public Block setBlock(Vector3i pos, Block type) {
         return base.setBlock(pos, type);
     }
@@ -102,6 +110,16 @@ public class AbstractWorldProviderDecorator implements WorldProviderCore {
     @Override
     public Block getBlock(int x, int y, int z) {
         return base.getBlock(x, y, z);
+    }
+
+    @Override
+    public Biome setBiome(Vector3i pos, Biome biome) {
+        return base.setBiome(pos, biome);
+    }
+
+    @Override
+    public Biome getBiome(Vector3i pos) {
+        return base.getBiome(pos);
     }
 
     @Override
@@ -130,17 +148,8 @@ public class AbstractWorldProviderDecorator implements WorldProviderCore {
     }
 
     @Override
-    public float getFog(float x, float y, float z) {
-        return base.getFog(x, y, z);
+    public Collection<Region3i> getRelevantRegions() {
+        return base.getRelevantRegions();
     }
 
-    @Override
-    public float getTemperature(float x, float y, float z) {
-        return base.getTemperature(x, y, z);
-    }
-
-    @Override
-    public float getHumidity(float x, float y, float z) {
-        return base.getHumidity(x, y, z);
-    }
 }

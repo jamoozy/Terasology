@@ -15,12 +15,13 @@
  */
 package org.terasology.world.chunks;
 
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.module.sandbox.API;
 import org.terasology.world.block.Block;
 
 /**
- * @author Immortius
  */
+@API
 public interface ChunkBlockIterator {
 
     /**

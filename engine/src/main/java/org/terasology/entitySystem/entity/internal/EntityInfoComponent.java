@@ -17,15 +17,22 @@ package org.terasology.entitySystem.entity.internal;
 
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.network.Replicate;
+
+import javax.annotation.Nullable;
 
 /**
  * Component for storing entity system information on an entity
  *
- * @author Immortius <immortius@gmail.com>
  */
 public class EntityInfoComponent implements Component {
-    public String parentPrefab = "";
+    // TODO: Switch this to use Optional<Prefab>
+    public Prefab parentPrefab;
+    /**
+     * To simplify things for the {@link StorageManager} the persistent property of entities must not be changed
+     * after creation.
+     */
     public boolean persisted = true;
 
     @Replicate
@@ -35,7 +42,7 @@ public class EntityInfoComponent implements Component {
     public EntityInfoComponent() {
     }
 
-    public EntityInfoComponent(String parentPrefab, boolean persisted, boolean alwaysRelevant) {
+    public EntityInfoComponent(@Nullable Prefab parentPrefab, boolean persisted, boolean alwaysRelevant) {
         this.parentPrefab = parentPrefab;
         this.persisted = persisted;
         this.alwaysRelevant = alwaysRelevant;

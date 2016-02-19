@@ -16,18 +16,18 @@
 package org.terasology.world;
 
 import org.terasology.math.Region3i;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.biomes.Biome;
 import org.terasology.world.block.Block;
 import org.terasology.world.liquid.LiquidData;
 
 /**
  * A chunk view is a way of accessing multiple chunks for modification in a performant manner.
  * Chunk views also support relative subviewing - looking at an area of the world with a uniform offset to block positions
- * <p/>
- * ChunkViews must be locked because write operations can be enacted - any write operations requested outside of a lock
+ * <br><br>
+ * ChunkViews must be locked before write operations can be enacted - any write operations requested outside of a lock
  * are ignored.
  *
- * @author Immortius
  */
 public interface ChunkView {
     /**
@@ -51,6 +51,28 @@ public interface ChunkView {
      * @return The block at the given coordinates. If this is outside of the view then the air block is returned
      */
     Block getBlock(int x, int y, int z);
+
+    /**
+     * @param x
+     * @param y
+     * @param z
+     * @return The biome at the given coordinates. If this is outside of the view then the default biome is returned
+     */
+    Biome getBiome(float x, float y, float z);
+
+    /**
+     * @param pos
+     * @return The biome at the given coordinates. If this is outside of the view then the default biome is returned
+     */
+    Biome getBiome(Vector3i pos);
+
+    /**
+     * @param x
+     * @param y
+     * @param z
+     * @return The biome at the given coordinates. If this is outside of the view then the default biome is returned
+     */
+    Biome getBiome(int x, int y, int z);
 
     /**
      * @param x
@@ -113,6 +135,24 @@ public interface ChunkView {
      * @param type
      */
     void setBlock(int x, int y, int z, Block type);
+
+    /**
+     * Sets the biome at the given position, if it is within the view.
+     *
+     * @param pos
+     * @param biome
+     */
+    void setBiome(Vector3i pos, Biome biome);
+
+    /**
+     * Sets the biome at the given coordinates, if it is within the view.
+     *
+     * @param x
+     * @param y
+     * @param z
+     * @param biome
+     */
+    void setBiome(int x, int y, int z, Biome biome);
 
     /**
      * @param pos
@@ -183,12 +223,22 @@ public interface ChunkView {
     /**
      * Locks the chunk view, enabling write operations
      */
-    void lock();
+    void writeLock();
 
     /**
      * Unlocks the chunk view, disabling write operations
      */
-    void unlock();
+    void writeUnlock();
+
+    /**
+     * Locks the chunk view, enabling write operations
+     */
+    void readLock();
+
+    /**
+     * Unlocks the chunk view, disabling write operations
+     */
+    void readUnlock();
 
     /**
      * @return Whether the chunk view is locked and hence whether write operations are allowed.

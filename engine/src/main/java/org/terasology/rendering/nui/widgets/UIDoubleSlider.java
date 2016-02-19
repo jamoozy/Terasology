@@ -16,9 +16,9 @@
 package org.terasology.rendering.nui.widgets;
 
 import org.terasology.input.MouseInput;
-import org.terasology.math.Rect2i;
+import org.terasology.math.geom.Rect2i;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
@@ -27,9 +27,11 @@ import org.terasology.rendering.nui.LayoutConfig;
 import org.terasology.rendering.nui.SubRegion;
 import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseDragEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
 
 /**
- * @author JoeClacks
  */
 public class UIDoubleSlider extends CoreWidget {
     public static final String SLIDER_PART = "slider";
@@ -40,10 +42,10 @@ public class UIDoubleSlider extends CoreWidget {
         private Vector2i offset = new Vector2i();
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {
                 active = true;
-                offset.set(pos);
+                offset.set(event.getRelativeMousePosition());
                 offset.x -= pixelOffsetFor(getValueLeft(), sliderWidth);
                 return true;
             }
@@ -51,13 +53,14 @@ public class UIDoubleSlider extends CoreWidget {
         }
 
         @Override
-        public void onMouseRelease(MouseInput button, Vector2i pos) {
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
             active = false;
         }
 
         @Override
-        public void onMouseDrag(Vector2i pos) {
+        public void onMouseDrag(NUIMouseDragEvent event) {
             if (sliderWidth > 0) {
+                Vector2i pos = event.getRelativeMousePosition();
                 int maxSlot = TeraMath.floorToInt(getRange() / getIncrement());
                 int slotWidth = sliderWidth / maxSlot;
                 int nearestSlot = maxSlot * (pos.x - offset.x + slotWidth / 2) / sliderWidth;
@@ -72,10 +75,10 @@ public class UIDoubleSlider extends CoreWidget {
         private Vector2i offset = new Vector2i();
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {
                 active = true;
-                offset.set(pos);
+                offset.set(event.getRelativeMousePosition());
                 offset.x -= pixelOffsetFor(getValueRight(), sliderWidth);
                 return true;
             }
@@ -83,13 +86,14 @@ public class UIDoubleSlider extends CoreWidget {
         }
 
         @Override
-        public void onMouseRelease(MouseInput button, Vector2i pos) {
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
             active = false;
         }
 
         @Override
-        public void onMouseDrag(Vector2i pos) {
+        public void onMouseDrag(NUIMouseDragEvent event) {
             if (sliderWidth > 0) {
+                Vector2i pos = event.getRelativeMousePosition();
                 int maxSlot = TeraMath.floorToInt(getRange() / getIncrement());
                 int slotWidth = sliderWidth / maxSlot;
                 int nearestSlot = maxSlot * (pos.x - offset.x + slotWidth / 2) / sliderWidth;

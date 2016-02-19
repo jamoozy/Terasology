@@ -20,7 +20,7 @@
             },
             {
                 "type" : "UILabel",
-                "text" : "Player Settings",
+                "text": "${engine:menu#player-settings-title}",
                 "family" : "title",
                 "id" : "subtitle",
                 "layoutInfo" : {
@@ -45,7 +45,7 @@
                     "contents" : [
                         {
                             "type" : "UILabel",
-                            "text" : "Player Name:"
+                            "text" : "${engine:menu#player-name}:"
                         },
                         {
                             "type" : "UIText",
@@ -53,28 +53,33 @@
                         },
                         {
                             "type" : "UILabel",
-                            "text" : "Player Color (RGB):"
+                            "text" : "${engine:menu#player-color}:"
                         },
                         {
                             "type" : "RowLayout",
+                            "horizontalSpacing" : 10,
                             "contents" : [
                                 {
                                     "type" : "UISlider",
-                                    "id" : "red"
-                                },
-                                {
-                                    "type" : "UISlider",
-                                    "id" : "green"
-                                },
-                                {
-                                    "type" : "UISlider",
-                                    "id" : "blue"
+                                    "id" : "tone",
+                                    "layoutInfo" : {
+                                        "relativeWidth" : 0.88
+                                    }
                                 },
                                 {
                                     "type" : "UIImage",
-                                    "id"   : "image"
+                                    "skin" : "framed_image",
+                                    "id" : "image"
                                 }
                             ]
+                        },
+                        {
+                            "type": "UILabel",
+                            "text": "${engine:menu#settings-language}:"
+                        },
+                        {
+                            "type": "UIDropdown",
+                            "id": "language"
                         }
                     ]
                 },
@@ -90,26 +95,36 @@
                     "position-bottom" : {
                         "target" : "TOP",
                         "offset" : 32,
-                        "widget" : "close"
+                        "widget": "actionsRow"
                     }
                 }
             },
             {
-                "type" : "UIButton",
-                "text" : "Back",
-                "id" : "close",
+                "type": "RowLayout",
+                "id": "actionsRow",
+                "horizontalSpacing": 4,
+                "contents": [
+                    {
+                        "type": "UIButton",
+                        "text": "${engine:menu#dialog-ok}",
+                        "id": "ok"
+                    },
+                    {
+                        "type": "UIButton",
+                        "text": "${engine:menu#dialog-cancel}",
+                        "id": "close"
+                    }
+                ],
                 "layoutInfo" : {
+                    "width": 400,
                     "height" : 32,
-                    "width" : 200,
                     "position-horizontal-center" : {},
                     "position-bottom" : {
                         "target" : "BOTTOM",
                         "offset" : 48
                     }
                 }
-
             }
-
         ]
     }
 }

@@ -16,29 +16,39 @@
 
 package org.terasology.rendering.assets.material;
 
-import org.terasology.asset.Asset;
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Matrix3f;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.rendering.assets.shader.ShaderProgramFeature;
 import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.rendering.cameras.Camera;
 
-import javax.vecmath.Matrix3f;
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Tuple2f;
-import javax.vecmath.Tuple3f;
-import javax.vecmath.Tuple4f;
 import java.nio.FloatBuffer;
 
 /**
- * @author Immortius
  */
-public interface Material extends Asset<MaterialData> {
+public abstract class Material extends Asset<MaterialData> {
 
-    void recompile();
+    protected Material(ResourceUrn urn, AssetType<?, MaterialData> assetType) {
+        super(urn, assetType);
+    }
+
+    /**
+     * @return Whether this material is currently in a renderable state (all textures loaded)
+     */
+    public abstract boolean isRenderable();
+
+    public abstract void recompile();
 
     /**
      * Enables the material for rendering
      */
-    void enable();
+    public abstract void enable();
 
     /**
      * Sets a float uniform parameter (for all feature permutations)
@@ -46,9 +56,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param f
      */
-    void setFloat(String name, float f);
+    public abstract void setFloat(String name, float f);
 
-    void setFloat(String name, float f, boolean currentOnly);
+    public abstract void setFloat(String name, float f, boolean currentOnly);
 
     /**
      * Sets a float1 uniform parameter (for all feature permutations)
@@ -56,9 +66,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param buffer
      */
-    void setFloat1(String name, FloatBuffer buffer);
+    public abstract void setFloat1(String name, FloatBuffer buffer);
 
-    void setFloat1(String name, FloatBuffer buffer, boolean currentOnly);
+    public abstract void setFloat1(String name, FloatBuffer buffer, boolean currentOnly);
 
     /**
      * Sets a float2 uniform parameter (for all feature permutations)
@@ -67,9 +77,9 @@ public interface Material extends Asset<MaterialData> {
      * @param f1
      * @param f2
      */
-    void setFloat2(String name, float f1, float f2);
+    public abstract void setFloat2(String name, float f1, float f2);
 
-    void setFloat2(String name, float f1, float f2, boolean currentOnly);
+    public abstract void setFloat2(String name, float f1, float f2, boolean currentOnly);
 
     /**
      * Sets a float2 uniform parameter (for all feature permutations)
@@ -77,9 +87,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param value
      */
-    void setFloat2(String name, Tuple2f value);
+    public abstract void setFloat2(String name, Vector2f value);
 
-    void setFloat2(String name, Tuple2f value, boolean currentOnly);
+    public abstract void setFloat2(String name, Vector2f value, boolean currentOnly);
 
     /**
      * Sets a float2 uniform parameter (for all feature permutations)
@@ -87,9 +97,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param buffer
      */
-    void setFloat2(String name, FloatBuffer buffer);
+    public abstract void setFloat2(String name, FloatBuffer buffer);
 
-    void setFloat2(String name, FloatBuffer buffer, boolean currentOnly);
+    public abstract void setFloat2(String name, FloatBuffer buffer, boolean currentOnly);
 
     /**
      * Sets a float3 uniform parameter (for all feature permutations)
@@ -99,9 +109,9 @@ public interface Material extends Asset<MaterialData> {
      * @param f2
      * @param f3
      */
-    void setFloat3(String name, float f1, float f2, float f3);
+    public abstract void setFloat3(String name, float f1, float f2, float f3);
 
-    void setFloat3(String name, float f1, float f2, float f3, boolean currentOnly);
+    public abstract void setFloat3(String name, float f1, float f2, float f3, boolean currentOnly);
 
     /**
      * Sets a float3 uniform parameter (for all feature permutations)
@@ -109,9 +119,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param value
      */
-    void setFloat3(String name, Tuple3f value);
+    public abstract void setFloat3(String name, Vector3f value);
 
-    void setFloat3(String name, Tuple3f value, boolean currentOnly);
+    public abstract void setFloat3(String name, Vector3f value, boolean currentOnly);
 
     /**
      * Sets a float3 uniform parameter (for all feature permutations)
@@ -119,9 +129,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param buffer
      */
-    void setFloat3(String name, FloatBuffer buffer);
+    public abstract void setFloat3(String name, FloatBuffer buffer);
 
-    void setFloat3(String name, FloatBuffer buffer, boolean currentOnly);
+    public abstract void setFloat3(String name, FloatBuffer buffer, boolean currentOnly);
 
     /**
      * Sets a float4 uniform parameter (for all feature permutations)
@@ -132,9 +142,9 @@ public interface Material extends Asset<MaterialData> {
      * @param f3
      * @param f4
      */
-    void setFloat4(String name, float f1, float f2, float f3, float f4);
+    public abstract void setFloat4(String name, float f1, float f2, float f3, float f4);
 
-    void setFloat4(String name, float f1, float f2, float f3, float f4, boolean currentOnly);
+    public abstract void setFloat4(String name, float f1, float f2, float f3, float f4, boolean currentOnly);
 
     /**
      * Sets a float4 uniform parameter (for all feature permutations)
@@ -142,9 +152,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param value
      */
-    void setFloat4(String name, Tuple4f value);
+    public abstract void setFloat4(String name, Vector4f value);
 
-    void setFloat4(String name, Tuple4f value, boolean currentOnly);
+    public abstract void setFloat4(String name, Vector4f value, boolean currentOnly);
 
     /**
      * Sets a float4 uniform parameter (for all feature permutations)
@@ -152,9 +162,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param buffer
      */
-    void setFloat4(String name, FloatBuffer buffer);
+    public abstract void setFloat4(String name, FloatBuffer buffer);
 
-    void setFloat4(String name, FloatBuffer buffer, boolean currentOnly);
+    public abstract void setFloat4(String name, FloatBuffer buffer, boolean currentOnly);
 
     /**
      * Sets an int uniform parameter (for all feature permutations)
@@ -162,9 +172,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param i
      */
-    void setInt(String name, int i);
+    public abstract void setInt(String name, int i);
 
-    void setInt(String name, int i, boolean currentOnly);
+    public abstract void setInt(String name, int i, boolean currentOnly);
 
     /**
      * Sets a boolean (int 1 or 0) uniform parameter (for all feature permutations}
@@ -172,9 +182,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param value
      */
-    void setBoolean(String name, boolean value);
+    public abstract void setBoolean(String name, boolean value);
 
-    void setBoolean(String name, boolean value, boolean currentOnly);
+    public abstract void setBoolean(String name, boolean value, boolean currentOnly);
 
     /**
      * Sets a matrix3 uniform parameter (for all feature permutations)
@@ -182,9 +192,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param matrix
      */
-    void setMatrix3(String name, Matrix3f matrix);
+    public abstract void setMatrix3(String name, Matrix3f matrix);
 
-    void setMatrix3(String name, Matrix3f matrix, boolean currentOnly);
+    public abstract void setMatrix3(String name, Matrix3f matrix, boolean currentOnly);
 
     /**
      * Sets a matrix3 uniform parameter (for all feature permutations)
@@ -192,9 +202,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param buffer
      */
-    void setMatrix3(String name, FloatBuffer buffer);
+    public abstract void setMatrix3(String name, FloatBuffer buffer);
 
-    void setMatrix3(String name, FloatBuffer buffer, boolean currentOnly);
+    public abstract void setMatrix3(String name, FloatBuffer buffer, boolean currentOnly);
 
     /**
      * Sets a matrix4 uniform parameter (for all feature permutations)
@@ -202,9 +212,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param matrix
      */
-    void setMatrix4(String name, Matrix4f matrix);
+    public abstract void setMatrix4(String name, Matrix4f matrix);
 
-    void setMatrix4(String name, Matrix4f matrix, boolean currentOnly);
+    public abstract void setMatrix4(String name, Matrix4f matrix, boolean currentOnly);
 
     /**
      * Sets a matrix3 uniform parameter (for all feature permutations)
@@ -212,9 +222,9 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param buffer
      */
-    void setMatrix4(String name, FloatBuffer buffer);
+    public abstract void setMatrix4(String name, FloatBuffer buffer);
 
-    void setMatrix4(String name, FloatBuffer buffer, boolean currentOnly);
+    public abstract void setMatrix4(String name, FloatBuffer buffer, boolean currentOnly);
 
     /**
      * Sets a texture parameter
@@ -222,37 +232,37 @@ public interface Material extends Asset<MaterialData> {
      * @param name
      * @param texture
      */
-    void setTexture(String name, Texture texture);
+    public abstract void setTexture(String name, Texture texture);
 
     /**
      * Sets up this matertial for the given camera
      *
      * @param camera
      */
-    void setCamera(Camera camera);
+    public abstract void setCamera(Camera camera);
 
-    boolean supportsFeature(ShaderProgramFeature feature);
+    public abstract boolean supportsFeature(ShaderProgramFeature feature);
 
     /**
      * Activates a feature of this material, if available
      *
      * @param feature
      */
-    void activateFeature(ShaderProgramFeature feature);
+    public abstract void activateFeature(ShaderProgramFeature feature);
 
     /**
      * Deactivates a feature of this material if active
      *
      * @param feature
      */
-    void deactivateFeature(ShaderProgramFeature feature);
+    public abstract void deactivateFeature(ShaderProgramFeature feature);
 
     /**
      * Deactivates a set of features of this material
      *
      * @param features
      */
-    void deactivateFeatures(ShaderProgramFeature... features);
+    public abstract void deactivateFeatures(ShaderProgramFeature... features);
 
-    void bindTextures();
+    public abstract void bindTextures();
 }

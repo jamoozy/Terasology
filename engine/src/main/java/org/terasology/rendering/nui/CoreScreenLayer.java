@@ -16,28 +16,29 @@
 package org.terasology.rendering.nui;
 
 import org.terasology.input.BindButtonEvent;
-import org.terasology.input.MouseInput;
-import org.terasology.input.events.KeyEvent;
 import org.terasology.input.events.MouseButtonEvent;
 import org.terasology.input.events.MouseWheelEvent;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseWheelEvent;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 
 /**
- * @author Immortius
  */
 public abstract class CoreScreenLayer extends AbstractWidget implements UIScreenLayer {
 
     private static final InteractionListener DEFAULT_SCREEN_LISTENER = new BaseInteractionListener() {
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
             return true;
         }
 
         @Override
-        public boolean onMouseWheel(int wheelTurns, Vector2i pos) {
+        public boolean onMouseWheel(NUIMouseWheelEvent event) {
             return true;
         }
     };
@@ -55,6 +56,7 @@ public abstract class CoreScreenLayer extends AbstractWidget implements UIScreen
         super(id);
     }
 
+    @Override
     public void setId(String id) {
         super.setId(id);
     }
@@ -67,6 +69,7 @@ public abstract class CoreScreenLayer extends AbstractWidget implements UIScreen
         this.contents = contents;
     }
 
+    @Override
     public void onOpened() {
         if (!initialised) {
             initialise();
@@ -95,6 +98,7 @@ public abstract class CoreScreenLayer extends AbstractWidget implements UIScreen
         return contents;
     }
 
+    @Override
     public void onDraw(Canvas canvas) {
         if (isModal()) {
             canvas.addInteractionRegion(getScreenListener());
@@ -104,6 +108,7 @@ public abstract class CoreScreenLayer extends AbstractWidget implements UIScreen
         }
     }
 
+    @Override
     public void update(float delta) {
         if (contents != null) {
             contents.update(delta);
@@ -141,7 +146,8 @@ public abstract class CoreScreenLayer extends AbstractWidget implements UIScreen
     }
 
     @Override
-    public void onKeyEvent(KeyEvent event) {
+    public boolean onKeyEvent(NUIKeyEvent event) {
+        return false;
     }
 
     @Override
@@ -175,6 +181,9 @@ public abstract class CoreScreenLayer extends AbstractWidget implements UIScreen
 
     @Override
     public Iterator<UIWidget> iterator() {
+        if (contents == null) {
+            return Collections.emptyIterator();
+        }
         return Arrays.asList(contents).iterator();
     }
 }

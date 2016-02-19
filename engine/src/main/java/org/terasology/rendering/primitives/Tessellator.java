@@ -16,17 +16,15 @@
 package org.terasology.rendering.primitives;
 
 import com.google.common.base.Preconditions;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
 import org.terasology.asset.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.module.sandbox.API;
 import org.terasology.rendering.assets.mesh.Mesh;
 import org.terasology.rendering.assets.mesh.MeshData;
 import org.terasology.world.block.shapes.BlockMeshPart;
-
-import javax.vecmath.Vector2f;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
 
 @API
 public class Tessellator {
@@ -170,15 +168,21 @@ public class Tessellator {
         lighting.set(v);
     }
 
-    public Mesh generateMesh(AssetUri uri) {
-        Preconditions.checkNotNull(uri);
-        Mesh result = Assets.generateAsset(uri, meshData, Mesh.class);
+    public MeshData generateMeshData() {
+        MeshData result = meshData;
+        meshData = new MeshData();
+        return result;
+    }
+
+    public Mesh generateMesh(ResourceUrn urn) {
+        Preconditions.checkNotNull(urn);
+        Mesh result = Assets.generateAsset(urn, meshData, Mesh.class);
         meshData = new MeshData();
         return result;
     }
 
     public Mesh generateMesh() {
-        Mesh result = Assets.generateAsset(AssetType.MESH, meshData, Mesh.class);
+        Mesh result = Assets.generateAsset(meshData, Mesh.class);
         meshData = new MeshData();
         return result;
     }

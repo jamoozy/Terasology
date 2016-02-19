@@ -19,14 +19,17 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL13;
 import org.terasology.asset.Assets;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.config.Config;
-import org.terasology.editor.EditorRange;
-import org.terasology.registry.CoreRegistry;
 import org.terasology.input.cameraTarget.CameraTargetSystem;
+import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.texture.Texture;
+import org.terasology.rendering.assets.texture.TextureUtil;
 import org.terasology.rendering.cameras.Camera;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FrameBuffersManager;
 import org.terasology.rendering.world.WorldRenderer;
 import org.terasology.utilities.random.FastRandom;
 import org.terasology.utilities.random.Random;
@@ -36,45 +39,37 @@ import static org.lwjgl.opengl.GL11.glBindTexture;
 /**
  * Shader parameters for the Post-processing shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersPost extends ShaderParametersBase {
 
     private Random rand = new FastRandom();
 
-    @EditorRange(min = 0.0f, max = 1.0f)
-    private float filmGrainIntensity = 0.025f;
-
-    @EditorRange(min = 0.0f, max = 1.0f)
-    private float blurStart;
-    @EditorRange(min = 0.0f, max = 1.0f)
-    private float blurLength = 0.15f;
+    @Range(min = 0.0f, max = 1.0f)
+    private float filmGrainIntensity = 0.05f;
 
     @Override
     public void applyParameters(Material program) {
         super.applyParameters(program);
 
         CameraTargetSystem cameraTargetSystem = CoreRegistry.get(CameraTargetSystem.class);
+        FrameBuffersManager buffersManager = CoreRegistry.get(FrameBuffersManager.class);
 
         int texId = 0;
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        DefaultRenderingProcess.getInstance().bindFboTexture("sceneToneMapped");
+        buffersManager.bindFboColorTexture("sceneToneMapped");
         program.setInt("texScene", texId++, true);
 
         if (CoreRegistry.get(Config.class).getRendering().getBlurIntensity() != 0) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            DefaultRenderingProcess.getInstance().getFBO("sceneBlur1").bindTexture();
+            buffersManager.getFBO("sceneBlur1").bindTexture();
             program.setInt("texBlur", texId++, true);
 
             if (cameraTargetSystem != null) {
-                program.setFloat("blurFocusDistance", cameraTargetSystem.getFocalDistance(), true);
+                program.setFloat("focalDistance", cameraTargetSystem.getFocalDistance(), true); //for use in DOF effect
             }
-
-            program.setFloat("blurStart", blurStart, true);
-            program.setFloat("blurLength", blurLength, true);
         }
 
-        Texture colorGradingLut = Assets.getTexture("engine:colorGradingLut1");
+        Texture colorGradingLut = Assets.getTexture("engine:colorGradingLut1").get();
 
         if (colorGradingLut != null) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
@@ -82,14 +77,15 @@ public class ShaderParametersPost extends ShaderParametersBase {
             program.setInt("texColorGradingLut", texId++, true);
         }
 
-        DefaultRenderingProcess.FBO sceneCombined = DefaultRenderingProcess.getInstance().getFBO("sceneOpaque");
+        FBO sceneCombined = buffersManager.getFBO("sceneOpaque");
 
         if (sceneCombined != null) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
             sceneCombined.bindDepthTexture();
             program.setInt("texDepth", texId++, true);
 
-            Texture filmGrainNoiseTexture = Assets.getTexture("engine:noise");
+            ResourceUrn noiseTextureUri = TextureUtil.getTextureUriForWhiteNoise(1024, 0x1234, 0, 512);
+            Texture filmGrainNoiseTexture = Assets.getTexture(noiseTextureUri).get();
 
             if (CoreRegistry.get(Config.class).getRendering().isFilmGrain()) {
                 GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
@@ -99,7 +95,7 @@ public class ShaderParametersPost extends ShaderParametersBase {
                 program.setFloat("noiseOffset", rand.nextFloat(), true);
 
                 program.setFloat2("noiseSize", filmGrainNoiseTexture.getWidth(), filmGrainNoiseTexture.getHeight(), true);
-                program.setFloat2("renderTargetSize", sceneCombined.width, sceneCombined.height, true);
+                program.setFloat2("renderTargetSize", sceneCombined.width(), sceneCombined.height(), true);
             }
         }
 

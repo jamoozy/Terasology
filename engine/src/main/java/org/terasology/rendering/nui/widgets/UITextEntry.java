@@ -15,6 +15,8 @@
  */
 package org.terasology.rendering.nui.widgets;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.databinding.DefaultBinding;
@@ -22,10 +24,10 @@ import org.terasology.rendering.nui.databinding.DefaultBinding;
 import java.util.Objects;
 
 /**
- * @author Immortius
- * @author synopia
  */
 public class UITextEntry<T> extends UIText {
+    private static final Logger logger = LoggerFactory.getLogger(UITextEntry.class);
+    
     private Binding<T> value = new DefaultBinding<>();
     private Binding<String> stringValue = new DefaultBinding<>("");
     private Parser<T> parser;
@@ -48,6 +50,7 @@ public class UITextEntry<T> extends UIText {
         super.onDraw(canvas);
     }
 
+    @Override
     public void onLoseFocus() {
         super.onLoseFocus();
         try {
@@ -57,6 +60,7 @@ public class UITextEntry<T> extends UIText {
             }
         } catch (IllegalArgumentException e) {
             // ignore
+            logger.debug("Failed to parse text value", e);
         }
     }
 

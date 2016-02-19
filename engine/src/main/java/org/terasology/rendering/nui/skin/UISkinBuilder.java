@@ -35,7 +35,6 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author Immortius
  */
 public class UISkinBuilder {
 
@@ -178,6 +177,11 @@ public class UISkinBuilder {
 
     public UISkinBuilder setTextVerticalAlignment(VerticalAlign vAlign) {
         currentStyle.setTextAlignmentV(vAlign);
+        return this;
+    }
+
+    public UISkinBuilder setTextUnderlined(boolean underlined) {
+        currentStyle.setTextUnderlined(underlined);
         return this;
     }
 

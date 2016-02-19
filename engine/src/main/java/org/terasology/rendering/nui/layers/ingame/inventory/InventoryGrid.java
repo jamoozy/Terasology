@@ -20,8 +20,8 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.logic.inventory.InventoryUtils;
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
 import org.terasology.rendering.nui.LayoutConfig;
@@ -34,7 +34,6 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class InventoryGrid extends CoreWidget {
 
@@ -52,8 +51,14 @@ public class InventoryGrid extends CoreWidget {
     public void update(float delta) {
         super.update(delta);
 
-        int numSlots = InventoryUtils.getSlotCount(getTargetEntity()) - getCellOffset();
-        if (numSlots > cells.size() && cells.size() < getMaxCellCount()) {
+        int numSlots = getNumSlots();
+
+        // allow the UI to grow or shrink the cell count if the inventory changes size
+        if (numSlots < cells.size()) {
+            for (int i = cells.size(); i > numSlots && i > 0; --i) {
+                cells.remove(i - 1);
+            }
+        } else if (numSlots > cells.size()) {
             for (int i = cells.size(); i < numSlots && i < getMaxCellCount(); ++i) {
                 InventoryCell cell = new InventoryCell();
                 cell.bindTargetInventory(new ReadOnlyBinding<EntityRef>() {
@@ -70,7 +75,7 @@ public class InventoryGrid extends CoreWidget {
 
     @Override
     public void onDraw(Canvas canvas) {
-        int numSlots = Math.min(InventoryUtils.getSlotCount(getTargetEntity()) - getCellOffset(), getMaxCellCount());
+        int numSlots = getNumSlots();
         if (numSlots != 0 && !cells.isEmpty()) {
             Vector2i cellSize = canvas.calculatePreferredSize(cells.get(0));
             int horizontalCells = Math.min(maxHorizontalCells, canvas.size().getX() / cellSize.getX());
@@ -84,7 +89,7 @@ public class InventoryGrid extends CoreWidget {
 
     @Override
     public Vector2i getPreferredContentSize(Canvas canvas, Vector2i sizeHint) {
-        int numSlots = Math.min(InventoryUtils.getSlotCount(getTargetEntity()) - getCellOffset(), getMaxCellCount());
+        int numSlots = getNumSlots();
         if (numSlots != 0 && !cells.isEmpty()) {
             Vector2i cellSize = canvas.calculatePreferredSize(cells.get(0));
             int horizontalCells = Math.min(Math.min(maxHorizontalCells, numSlots), sizeHint.getX() / cellSize.getX());
@@ -120,6 +125,11 @@ public class InventoryGrid extends CoreWidget {
         return targetEntity.get();
     }
 
+    /**
+     *
+     * @deprecated Use bindTargetEntity to assign a read only binding that is a getter
+     */
+    @Deprecated
     public void setTargetEntity(EntityRef val) {
         targetEntity.set(val);
     }
@@ -146,6 +156,10 @@ public class InventoryGrid extends CoreWidget {
 
     public void setMaxCellCount(int val) {
         maxCellCount.set(val);
+    }
+
+    public int getNumSlots() {
+        return Math.min(InventoryUtils.getSlotCount(getTargetEntity()) - getCellOffset(), getMaxCellCount());
     }
 
     private final class SlotBinding extends ReadOnlyBinding<Integer> {

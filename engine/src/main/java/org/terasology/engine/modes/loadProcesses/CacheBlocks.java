@@ -16,18 +16,22 @@
 
 package org.terasology.engine.modes.loadProcesses;
 
-import org.terasology.registry.CoreRegistry;
+import org.terasology.context.Context;
 import org.terasology.world.block.BlockManager;
 import org.terasology.world.block.family.BlockFamily;
 
 import java.util.Iterator;
 
 /**
- * @author Immortius
  */
 public class CacheBlocks extends StepBasedLoadProcess {
 
+    private final Context context;
     private Iterator<BlockFamily> blockFamilyIterator;
+
+    public CacheBlocks(Context context) {
+       this.context = context;
+    }
 
     @Override
     public String getMessage() {
@@ -36,17 +40,17 @@ public class CacheBlocks extends StepBasedLoadProcess {
 
     @Override
     public boolean step() {
-        BlockFamily family = blockFamilyIterator.next();
-        if (!family.getArchetypeBlock().isInvisible()) {
-            family.getArchetypeBlock().getMesh();
+        if (blockFamilyIterator.hasNext()) {
+            BlockFamily family = blockFamilyIterator.next();
+            family.getArchetypeBlock().getMeshGenerator();
+            stepDone();
         }
-        stepDone();
         return !blockFamilyIterator.hasNext();
     }
 
     @Override
     public void begin() {
-        BlockManager blockManager = CoreRegistry.get(BlockManager.class);
+        BlockManager blockManager = context.get(BlockManager.class);
         blockFamilyIterator = blockManager.listRegisteredBlockFamilies().iterator();
         setTotalSteps(blockManager.getBlockFamilyCount());
     }

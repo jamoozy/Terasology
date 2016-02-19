@@ -19,9 +19,6 @@ package org.terasology.world.chunks.blockdata;
 import com.google.common.base.Preconditions;
 import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 import java.util.Arrays;
@@ -31,7 +28,6 @@ import java.util.Arrays;
  * Its elements are in the range -32'768 through +32'767 and it internally uses the short type to store its elements.
  * It can reduce memory consumption through sparse memory allocation.
  *
- * @author Manuel Brotz <manu.brotz@gmx.ch>
  */
 public class TeraSparseArray16Bit extends TeraSparseArray {
 
@@ -180,22 +176,6 @@ public class TeraSparseArray16Bit extends TeraSparseArray {
             return true;
         }
         return false;
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput out) throws IOException {
-        writeExternalHeader(out);
-        out.writeObject(inflated);
-        out.writeObject(deflated);
-        out.writeShort(fill);
-    }
-
-    @Override
-    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        readExternalHeader(in);
-        inflated = (short[][]) in.readObject();
-        deflated = (short[]) in.readObject();
-        fill = in.readShort();
     }
 
     public static class SerializationHandler extends TeraArray.BasicSerializationHandler<TeraSparseArray16Bit> {

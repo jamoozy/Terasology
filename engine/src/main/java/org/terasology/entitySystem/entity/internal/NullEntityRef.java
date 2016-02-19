@@ -15,7 +15,6 @@
  */
 package org.terasology.entitySystem.entity.internal;
 
-import org.terasology.asset.AssetUri;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.Event;
@@ -26,7 +25,6 @@ import java.util.Collections;
 /**
  * Null entity implementation - acts the same as an empty entity, except you cannot add anything to it.
  *
- * @author Immortius <immortius@gmail.com>
  */
 public final class NullEntityRef extends EntityRef {
     private static NullEntityRef instance = new NullEntityRef();
@@ -91,17 +89,13 @@ public final class NullEntityRef extends EntityRef {
     }
 
     @Override
-    public int getId() {
+    public long getId() {
         return PojoEntityManager.NULL_ID;
     }
 
     @Override
     public boolean isPersistent() {
         return false;
-    }
-
-    @Override
-    public void setPersistent(boolean persistent) {
     }
 
     @Override
@@ -128,12 +122,6 @@ public final class NullEntityRef extends EntityRef {
     }
 
     @Override
-    public AssetUri getPrefabURI() {
-        return null;
-    }
-
-
-    @Override
     public String toString() {
         return "EntityRef{" +
                 "id=" + PojoEntityManager.NULL_ID +
@@ -141,19 +129,7 @@ public final class NullEntityRef extends EntityRef {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o instanceof EntityRef) {
-            return !((EntityRef) o).exists();
-        }
-        return o == null;
+    public String toFullDescription() {
+        return "{}";
     }
-
-    @Override
-    public int hashCode() {
-        return 0;
-    }
-
 }

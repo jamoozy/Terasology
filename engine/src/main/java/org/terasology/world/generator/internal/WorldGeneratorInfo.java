@@ -20,7 +20,6 @@ import org.terasology.engine.SimpleUri;
 import java.util.Objects;
 
 /**
- * @author Immortius
  */
 public class WorldGeneratorInfo implements Comparable<WorldGeneratorInfo> {
 
@@ -67,4 +66,10 @@ public class WorldGeneratorInfo implements Comparable<WorldGeneratorInfo> {
     public int hashCode() {
         return Objects.hash(uri, displayName);
     }
+
+    @Override
+    public String toString() {
+        return displayName + " (" + uri + ")";
+    }
+
 }

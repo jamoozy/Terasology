@@ -17,56 +17,27 @@
 package org.terasology.logic.inventory.events;
 
 import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.entitySystem.event.Event;
 import org.terasology.network.ServerEvent;
 
+import java.util.Collection;
+
 /**
- * @author Immortius
  */
 @ServerEvent
-public class MoveItemRequest implements Event {
-    private EntityRef instigator;
-
-    private EntityRef fromInventory = EntityRef.NULL;
-    private int fromSlot;
-    private EntityRef toInventory = EntityRef.NULL;
+public class MoveItemRequest extends AbstractMoveItemRequest {
     private int toSlot;
-
-    private int changeId;
 
     protected MoveItemRequest() {
     }
 
-    public MoveItemRequest(EntityRef instigator, EntityRef fromInventory, int fromSlot, EntityRef toInventory, int toSlot, int changeId) {
-        this.instigator = instigator;
-        this.fromInventory = fromInventory;
-        this.fromSlot = fromSlot;
-        this.toInventory = toInventory;
+    public MoveItemRequest(EntityRef instigator, EntityRef fromInventory, int fromSlot, EntityRef toInventory,
+            int toSlot, int changeId, Collection<EntityRef> clientSideTempEntities) {
+        super(instigator, fromInventory, fromSlot, toInventory, changeId, clientSideTempEntities);
         this.toSlot = toSlot;
-        this.changeId = changeId;
-    }
-
-    public EntityRef getFromInventory() {
-        return fromInventory;
-    }
-
-    public int getFromSlot() {
-        return fromSlot;
-    }
-
-    public EntityRef getToInventory() {
-        return toInventory;
     }
 
     public int getToSlot() {
         return toSlot;
     }
 
-    public int getChangeId() {
-        return changeId;
-    }
-
-    public EntityRef getInstigator() {
-        return instigator;
-    }
 }

@@ -15,13 +15,12 @@
  */
 package org.terasology.rendering.nui.widgets;
 
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
 import org.terasology.rendering.nui.LayoutConfig;
 
 /**
- * @author Immortius
  */
 public class UISpace extends CoreWidget {
 

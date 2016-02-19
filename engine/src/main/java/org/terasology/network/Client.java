@@ -19,13 +19,12 @@ package org.terasology.network;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.Event;
 import org.terasology.rendering.nui.Color;
-import org.terasology.rendering.world.ViewDistance;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
 import org.terasology.world.chunks.ChunkRegionListener;
 
 /**
  * A client is the connection between a player (local or remote) and the game.
  *
- * @author Immortius
  */
 public interface Client extends ChunkRegionListener {
 

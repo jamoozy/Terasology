@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
  * Benchmarks contains methods to execute one or many benchmarks with support for a progress callback as well as
  * a simple pretty printer for benchmark results.
  *
- * @author Manuel Brotz <manu.brotz@gmx.ch>
  */
 public final class Benchmarks {
 
@@ -165,7 +164,7 @@ public final class Benchmarks {
     public static List<BenchmarkResult> execute(List<Benchmark> benchmarks, BenchmarkCallback callback) {
         Preconditions.checkNotNull(benchmarks);
 
-        final List<BenchmarkResult> results = new LinkedList<BenchmarkResult>();
+        final List<BenchmarkResult> results = new LinkedList<>();
         final int benchmarkCount = benchmarks.size();
 
         try {

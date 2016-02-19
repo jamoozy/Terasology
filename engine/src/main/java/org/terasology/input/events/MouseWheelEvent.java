@@ -17,10 +17,9 @@
 package org.terasology.input.events;
 
 
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 
 /**
- * @author Immortius
  */
 public class MouseWheelEvent extends InputEvent {
 

@@ -23,14 +23,12 @@ import org.terasology.entitySystem.entity.internal.BaseEntityRef;
 import org.terasology.network.NetworkComponent;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * An implementation of EntityRef that deals with entities propagated to a client. These entities may enter and
  * leave relevance over time, and may have a different Entity id each time. NetEntityRef links to them via their
  * network id, and survives them dropping in and out of relevance.
  *
- * @author Immortius
  */
 public class NetEntityRef extends BaseEntityRef {
 
@@ -46,16 +44,6 @@ public class NetEntityRef extends BaseEntityRef {
 
     public int getNetworkId() {
         return networkId;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        return obj == this || (obj instanceof NetEntityRef && getId() == ((NetEntityRef) obj).getId());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hashCode(networkId);
     }
 
     @Override
@@ -81,7 +69,7 @@ public class NetEntityRef extends BaseEntityRef {
     }
 
     @Override
-    public int getId() {
+    public long getId() {
         return networkSystem.getEntityId(networkId);
     }
 

@@ -15,7 +15,7 @@
  */
 package org.terasology.rendering.nui.widgets;
 
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
 import org.terasology.rendering.nui.LayoutConfig;
@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.Iterator;
 
 /**
- * @author Immortius
  */
 public class UIBox extends CoreWidget {
 

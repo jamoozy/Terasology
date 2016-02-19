@@ -20,25 +20,18 @@ import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.network.FieldReplicateType;
 import org.terasology.network.Replicate;
-import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.rendering.assets.texture.TextureRegionAsset;
 
 /**
  * Item data is stored using this component
  *
- * @author Immortius <immortius@gmail.com>
  */
 public final class ItemComponent implements Component {
-    /**
-     * Should this item be rendered? Some items have an inventory icon but no "held" representation
-     */
-    @Replicate(value = FieldReplicateType.SERVER_TO_CLIENT, initialOnly = true)
-    public boolean renderWithIcon;
-
     /**
      * Name of the icon this item should be rendered with
      */
     @Replicate(value = FieldReplicateType.SERVER_TO_CLIENT, initialOnly = true)
-    public TextureRegion icon;
+    public TextureRegionAsset<?> icon;
 
     /**
      * If this item is stackable, it should have a unique ID (so alike stacks can be merged)
@@ -82,8 +75,9 @@ public final class ItemComponent implements Component {
      */
     public int baseDamage = 1;
 
-    public Prefab damageType = Prefab.NULL;
+    public Prefab damageType;
 
-    public Prefab pickupPrefab = Prefab.NULL;
+    public Prefab pickupPrefab;
 
+    public int cooldownTime = 200;
 }

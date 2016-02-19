@@ -17,15 +17,14 @@
 package org.terasology.math;
 
 import com.bulletphysics.BulletGlobals;
-
-import javax.vecmath.Vector3f;
+import org.terasology.math.geom.Vector3f;
 
 /**
- * @author Immortius
  */
 public final class Vector3fUtil {
     private Vector3fUtil() {
     }
+
 
     /**
      * @return The reflection of direction against normal

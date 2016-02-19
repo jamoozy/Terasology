@@ -18,7 +18,6 @@ package org.terasology.persistence.serializers;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetType;
 import org.terasology.asset.Assets;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.metadata.ComponentLibrary;
@@ -33,17 +32,17 @@ import org.terasology.protobuf.EntityData;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Provides the ability to serialize and deserialize prefabs to the EntityData.Prefab proto buffer format.
- * <p/>
+ * <br><br>
  * As with the component serializer, a component id mapping can be provided to have components serialized against
  * ids rather than name strings.
- * <p/>
+ * <br><br>
  * It is also possible to set whether entity ids will be handled or ignored - if ignored then deserialized entities will
  * be given new ids.
  *
- * @author Immortius
  */
 public class PrefabSerializer {
     private static final Logger logger = LoggerFactory.getLogger(PrefabSerializer.class);
@@ -121,7 +120,7 @@ public class PrefabSerializer {
      * Deserializes a prefab
      *
      * @param prefabData
-     * @param
+     * @param deltas
      * @return The deserialized prefab
      */
     public PrefabData deserialize(EntityData.Prefab prefabData, List<EntityData.Prefab> deltas) {
@@ -140,6 +139,12 @@ public class PrefabSerializer {
         }
 
         return result;
+    }
+
+    public void deserializeDeltaOnto(EntityData.Prefab delta, PrefabData result) {
+        Module context = ModuleContext.getContext();
+        applyCommonDataDelta(delta, result);
+        applyComponentChanges(context, delta, result);
     }
 
     private void applyComponentChanges(Module context, EntityData.Prefab prefabData, PrefabData result) {
@@ -183,8 +188,8 @@ public class PrefabSerializer {
             result.setAlwaysRelevant(delta.getAlwaysRelevant());
         }
         if (delta.hasParentName()) {
-            Prefab parent = Assets.get(AssetType.PREFAB, delta.getParentName(), Prefab.class);
-            result.setParent(parent);
+            Optional<? extends Prefab> parent = Assets.get(delta.getParentName(), Prefab.class);
+            result.setParent(parent.orElse(null));
         }
     }
 
@@ -192,8 +197,10 @@ public class PrefabSerializer {
         result.setPersisted((prefabData.hasPersisted()) ? prefabData.getPersisted() : true);
         result.setAlwaysRelevant(prefabData.hasAlwaysRelevant() ? prefabData.getAlwaysRelevant() : false);
         if (prefabData.hasParentName()) {
-            Prefab parent = Assets.get(AssetType.PREFAB, prefabData.getParentName(), Prefab.class);
+            Prefab parent = Assets.get(prefabData.getParentName(), Prefab.class).orElse(null);
             result.setParent(parent);
         }
     }
+
+
 }

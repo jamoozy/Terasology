@@ -18,12 +18,10 @@ package org.terasology.rendering.nui.layers.mainMenu.inputSettings;
 import org.terasology.audio.StaticSound;
 import org.terasology.input.Input;
 import org.terasology.input.InputType;
-import org.terasology.input.Keyboard;
 import org.terasology.input.MouseInput;
-import org.terasology.input.events.KeyEvent;
 import org.terasology.input.events.MouseButtonEvent;
 import org.terasology.input.events.MouseWheelEvent;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.assets.font.Font;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
@@ -32,18 +30,19 @@ import org.terasology.rendering.nui.InteractionListener;
 import org.terasology.rendering.nui.TextLineBuilder;
 import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseOverEvent;
 
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class UIInputBind extends CoreWidget {
-    public static final String HOVER_MODE = "hover";
-    public static final String ACTIVE_MODE = "active";
 
     private boolean capturingInput;
 
+    private Input newInput;
     private Binding<Input> input = new DefaultBinding<>();
     private Binding<StaticSound> clickSound = new DefaultBinding<>();
     private Binding<Float> clickVolume = new DefaultBinding<>(1.0f);
@@ -51,16 +50,16 @@ public class UIInputBind extends CoreWidget {
     private InteractionListener interactionListener = new BaseInteractionListener() {
 
         @Override
-        public void onMouseOver(Vector2i pos, boolean topMostElement) {
-            super.onMouseOver(pos, topMostElement);
-            if (topMostElement) {
+        public void onMouseOver(NUIMouseOverEvent event) {
+            super.onMouseOver(event);
+            if (event.isTopMostElement()) {
                 focusManager.setFocus(UIInputBind.this);
             }
         }
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT) {
                 if (getClickSound() != null) {
                     getClickSound().play(getClickVolume());
                 }
@@ -77,8 +76,8 @@ public class UIInputBind extends CoreWidget {
     @Override
     public void onDraw(Canvas canvas) {
         if (!capturingInput) {
-            if (input.get() != null) {
-                canvas.drawText(input.get().getDisplayName());
+            if (newInput != null) {
+                canvas.drawText(newInput.getDisplayName());
             }
         } else {
             canvas.drawText("???");
@@ -92,18 +91,17 @@ public class UIInputBind extends CoreWidget {
         String text = "";
         if (capturingInput) {
             text = "???";
-        } else if (input.get() != null) {
-            text = input.get().getDisplayName();
+        } else if (newInput != null) {
+            text = newInput.getDisplayName();
         }
         List<String> lines = TextLineBuilder.getLines(font, text, areaHint.getX());
-        Vector2i size = font.getSize(lines);
-        return size;
+        return font.getSize(lines);
     }
 
     @Override
     public void onMouseButtonEvent(MouseButtonEvent event) {
         if (capturingInput && event.isDown()) {
-            setInput(InputType.MOUSE_BUTTON.getInput(event.getButton().getId()));
+            setNewInput(InputType.MOUSE_BUTTON.getInput(event.getButton().getId()));
             capturingInput = false;
             event.consume();
         }
@@ -113,24 +111,22 @@ public class UIInputBind extends CoreWidget {
     public void onMouseWheelEvent(MouseWheelEvent event) {
         if (capturingInput) {
             MouseInput mouseInput = MouseInput.find(InputType.MOUSE_WHEEL, event.getWheelTurns());
-            setInput(InputType.MOUSE_WHEEL.getInput(mouseInput.getId()));
+            setNewInput(InputType.MOUSE_WHEEL.getInput(mouseInput.getId()));
             capturingInput = false;
             event.consume();
         }
     }
 
     @Override
-    public void onKeyEvent(KeyEvent event) {
+    public boolean onKeyEvent(NUIKeyEvent event) {
         if (event.isDown()) {
             if (capturingInput) {
-                setInput(InputType.KEY.getInput(event.getKey().getId()));
+                setNewInput(InputType.KEY.getInput(event.getKey().getId()));
                 capturingInput = false;
-                event.consume();
-            } else if (event.getKey() == Keyboard.Key.DELETE || event.getKey() == Keyboard.Key.BACKSPACE) {
-                setInput(null);
-                event.consume();
+                return true;
             }
         }
+        return false;
     }
 
     @Override
@@ -151,6 +147,7 @@ public class UIInputBind extends CoreWidget {
 
     public void bindInput(Binding<Input> binding) {
         input = binding;
+        newInput = input.get();
     }
 
     public Input getInput() {
@@ -183,5 +180,17 @@ public class UIInputBind extends CoreWidget {
 
     public void setClickVolume(float val) {
         clickVolume.set(val);
+    }
+
+    public void setNewInput(Input newInput) {
+        this.newInput = newInput;
+    }
+
+    public Input getNewInput() {
+        return newInput;
+    }
+
+    public void saveInput() {
+        setInput(newInput);
     }
 }

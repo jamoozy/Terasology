@@ -15,15 +15,11 @@
  */
 package org.terasology.persistence.internal;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import gnu.trove.set.TIntSet;
-import gnu.trove.set.hash.TIntHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
 import org.terasology.asset.Assets;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.engine.SimpleUri;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.internal.EngineEntityManager;
@@ -32,7 +28,6 @@ import org.terasology.entitySystem.metadata.ComponentMetadata;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.entitySystem.prefab.PrefabData;
 import org.terasology.entitySystem.prefab.PrefabManager;
-import org.terasology.math.Vector3i;
 import org.terasology.module.Module;
 import org.terasology.module.ModuleEnvironment;
 import org.terasology.persistence.ModuleContext;
@@ -40,11 +35,10 @@ import org.terasology.persistence.serializers.EntitySerializer;
 import org.terasology.persistence.serializers.PrefabSerializer;
 import org.terasology.protobuf.EntityData;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
- * @author Immortius
  */
 final class GlobalStoreLoader {
 
@@ -56,7 +50,6 @@ final class GlobalStoreLoader {
     private ComponentLibrary componentLibrary;
     private EntitySerializer entitySerializer;
     private PrefabSerializer prefabSerializer;
-    private List<StoreMetadata> refTables;
 
     public GlobalStoreLoader(ModuleEnvironment environment, EngineEntityManager entityManager, PrefabSerializer prefabSerializer) {
         this.entityManager = entityManager;
@@ -70,7 +63,6 @@ final class GlobalStoreLoader {
     public void load(EntityData.GlobalStore globalStore) {
         entityManager.clear();
         entityManager.setNextId(globalStore.getNextEntityId());
-        entityManager.getFreedIds().addAll(globalStore.getFreedEntityIdList());
 
         loadComponentMapping(globalStore);
         loadMissingPrefabs(globalStore);
@@ -78,27 +70,6 @@ final class GlobalStoreLoader {
         for (EntityData.Entity entityData : globalStore.getEntityList()) {
             entitySerializer.deserialize(entityData);
         }
-
-        refTables = Lists.newArrayListWithCapacity(globalStore.getStoreReferenceSetCount());
-        for (EntityData.EntityStoreMetadata metadataData : globalStore.getStoreReferenceSetList()) {
-            TIntSet refs = new TIntHashSet(metadataData.getReferenceList());
-            StoreId id;
-            switch (metadataData.getType()) {
-                case ChunkStoreType:
-                    id = new ChunkStoreId(new Vector3i(metadataData.getStoreIntegerId(0), metadataData.getStoreIntegerId(1), metadataData.getStoreIntegerId(2)));
-                    break;
-                default:
-                    id = new PlayerStoreId(metadataData.getStoreStringId());
-                    break;
-
-            }
-            StoreMetadata metadata = new StoreMetadata(id, refs);
-            refTables.add(metadata);
-        }
-    }
-
-    public List<StoreMetadata> getStoreMetadata() {
-        return refTables;
     }
 
     private void loadMissingPrefabs(EntityData.GlobalStore globalStore) {
@@ -125,25 +96,25 @@ final class GlobalStoreLoader {
     }
 
     private Prefab loadPrefab(EntityData.Prefab prefabData, Map<String, EntityData.Prefab> pendingPrefabs) {
-        Prefab result = Assets.getPrefab(prefabData.getName());
-        if (result == null) {
+        Optional<Prefab> result = Assets.getPrefab(prefabData.getName());
+        if (!result.isPresent()) {
             if (prefabData.hasParentName() && pendingPrefabs.containsKey(prefabData.getParentName())) {
                 loadPrefab(pendingPrefabs.get(prefabData.getParentName()), pendingPrefabs);
             }
             Module module = environment.get(new SimpleUri(prefabData.getName()).getModuleName());
             try (ModuleContext.ContextSpan ignored = ModuleContext.setContext(module)) {
-                result = createPrefab(prefabData);
+                return createPrefab(prefabData);
             } catch (Exception e) {
                 logger.error("Failed to load prefab {}", prefabData.getParentName(), e);
+                return null;
             }
         }
-        return result;
+        return result.get();
     }
 
     private Prefab createPrefab(EntityData.Prefab prefabData) {
         PrefabData protoPrefab = prefabSerializer.deserialize(prefabData);
-        Prefab prefab = Assets.generateAsset(new AssetUri(AssetType.PREFAB, prefabData.getName()), protoPrefab, Prefab.class);
-        return prefab;
+        return Assets.generateAsset(new ResourceUrn(prefabData.getName()), protoPrefab, Prefab.class);
     }
 
     private void loadComponentMapping(EntityData.GlobalStore globalStore) {

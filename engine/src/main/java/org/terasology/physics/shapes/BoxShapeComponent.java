@@ -17,12 +17,10 @@
 package org.terasology.physics.shapes;
 
 import org.terasology.entitySystem.Component;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.network.Replicate;
 
-import javax.vecmath.Vector3f;
-
 /**
- * @author Immortius
  */
 public class BoxShapeComponent implements Component {
     @Replicate

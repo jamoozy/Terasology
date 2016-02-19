@@ -19,7 +19,7 @@ package org.terasology.network.serialization;
 import com.google.common.collect.Lists;
 import gnu.trove.list.TIntList;
 import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.network.NetworkComponent;
 import org.terasology.network.internal.NetworkSystemImpl;
 import org.terasology.persistence.typeHandling.DeserializationContext;
@@ -37,7 +37,6 @@ import java.util.List;
  * This type handler encodes EntityRef for network transferals. For normal entities, the Network Id of the entity is used.
  * For block entities the block position is used instead (this allows overriding simulated block entities).
  *
- * @author Immortius
  */
 public class NetEntityRefTypeHandler implements TypeHandler<EntityRef> {
     private NetworkSystemImpl networkSystem;

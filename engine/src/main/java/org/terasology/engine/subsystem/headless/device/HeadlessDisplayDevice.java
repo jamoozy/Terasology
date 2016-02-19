@@ -28,7 +28,7 @@ public class HeadlessDisplayDevice implements DisplayDevice {
     }
 
     @Override
-    public boolean isActive() {
+    public boolean hasFocus() {
 
         return true;
     }
@@ -40,6 +40,11 @@ public class HeadlessDisplayDevice implements DisplayDevice {
 
     @Override
     public void setFullscreen(boolean state) {
+    }
+
+    @Override
+    public boolean isFullscreen() {
+        return false;
     }
 
     @Override

@@ -25,7 +25,6 @@ import java.nio.ShortBuffer;
 /**
  * Provides support for buffering Vertex Buffer Objects.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public final class VertexBufferObjectUtil {
 

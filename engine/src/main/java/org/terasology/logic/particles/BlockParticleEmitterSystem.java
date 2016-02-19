@@ -15,7 +15,6 @@
  */
 package org.terasology.logic.particles;
 
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.terasology.asset.Assets;
@@ -32,23 +31,25 @@ import org.terasology.entitySystem.systems.RenderSystem;
 import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
 import org.terasology.logic.location.LocationComponent;
 import org.terasology.logic.particles.BlockParticleEffectComponent.Particle;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.registry.In;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.rendering.logic.NearestSortingList;
+import org.terasology.rendering.opengl.OpenGLUtil;
 import org.terasology.rendering.world.WorldRenderer;
 import org.terasology.utilities.random.FastRandom;
 import org.terasology.utilities.random.Random;
 import org.terasology.world.WorldProvider;
+import org.terasology.world.biomes.Biome;
 import org.terasology.world.block.Block;
-import org.terasology.world.block.BlockManager;
 import org.terasology.world.block.BlockPart;
-import org.terasology.world.block.loader.WorldAtlas;
+import org.terasology.world.block.tiles.WorldAtlas;
 
-import javax.vecmath.Vector2f;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
-import java.nio.FloatBuffer;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Iterator;
 
@@ -74,7 +75,6 @@ import static org.lwjgl.opengl.GL11.glTranslated;
 import static org.lwjgl.opengl.GL11.glTranslatef;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 // TODO: Generalise for non-block particles
 // TODO: Dispose display lists
@@ -91,9 +91,6 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
     @In
     private WorldAtlas worldAtlas;
 
-    @In
-    private BlockManager blockManager;
-
     // TODO: lose dependency on worldRenderer?
     @In
     private WorldRenderer worldRenderer;
@@ -105,6 +102,7 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
     private NearestSortingList sorter = new NearestSortingList();
     private int displayList;
 
+    @Override
     public void initialise() {
         if (displayList == 0) {
             displayList = glGenLists(1);
@@ -121,6 +119,7 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
         sorter.stop();
     }
 
+    @Override
     public void update(float delta) {
         for (EntityRef entity : entityManager.getEntitiesWith(BlockParticleEffectComponent.class, LocationComponent.class)) {
             BlockParticleEffectComponent particleEffect = entity.getComponent(BlockParticleEffectComponent.class);
@@ -221,6 +220,7 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
         particle.position.z += particle.velocity.z * delta;
     }
 
+    @Override
     public void renderAlphaBlend() {
         if (config.getRendering().isRenderNearest()) {
             render(Arrays.asList(sorter.getNearest(config.getRendering().getParticleEffectLimit())));
@@ -230,7 +230,7 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
     }
 
     private void render(Iterable<EntityRef> particleEntities) {
-        Assets.getMaterial("engine:prog.particle").enable();
+        Assets.getMaterial("engine:prog.particle").get().enable();
         glDisable(GL11.GL_CULL_FACE);
 
         Vector3f cameraPosition = worldRenderer.getActiveCamera().getPosition();
@@ -251,16 +251,18 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
             BlockParticleEffectComponent particleEffect = entity.getComponent(BlockParticleEffectComponent.class);
 
             if (particleEffect.texture == null) {
-                Texture terrainTex = Assets.getTexture("engine:terrain");
-                if (terrainTex == null) {
+                Texture terrainTex = Assets.getTexture("engine:terrain").get();
+                if (terrainTex == null || !terrainTex.isLoaded()) {
                     return;
                 }
 
                 GL13.glActiveTexture(GL13.GL_TEXTURE0);
                 glBindTexture(GL11.GL_TEXTURE_2D, terrainTex.getId());
-            } else {
+            } else if (particleEffect.texture.isLoaded()) {
                 GL13.glActiveTexture(GL13.GL_TEXTURE0);
                 glBindTexture(GL11.GL_TEXTURE_2D, particleEffect.texture.getId());
+            } else {
+                return;
             }
 
             if (particleEffect.blendMode == BlockParticleEffectComponent.ParticleBlendMode.ADD) {
@@ -282,8 +284,9 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
     }
 
     private void renderBlockParticles(Vector3f worldPos, Vector3f cameraPosition, BlockParticleEffectComponent particleEffect) {
-        float temperature = worldProvider.getTemperature(worldPos);
-        float humidity = worldProvider.getHumidity(worldPos);
+
+        Vector3i worldPos3i = new Vector3i(worldPos, RoundingMode.HALF_UP);
+        Biome biome = worldProvider.getBiome(worldPos3i);
 
         glPushMatrix();
         glTranslated(worldPos.x - cameraPosition.x, worldPos.y - cameraPosition.y, worldPos.z - cameraPosition.z);
@@ -291,12 +294,12 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
         for (Particle particle : particleEffect.particles) {
             glPushMatrix();
             glTranslatef(particle.position.x, particle.position.y, particle.position.z);
-            applyOrientation();
+            OpenGLUtil.applyBillboardOrientation();
             glScalef(particle.size, particle.size, particle.size);
 
             float light = worldRenderer.getRenderingLightValueAt(new Vector3f(worldPos.x + particle.position.x,
                     worldPos.y + particle.position.y, worldPos.z + particle.position.z));
-            renderParticle(particle, particleEffect.blockType.getArchetypeBlock(), temperature, humidity, light);
+            renderParticle(particle, particleEffect.blockType.getArchetypeBlock(), biome, light);
             glPopMatrix();
         }
         glPopMatrix();
@@ -309,7 +312,7 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
         for (Particle particle : particleEffect.particles) {
             glPushMatrix();
             glTranslatef(particle.position.x, particle.position.y, particle.position.z);
-            applyOrientation();
+            OpenGLUtil.applyBillboardOrientation();
             glScalef(particle.size, particle.size, particle.size);
 
             float light = worldRenderer.getRenderingLightValueAt(new Vector3f(worldPos.x + particle.position.x,
@@ -322,27 +325,10 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
     }
 
 
-    private void applyOrientation() {
-        // Fetch the current modelview matrix
-        final FloatBuffer model = BufferUtils.createFloatBuffer(16);
-        GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, model);
 
-        // And undo all rotations and scaling
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
-                if (i == j) {
-                    model.put(i * 4 + j, 1.0f);
-                } else {
-                    model.put(i * 4 + j, 0.0f);
-                }
-            }
-        }
-
-        GL11.glLoadMatrix(model);
-    }
 
     protected void renderParticle(Particle particle, float light) {
-        Material mat = Assets.getMaterial("engine:prog.particle");
+        Material mat = Assets.getMaterial("engine:prog.particle").get();
 
         mat.setFloat4("colorOffset", particle.color.x, particle.color.y, particle.color.z, particle.color.w, true);
         mat.setFloat2("texOffset", particle.texOffset.x, particle.texOffset.y, true);
@@ -352,10 +338,10 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
         glCallList(displayList);
     }
 
-    protected void renderParticle(Particle particle, Block block, float temperature, float humidity, float light) {
-        Material mat = Assets.getMaterial("engine:prog.particle");
+    protected void renderParticle(Particle particle, Block block, Biome biome, float light) {
+        Material mat = Assets.getMaterial("engine:prog.particle").get();
 
-        Vector4f colorMod = block.calcColorOffsetFor(BlockPart.FRONT, temperature, humidity);
+        Vector4f colorMod = block.calcColorOffsetFor(BlockPart.FRONT, biome);
         mat.setFloat4("colorOffset", particle.color.x * colorMod.x, particle.color.y * colorMod.y, particle.color.z * colorMod.z, particle.color.w * colorMod.w, true);
 
         mat.setFloat2("texOffset", particle.texOffset.x, particle.texOffset.y, true);
@@ -381,12 +367,15 @@ public class BlockParticleEmitterSystem extends BaseComponentSystem implements U
         glEnd();
     }
 
+    @Override
     public void renderOpaque() {
     }
 
+    @Override
     public void renderOverlay() {
     }
 
+    @Override
     public void renderFirstPerson() {
     }
 

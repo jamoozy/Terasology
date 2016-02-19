@@ -17,12 +17,11 @@
 package org.terasology.rendering;
 
 import org.lwjgl.opengl.GL11;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.logic.players.LocalPlayer;
 import org.terasology.math.AABB;
-import org.terasology.rendering.world.WorldRenderer;
-
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
+import org.terasology.registry.CoreRegistry;
 
 import static org.lwjgl.opengl.GL11.GL_BLEND;
 import static org.lwjgl.opengl.GL11.GL_LINE_LOOP;
@@ -47,7 +46,6 @@ import static org.lwjgl.opengl.GL11.glVertex3f;
 /**
  * Renderer for an AABB.
  *
- * @author Immortius
  */
 public class AABBRenderer implements BlockOverlayRenderer {
     private int displayListWire = -1;
@@ -60,6 +58,7 @@ public class AABBRenderer implements BlockOverlayRenderer {
         this.aabb = aabb;
     }
 
+    @Override
     public void setAABB(AABB from) {
         if (from != null && !from.equals(this.aabb)) {
             this.aabb = from;
@@ -84,15 +83,16 @@ public class AABBRenderer implements BlockOverlayRenderer {
 
     /**
      * Renders this AABB.
-     * <p/>
+     * <br><br>
      *
      * @param lineThickness The thickness of the line
      */
+    @Override
     public void render(float lineThickness) {
         CoreRegistry.get(ShaderManager.class).enableDefault();
 
         glPushMatrix();
-        Vector3f cameraPosition = CoreRegistry.get(WorldRenderer.class).getActiveCamera().getPosition();
+        Vector3f cameraPosition = CoreRegistry.get(LocalPlayer.class).getViewPosition();
         glTranslated(aabb.getCenter().x - cameraPosition.x, -cameraPosition.y, aabb.getCenter().z - cameraPosition.z);
 
         renderLocally(lineThickness);
@@ -104,7 +104,7 @@ public class AABBRenderer implements BlockOverlayRenderer {
         CoreRegistry.get(ShaderManager.class).enableDefault();
 
         glPushMatrix();
-        Vector3f cameraPosition = CoreRegistry.get(WorldRenderer.class).getActiveCamera().getPosition();
+        Vector3f cameraPosition = CoreRegistry.get(LocalPlayer.class).getViewPosition();
         glTranslated(aabb.getCenter().x - cameraPosition.x, -cameraPosition.y, aabb.getCenter().z - cameraPosition.z);
 
         renderSolidLocally();

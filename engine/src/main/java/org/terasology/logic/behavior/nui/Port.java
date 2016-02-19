@@ -16,37 +16,35 @@
 package org.terasology.logic.behavior.nui;
 
 import org.terasology.asset.Assets;
-import org.terasology.input.MouseInput;
-import org.terasology.math.Rect2f;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Vector2f;
 import org.terasology.rendering.assets.texture.TextureRegion;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
 import org.terasology.rendering.nui.InteractionListener;
-
-import javax.vecmath.Vector2f;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
 
 /**
  * Represents a port at a RenderableNode. There are several types of ports:
  * - InputPort (one per RenderableNode)
  * - OutputPort (unlimited per RenderableNode, may be restricted by the type of the node)
  * - InsertPort ("virtual" port, to allow connections placed between two existing ones)
- * <p/>
+ * <br><br>
  * Input/Output ports may have a target. This is always of the opposite type.
  * When setting a target to a port, the node of the InputPort is added to the child list of the node of the OutputPort.
  *
- * @author synopia
  */
 public abstract class Port extends CoreWidget {
     protected RenderableNode node;
     protected Rect2f rect;
-    private TextureRegion active = Assets.getTextureRegion("engine:checkboxChecked");
-    private TextureRegion inactive = Assets.getTextureRegion("engine:checkbox");
+    private TextureRegion active = Assets.getTextureRegion("engine:checkboxChecked").get();
+    private TextureRegion inactive = Assets.getTextureRegion("engine:checkbox").get();
 
     private InteractionListener connectListener = new BaseInteractionListener() {
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
             node.getEditor().portClicked(Port.this);
             return true;
         }
@@ -93,6 +91,7 @@ public abstract class Port extends CoreWidget {
         return getSourceNode() + "[" + index() + "]";
     }
 
+    @Override
     public boolean isVisible() {
         return index() < getSourceNode().getMaxChildren();
     }

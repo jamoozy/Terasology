@@ -24,11 +24,11 @@ import org.terasology.rendering.assets.texture.Texture;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 public class FontDataBuilder {
 
     private int lineHeight;
+    private int baseHeight;
     private TIntObjectMap<Texture> pages = new TIntObjectHashMap<>();
     private TIntObjectMap<Material> pageMats = new TIntObjectHashMap<>();
     private Map<Integer, FontCharacter> characters = Maps.newHashMap();
@@ -47,11 +47,15 @@ public class FontDataBuilder {
     }
 
     public FontData build() {
-        return new FontData(lineHeight, characters);
+        return new FontData(lineHeight, baseHeight, characters);
     }
 
     public void setLineHeight(int lineHeight) {
         this.lineHeight = lineHeight;
+    }
+
+    public void setBaseHeight(int baseHeight) {
+        this.baseHeight = baseHeight;
     }
 
     public void addPage(int pageId, Texture texture, Material material) {

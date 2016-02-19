@@ -27,7 +27,6 @@ import java.lang.reflect.Field;
 /**
  * A standard class metadata implementation using FieldMetadata.
  *
- * @author Immortius
  */
 public class DefaultClassMetadata<T> extends ClassMetadata<T, FieldMetadata<T, ?>> {
 
@@ -41,7 +40,7 @@ public class DefaultClassMetadata<T> extends ClassMetadata<T, FieldMetadata<T, ?
      * @throws NoSuchMethodException If the class has no default constructor
      */
     public DefaultClassMetadata(SimpleUri uri, Class<T> type, ReflectFactory factory, CopyStrategyLibrary copyStrategyLibrary) throws NoSuchMethodException {
-        super(uri, type, factory, copyStrategyLibrary, Predicates.alwaysTrue());
+        super(uri, type, factory, copyStrategyLibrary, Predicates.<Field>alwaysTrue());
     }
 
     @Override

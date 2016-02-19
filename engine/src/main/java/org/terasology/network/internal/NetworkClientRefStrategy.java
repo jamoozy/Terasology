@@ -21,7 +21,6 @@ import org.terasology.entitySystem.entity.internal.DefaultRefStrategy;
 import org.terasology.network.NetworkComponent;
 
 /**
- * @author Immortius
  */
 public class NetworkClientRefStrategy extends DefaultRefStrategy {
 
@@ -32,7 +31,7 @@ public class NetworkClientRefStrategy extends DefaultRefStrategy {
     }
 
     @Override
-    public BaseEntityRef createRefFor(int id, LowLevelEntityManager entityManager) {
+    public BaseEntityRef createRefFor(long id, LowLevelEntityManager entityManager) {
         NetworkComponent netComp = entityManager.getComponent(id, NetworkComponent.class);
         if (netComp != null && netComp.getNetworkId() != 0) {
             system.registerClientNetworkEntity(netComp.getNetworkId(), id);

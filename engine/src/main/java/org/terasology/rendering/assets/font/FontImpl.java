@@ -15,23 +15,23 @@
  */
 package org.terasology.rendering.assets.font;
 
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
-import org.terasology.math.Vector2i;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Vector2i;
 
 import java.util.List;
 
-public final class FontImpl extends AbstractAsset<FontData> implements Font {
+public final class FontImpl extends Font {
 
     protected FontData data;
 
-    public FontImpl(AssetUri uri, FontData data) {
-        super(uri);
+    public FontImpl(ResourceUrn urn, AssetType<?, FontData> assetType, FontData data) {
+        super(urn, assetType);
         reload(data);
     }
 
     @Override
-    public void reload(FontData fontData) {
+    protected void doReload(FontData fontData) {
         this.data = fontData;
     }
 
@@ -79,6 +79,11 @@ public final class FontImpl extends AbstractAsset<FontData> implements Font {
     }
 
     @Override
+    public int getBaseHeight() {
+        return data.getBaseHeight();
+    }
+
+    @Override
     public Vector2i getSize(List<String> lines) {
         int height = getLineHeight() * lines.size();
         int width = 0;
@@ -99,17 +104,17 @@ public final class FontImpl extends AbstractAsset<FontData> implements Font {
     }
 
     @Override
-    public void dispose() {
-        this.data = null;
+    public int getUnderlineOffset() {
+        return data.getUnderlineOffset();
     }
 
     @Override
-    public boolean isDisposed() {
-        return data == null;
+    public int getUnderlineThickness() {
+        return data.getUnderlineThickness();
     }
 
     @Override
     public String toString() {
-        return getURI().toString();
+        return getUrn().toString();
     }
 }

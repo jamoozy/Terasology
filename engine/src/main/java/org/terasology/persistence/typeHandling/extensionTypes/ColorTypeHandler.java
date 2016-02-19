@@ -16,7 +16,6 @@
 package org.terasology.persistence.typeHandling.extensionTypes;
 
 import gnu.trove.list.TIntList;
-
 import org.terasology.persistence.typeHandling.DeserializationContext;
 import org.terasology.persistence.typeHandling.PersistedData;
 import org.terasology.persistence.typeHandling.PersistedDataArray;
@@ -25,13 +24,16 @@ import org.terasology.persistence.typeHandling.SimpleTypeHandler;
 import org.terasology.rendering.nui.Color;
 
 /**
- * @author Immortius
  */
 public class ColorTypeHandler extends SimpleTypeHandler<Color> {
 
     @Override
     public PersistedData serialize(Color value, SerializationContext context) {
-        return context.create(value.r(), value.g(), value.b(), value.a());
+        if (value == null) {
+            return context.createNull();
+        } else {
+            return context.create(value.r(), value.g(), value.b(), value.a());
+        }
     }
 
     @Override

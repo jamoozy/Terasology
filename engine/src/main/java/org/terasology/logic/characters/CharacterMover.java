@@ -32,8 +32,8 @@ import org.terasology.entitySystem.entity.EntityRef;
  * <li> HorizontalCollisionEvent </li>
  * </ul>
  *
- * @author Immortius
  */
+@FunctionalInterface
 public interface CharacterMover {
 
     /**

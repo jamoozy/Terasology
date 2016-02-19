@@ -15,35 +15,40 @@
  */
 package org.terasology.engine.subsystem.lwjgl;
 
+import org.lwjgl.LWJGLException;
+import org.lwjgl.opengl.Display;
+import org.terasology.config.Config;
+import org.terasology.config.RenderingConfig;
+import org.terasology.context.Context;
+import org.terasology.engine.subsystem.DisplayDevice;
+
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glLoadIdentity;
 import static org.lwjgl.opengl.GL11.glViewport;
 
-import org.lwjgl.LWJGLException;
-import org.lwjgl.opengl.Display;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.terasology.config.Config;
-import org.terasology.engine.subsystem.DisplayDevice;
-import org.terasology.registry.CoreRegistry;
-
 public class LwjglDisplayDevice implements DisplayDevice {
 
-    private static final Logger logger = LoggerFactory.getLogger(LwjglDisplayDevice.class);
+    private RenderingConfig config;
 
-    public LwjglDisplayDevice() {
+    public LwjglDisplayDevice(Context context) {
+        this.config = context.get(Config.class).getRendering();
     }
 
     @Override
-    public boolean isActive() {
+    public boolean hasFocus() {
         return Display.isActive();
     }
 
     @Override
     public boolean isCloseRequested() {
         return Display.isCloseRequested();
+    }
+
+    @Override
+    public boolean isFullscreen() {
+        return Display.isFullscreen();
     }
 
     @Override
@@ -57,10 +62,10 @@ public class LwjglDisplayDevice implements DisplayDevice {
                 Display.setDisplayMode(Display.getDesktopDisplayMode());
                 Display.setFullscreen(true);
             } else {
-                Config config = CoreRegistry.get(Config.class);
-                Display.setDisplayMode(config.getRendering().getDisplayMode());
+                Display.setDisplayMode(config.getDisplayMode());
                 Display.setResizable(true);
             }
+            config.setFullscreen(state);
         } catch (LWJGLException e) {
             throw new RuntimeException("Can not initialize graphics device.", e);
         }

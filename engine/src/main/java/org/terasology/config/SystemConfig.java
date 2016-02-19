@@ -16,17 +16,22 @@
 
 package org.terasology.config;
 
+import java.util.Locale;
+import java.util.Locale.Category;
+
 /**
- * @author Immortius
  */
 public class SystemConfig {
-    private long dayNightLengthInMs = 1800000;
-    private int maxThreads = 2;
-    private int verticalChunkMeshSegments = 1;
+    public static final String SAVED_GAMES_ENABLED_PROPERTY = "org.terasology.savedGamesEnabled";
 
+    private long dayNightLengthInMs;
+    private int maxThreads;
+    private int maxSecondsBetweenSaves;
+    private int maxUnloadedChunksPercentageTillSave;
     private boolean debugEnabled;
     private boolean monitoringEnabled;
-    private boolean reflectionsCacheEnabled;
+    private boolean writeSaveGamesEnabled;
+    private String locale;
 
     public long getDayNightLengthInMs() {
         return dayNightLengthInMs;
@@ -44,12 +49,20 @@ public class SystemConfig {
         this.maxThreads = maxThreads;
     }
 
-    public int getVerticalChunkMeshSegments() {
-        return verticalChunkMeshSegments;
+    public int getMaxSecondsBetweenSaves() {
+        return maxSecondsBetweenSaves;
     }
 
-    public void setVerticalChunkMeshSegments(int verticalChunkMeshSegments) {
-        this.verticalChunkMeshSegments = verticalChunkMeshSegments;
+    public void setMaxSecondsBetweenSaves(int maxSecondsBetweenSaves) {
+        this.maxSecondsBetweenSaves = maxSecondsBetweenSaves;
+    }
+
+    public int getMaxUnloadedChunksPercentageTillSave() {
+        return maxUnloadedChunksPercentageTillSave;
+    }
+
+    public void setMaxUnloadedChunksPercentageTillSave(int maxUnloadedChunksPercentageTillSave) {
+        this.maxUnloadedChunksPercentageTillSave = maxUnloadedChunksPercentageTillSave;
     }
 
     public boolean isDebugEnabled() {
@@ -60,19 +73,34 @@ public class SystemConfig {
         this.debugEnabled = debugEnabled;
     }
 
-    public boolean isReflectionsCacheEnabled() {
-        return reflectionsCacheEnabled;
-    }
-
-    public void setReflectionsCacheEnabled(boolean reflectionsCacheEnabled) {
-        this.reflectionsCacheEnabled = reflectionsCacheEnabled;
-    }
-    
     public boolean isMonitoringEnabled() {
         return monitoringEnabled;
     }
 
     public void setMonitoringEnabled(boolean monitoringEnabled) {
         this.monitoringEnabled = monitoringEnabled;
+    }
+
+    public boolean isWriteSaveGamesEnabled() {
+        String property = System.getProperty(SAVED_GAMES_ENABLED_PROPERTY);
+        if (property != null) {
+            return Boolean.parseBoolean(property);
+        }
+        return writeSaveGamesEnabled;
+    }
+
+    public void setWriteSaveGamesEnabled(boolean writeSaveGamesEnabled) {
+        this.writeSaveGamesEnabled = writeSaveGamesEnabled;
+    }
+
+    public Locale getLocale() {
+        if (locale == null) {
+            setLocale(Locale.getDefault(Category.DISPLAY));
+        }
+        return Locale.forLanguageTag(locale);
+    }
+
+    public void setLocale(Locale locale) {
+        this.locale = locale.toLanguageTag();
     }
 }

@@ -16,7 +16,7 @@
 package org.terasology.persistence.typeHandling.mathTypes;
 
 import gnu.trove.list.TIntList;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.persistence.typeHandling.DeserializationContext;
 import org.terasology.persistence.typeHandling.PersistedData;
 import org.terasology.persistence.typeHandling.PersistedDataArray;
@@ -24,13 +24,16 @@ import org.terasology.persistence.typeHandling.SerializationContext;
 import org.terasology.persistence.typeHandling.SimpleTypeHandler;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class Vector3iTypeHandler extends SimpleTypeHandler<Vector3i> {
 
     @Override
     public PersistedData serialize(Vector3i value, SerializationContext context) {
-        return context.create(value.x, value.y, value.z);
+        if (value == null) {
+            return context.createNull();
+        } else {
+            return context.create(value.x, value.y, value.z);
+        }
     }
 
     @Override

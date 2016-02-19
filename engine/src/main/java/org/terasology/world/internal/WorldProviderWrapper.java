@@ -16,16 +16,18 @@
 
 package org.terasology.world.internal;
 
-import org.terasology.math.Vector3i;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.WorldChangeListener;
 import org.terasology.world.WorldProvider;
 import org.terasology.world.block.Block;
 import org.terasology.world.liquid.LiquidData;
 
-import javax.vecmath.Vector3f;
+import java.math.RoundingMode;
+import java.util.Collection;
 
 /**
- * @author Immortius
  */
 public class WorldProviderWrapper extends AbstractWorldProviderDecorator implements WorldProvider {
     private WorldProviderCore core;
@@ -42,7 +44,7 @@ public class WorldProviderWrapper extends AbstractWorldProviderDecorator impleme
 
     @Override
     public boolean isBlockRelevant(Vector3f pos) {
-        return isBlockRelevant(new Vector3i(pos, 0.5f));
+        return isBlockRelevant(new Vector3i(pos, RoundingMode.HALF_UP));
     }
 
     @Override
@@ -62,7 +64,7 @@ public class WorldProviderWrapper extends AbstractWorldProviderDecorator impleme
 
     @Override
     public Block getBlock(Vector3f pos) {
-        return getBlock(new Vector3i(pos, 0.5f));
+        return getBlock(new Vector3i(pos, RoundingMode.HALF_UP));
     }
 
     @Override
@@ -77,17 +79,17 @@ public class WorldProviderWrapper extends AbstractWorldProviderDecorator impleme
 
     @Override
     public byte getLight(Vector3f pos) {
-        return getLight(new Vector3i(pos, 0.5f));
+        return getLight(new Vector3i(pos, RoundingMode.HALF_UP));
     }
 
     @Override
     public byte getSunlight(Vector3f pos) {
-        return getSunlight(new Vector3i(pos, 0.5f));
+        return getSunlight(new Vector3i(pos, RoundingMode.HALF_UP));
     }
 
     @Override
     public byte getTotalLight(Vector3f pos) {
-        return getTotalLight(new Vector3i(pos, 0.5f));
+        return getTotalLight(new Vector3i(pos, RoundingMode.HALF_UP));
     }
 
 
@@ -117,17 +119,7 @@ public class WorldProviderWrapper extends AbstractWorldProviderDecorator impleme
     }
 
     @Override
-    public float getFog(Vector3f pos) {
-        return core.getFog(pos.x, pos.y, pos.z);
-    }
-
-    @Override
-    public float getTemperature(Vector3f pos) {
-        return core.getTemperature(pos.x, pos.y, pos.z);
-    }
-
-    @Override
-    public float getHumidity(Vector3f pos) {
-        return core.getHumidity(pos.x, pos.y, pos.z);
+    public Collection<Region3i> getRelevantRegions() {
+        return core.getRelevantRegions();
     }
 }

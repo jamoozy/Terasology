@@ -19,7 +19,7 @@ package org.terasology.persistence.typeHandling.mathTypes;
 import com.google.common.collect.Maps;
 import org.terasology.engine.module.UriUtil;
 import org.terasology.math.Region3i;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.persistence.typeHandling.DeserializationContext;
 import org.terasology.persistence.typeHandling.PersistedData;
 import org.terasology.persistence.typeHandling.PersistedDataMap;
@@ -29,7 +29,6 @@ import org.terasology.persistence.typeHandling.SimpleTypeHandler;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 public class Region3iTypeHandler extends SimpleTypeHandler<Region3i> {
 
@@ -38,18 +37,25 @@ public class Region3iTypeHandler extends SimpleTypeHandler<Region3i> {
 
     @Override
     public PersistedData serialize(Region3i value, SerializationContext context) {
-        Map<String, PersistedData> map = Maps.newLinkedHashMap();
-        map.put(MIN_FIELD, context.create(value.min(), Vector3i.class));
-        map.put(SIZE_FIELD, context.create(value.size(), Vector3i.class));
-        return context.create(map);
+        if (value == null) {
+            return context.createNull();
+        } else {
+            Map<String, PersistedData> map = Maps.newLinkedHashMap();
+            map.put(MIN_FIELD, context.create(value.min(), Vector3i.class));
+            map.put(SIZE_FIELD, context.create(value.size(), Vector3i.class));
+            return context.create(map);
+        }
     }
 
     @Override
     public Region3i deserialize(PersistedData data, DeserializationContext context) {
-        PersistedDataMap map = data.getAsValueMap();
-        Vector3i min = context.deserializeAs(map.get(MIN_FIELD), Vector3i.class);
-        Vector3i size = context.deserializeAs(map.get(SIZE_FIELD), Vector3i.class);
-        return Region3i.createFromMinAndSize(min, size);
+        if (data.isValueMap()) {
+            PersistedDataMap map = data.getAsValueMap();
+            Vector3i min = context.deserializeAs(map.get(MIN_FIELD), Vector3i.class);
+            Vector3i size = context.deserializeAs(map.get(SIZE_FIELD), Vector3i.class);
+            return Region3i.createFromMinAndSize(min, size);
+        }
+        return null;
     }
 
 }

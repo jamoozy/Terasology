@@ -1,9 +1,4 @@
-/**
- * @author Immortius <immortius@gmail.com>
- */
-
 import "EntityData.proto";
-import "Chunks.proto";
 
 option java_package = "org.terasology.protobuf";
 option java_outer_classname = "NetData";
@@ -18,6 +13,7 @@ message NetMessage {
     repeated UpdateEntityMessage updateEntity = 7;
     repeated EventMessage event = 8;
     optional int64 time = 9;
+    repeated BiomeChangeMessage biomeChange = 10;
 
     optional ServerInfoRequest serverInfoRequest = 15;
     optional ServerInfoMessage serverInfo = 16;
@@ -101,6 +97,13 @@ message BlockChangeMessage {
     extensions 5000 to max;
 }
 
+message BiomeChangeMessage {
+    optional Vector3iData pos = 1;
+    optional int32 newBiome = 2;
+
+    extensions 5000 to max;
+}
+
 message Vector3iData {
     optional int32 x = 1;
     optional int32 y = 2;
@@ -141,10 +144,13 @@ message ServerInfoMessage {
     repeated string assetUri = 7;
     repeated string registerBlockFamily = 8;
     repeated WorldInfo worldInfo = 9;
+    repeated sint32 biomeShortId = 10 [packed=true];
+    repeated string biomeId = 11;
 
     optional string version = 15;
     optional string gameName = 16;
     optional int64 time = 17;
+    optional float reflectionHeight = 18;
 
     extensions 5000 to max;
 }

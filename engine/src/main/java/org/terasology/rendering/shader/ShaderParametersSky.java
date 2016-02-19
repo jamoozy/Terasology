@@ -18,30 +18,28 @@ package org.terasology.rendering.shader;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.terasology.asset.Assets;
-import org.terasology.editor.EditorRange;
+import org.terasology.math.geom.Vector3d;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
-import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.rendering.backdrop.BackdropProvider;
+import org.terasology.rendering.nui.properties.Range;
 import org.terasology.world.WorldProvider;
-
-import javax.vecmath.Vector3d;
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
 
 /**
  * Parameters for the sky shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersSky extends ShaderParametersBase {
 
-    @EditorRange(min = 1.0f, max = 8192.0f)
+    @Range(min = 1.0f, max = 8192.0f)
     private float sunExponent = 512.0f;
-    @EditorRange(min = 1.0f, max = 8192.0f)
+    @Range(min = 1.0f, max = 8192.0f)
     private float moonExponent = 256.0f;
-    @EditorRange(min = 0.0f, max = 10.0f)
+    @Range(min = 0.0f, max = 10.0f)
     private float skyDaylightBrightness = 1.3f;
-    @EditorRange(min = 0.0f, max = 10.0f)
+    @Range(min = 0.0f, max = 10.0f)
     private float skyNightBrightness = 1.0f;
 
     public static Vector3d getAllWeatherZenith(float thetaSunAngle, float turbidity) {
@@ -71,23 +69,23 @@ public class ShaderParametersSky extends ShaderParametersBase {
 
         int texId = 0;
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, Assets.getTexture("engine:sky90").getId());
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, Assets.getTexture("engine:sky90").get().getId());
         program.setInt("texSky90", texId++, true);
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, Assets.getTexture("engine:sky180").getId());
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, Assets.getTexture("engine:sky180").get().getId());
         program.setInt("texSky180", texId++, true);
 
-        WorldRenderer worldRenderer = CoreRegistry.get(WorldRenderer.class);
+        BackdropProvider backdropProvider = CoreRegistry.get(BackdropProvider.class);
         WorldProvider worldProvider = CoreRegistry.get(WorldProvider.class);
 
-        if (worldProvider != null && worldRenderer != null) {
-            program.setFloat("colorExp", worldRenderer.getSkysphere().getColorExp(), true);
+        if (worldProvider != null && backdropProvider != null) {
+            program.setFloat("colorExp", backdropProvider.getColorExp(), true);
 
-            Vector3f sunDirection = worldRenderer.getSkysphere().getSunDirection(false);
-            Vector3d zenithColor = getAllWeatherZenith(sunDirection.y, worldRenderer.getSkysphere().getTurbidity());
+            Vector3f sunDirection = backdropProvider.getSunDirection(false);
+            Vector3d zenithColor = getAllWeatherZenith(sunDirection.y, backdropProvider.getTurbidity());
 
-            program.setFloat("sunAngle", worldRenderer.getSkysphere().getSunPosAngle(), true);
-            program.setFloat("turbidity", (Float) worldRenderer.getSkysphere().getTurbidity(), true);
+            program.setFloat("sunAngle", backdropProvider.getSunPositionAngle(), true);
+            program.setFloat("turbidity", backdropProvider.getTurbidity(), true);
             program.setFloat3("zenith", (float) zenithColor.x, (float) zenithColor.y, (float) zenithColor.z, true);
         }
 

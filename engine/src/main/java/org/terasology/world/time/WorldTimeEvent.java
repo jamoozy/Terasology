@@ -15,25 +15,31 @@
  */
 package org.terasology.world.time;
 
-import org.terasology.entitySystem.event.Event;
+import java.math.RoundingMode;
+
+import com.google.common.base.Preconditions;
+import com.google.common.math.DoubleMath;
 
 /**
- * @author Immortius
+ * A timer event that represents a (world-based) time instant
  */
-public class WorldTimeEvent implements Event {
-    private float worldTime;
-    private long worldTimeMS;
+public class WorldTimeEvent extends TimeEventBase {
 
-    public WorldTimeEvent(float worldTime, long worldTimeMS) {
-        this.worldTimeMS = worldTimeMS;
-        this.worldTime = worldTime;
+    public WorldTimeEvent(long worldTimeMS) {
+        super(worldTimeMS);
     }
 
-    public long getWorldTimeMS() {
-        return worldTimeMS;
+    public boolean matchesDaily(float fraction) {
+        Preconditions.checkArgument(fraction >= 0 && fraction <= 1, "fraction must be in [0..1]");
+
+        long fracInMs = DoubleMath.roundToLong(fraction * WorldTime.DAY_LENGTH, RoundingMode.HALF_UP);
+        long diff = getDayTimeInMs() - fracInMs;
+
+        return 2 * diff < WorldTime.TICK_EVENT_RATE && 2 * diff >= -WorldTime.TICK_EVENT_RATE;
     }
 
-    public float getWorldTime() {
-        return worldTime;
+    @Override
+    public String toString() {
+        return String.format("WorldTimeEvent [%s ms -> %.2f days]", getWorldTimeInMs(), getWorldTime());
     }
 }

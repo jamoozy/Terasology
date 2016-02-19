@@ -18,10 +18,11 @@ package org.terasology.logic.common;
 
 import org.terasology.entitySystem.Component;
 import org.terasology.network.Replicate;
+import org.terasology.world.block.items.AddToBlockBasedItem;
 
 /**
- * @author Immortius
  */
+@AddToBlockBasedItem
 public class DisplayNameComponent implements Component {
     @Replicate
     public String name = "";
@@ -29,6 +30,7 @@ public class DisplayNameComponent implements Component {
     public String description = "";
 
 
+    @Override
     public String toString() {
         return String.format("DisplayName(name = '%s', description = '%s')", name, description);
     }

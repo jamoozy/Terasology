@@ -22,29 +22,30 @@ import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetLoader;
-import org.terasology.module.Module;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.format.AbstractAssetFileFormat;
+import org.terasology.assets.format.AssetDataFile;
+import org.terasology.assets.module.annotations.RegisterAssetFileFormat;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.rendering.assets.skeletalmesh.Bone;
 import org.terasology.rendering.assets.skeletalmesh.BoneWeight;
 import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshData;
 import org.terasology.rendering.assets.skeletalmesh.SkeletalMeshDataBuilder;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector2f;
-import javax.vecmath.Vector3f;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author Immortius
  */
-public class MD5SkeletonLoader implements AssetLoader<SkeletalMeshData> {
+@RegisterAssetFileFormat
+public class MD5SkeletonLoader extends AbstractAssetFileFormat<SkeletalMeshData> {
 
     private static final String INTEGER_PATTERN = "((?:[\\+-]?\\d+)(?:[eE][\\+-]?\\d+)?)";
     private static final String FLOAT_PATTERN = "((?:[\\+-]?\\d(?:\\.\\d*)?|\\.\\d+)(?:[eE][\\+-]?(?:\\d(?:\\.\\d*)?|\\.\\d+))?)";
@@ -59,9 +60,13 @@ public class MD5SkeletonLoader implements AssetLoader<SkeletalMeshData> {
     private Pattern triPattern = Pattern.compile("tri\\s+" + INTEGER_PATTERN + "\\s+" + INTEGER_PATTERN + "\\s+" + INTEGER_PATTERN + "\\s+" + INTEGER_PATTERN);
     private Pattern weightPattern = Pattern.compile("weight\\s+" + INTEGER_PATTERN + "\\s+" + INTEGER_PATTERN + "\\s+" + FLOAT_PATTERN + "\\s+" + VECTOR3_PATTERN);
 
+    public MD5SkeletonLoader() {
+        super("md5mesh");
+    }
+
     @Override
-    public SkeletalMeshData load(Module module, InputStream stream, List<URL> urls, List<URL> deltas) throws IOException {
-        try {
+    public SkeletalMeshData load(ResourceUrn urn, List<AssetDataFile> inputs) throws IOException {
+        try (InputStream stream = inputs.get(0).openStream()) {
             MD5 md5 = parse(stream);
             SkeletalMeshDataBuilder skeletonBuilder = new SkeletalMeshDataBuilder();
             List<Bone> bones = Lists.newArrayListWithCapacity(md5.numJoints);
@@ -102,7 +107,7 @@ public class MD5SkeletonLoader implements AssetLoader<SkeletalMeshData> {
 
             return skeletonBuilder.build();
         } catch (NumberFormatException e) {
-            throw new IOException("Error parsing " + module.toString(), e);
+            throw new IOException("Error parsing " + inputs.get(0).getFilename(), e);
         }
     }
 

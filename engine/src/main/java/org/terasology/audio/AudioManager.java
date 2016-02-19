@@ -15,13 +15,11 @@
  */
 package org.terasology.audio;
 
-import org.terasology.asset.AssetFactory;
-
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
+import org.terasology.assets.AssetFactory;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public interface AudioManager {
     float MAX_DISTANCE = 100.0f;
@@ -60,7 +58,7 @@ public interface AudioManager {
 
     /**
      * Update AudioManager sound sources
-     * <p/>
+     * <br><br>
      * Should be called in main game loop
      */
     void update(float delta);
@@ -74,7 +72,7 @@ public interface AudioManager {
 
     void stopAllSounds();
 
-    AssetFactory<StaticSoundData, StaticSound> getStaticSoundFactory();
+    AssetFactory<StaticSound, StaticSoundData> getStaticSoundFactory();
 
-    AssetFactory<StreamingSoundData, StreamingSound> getStreamingSoundFactory();
+    AssetFactory<StreamingSound, StreamingSoundData> getStreamingSoundFactory();
 }

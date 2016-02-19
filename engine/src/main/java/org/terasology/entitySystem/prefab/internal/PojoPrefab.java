@@ -18,7 +18,8 @@ package org.terasology.entitySystem.prefab.internal;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.entitySystem.prefab.PrefabData;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class PojoPrefab extends Prefab {
 
@@ -37,8 +37,8 @@ public class PojoPrefab extends Prefab {
     private boolean persisted;
     private boolean alwaysRelevant = true;
 
-    public PojoPrefab(AssetUri uri, PrefabData data) {
-        super(uri);
+    public PojoPrefab(ResourceUrn urn, AssetType<?, PrefabData> assetType, PrefabData data) {
+        super(urn, assetType);
         reload(data);
     }
 
@@ -83,11 +83,7 @@ public class PojoPrefab extends Prefab {
     }
 
     @Override
-    public void dispose() {
-    }
-
-    @Override
-    public void reload(PrefabData data) {
+    protected void doReload(PrefabData data) {
         this.componentMap = ImmutableMap.copyOf(data.getComponents());
         this.persisted = data.isPersisted();
         this.alwaysRelevant = data.isAlwaysRelevant();
@@ -97,8 +93,4 @@ public class PojoPrefab extends Prefab {
         }
     }
 
-    @Override
-    public boolean isDisposed() {
-        return false;
-    }
 }

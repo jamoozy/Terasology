@@ -16,12 +16,11 @@
 package org.terasology.utilities.procedural;
 
 import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Vector2f;
 
-import javax.vecmath.Vector2f;
 import java.util.Random;
 
 /**
- * @author Immortius
  */
 public class Voronoi {
 
@@ -52,7 +51,7 @@ public class Voronoi {
 
     /**
      * @param at
-     * @param numPoints Should be <= 5. The number of points to return
+     * @param numPoints Should be &le; 5. The number of points to return
      * @return
      */
     public VoronoiResult[] getClosestPoints(Vector2f at, int numPoints) {
@@ -103,9 +102,9 @@ public class Voronoi {
             processCell(cellX + 1, cellY - 1, at, results);
         }
 
-        for (int i = 0; i < results.length; i++) {
-            results[i].delta.scale(INVERSE_DENSITY_ADJUSTMENT);
-            results[i].distance *= INVERSE_DENSITY_ADJUSTMENT * INVERSE_DENSITY_ADJUSTMENT;
+        for (VoronoiResult result : results) {
+            result.delta.scale(INVERSE_DENSITY_ADJUSTMENT);
+            result.distance *= INVERSE_DENSITY_ADJUSTMENT * INVERSE_DENSITY_ADJUSTMENT;
         }
 
         return results;

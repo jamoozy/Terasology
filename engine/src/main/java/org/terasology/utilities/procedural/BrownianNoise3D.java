@@ -19,18 +19,19 @@ package org.terasology.utilities.procedural;
 /**
  * Computes Brownian noise based on some noise generator.
  * Originally, Brown integrates white noise, but using other noises can be sometimes useful, too.
- * @author Martin Steiger
+ * @deprecated Use {@link BrownianNoise} instead and adjust the scale factor: the new impl. returns [-1..1].
  */
-public class BrownianNoise3D extends BrownianNoise implements Noise3D {
+@Deprecated
+public class BrownianNoise3D extends BrownianNoiseOld implements Noise3D {
 
     private final Noise3D other;
-    
+
     /**
      * Uses the default number of octaves
      * @param other the noise to use as a basis
      */
     public BrownianNoise3D(Noise3D other) {
-        this.other = other; 
+        this.other = other;
     }
 
     /**
@@ -50,12 +51,12 @@ public class BrownianNoise3D extends BrownianNoise implements Noise3D {
      * @return The noise value in the range [-getScale()..getScale()]
      */
     @Override
-    public double noise(double x, double y, double z) {
-        double result = 0.0;
+    public float noise(float x, float y, float z) {
+        float result = 0.0f;
 
-        double workingX = x;
-        double workingY = y;
-        double workingZ = z;
+        float workingX = x;
+        float workingY = y;
+        float workingZ = z;
         for (int i = 0; i < getOctaves(); i++) {
             result += other.noise(workingX, workingY, workingZ) * getSpectralWeight(i);
 
@@ -66,5 +67,5 @@ public class BrownianNoise3D extends BrownianNoise implements Noise3D {
 
         return result;
     }
-    
+
 }

@@ -20,7 +20,6 @@ import org.terasology.entitySystem.Component;
 import java.util.Locale;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public final class MetadataUtil {
 
@@ -29,6 +28,11 @@ public final class MetadataUtil {
 
     public static String getComponentClassName(Class<? extends Component> componentClass) {
         String name = componentClass.getSimpleName();
+        Class<?> outer = componentClass.getEnclosingClass();
+        if (outer != null) {
+            name = outer.getSimpleName() + name;
+        }
+
         int index = name.toLowerCase(Locale.ENGLISH).lastIndexOf("component");
         if (index != -1) {
             return name.substring(0, index);

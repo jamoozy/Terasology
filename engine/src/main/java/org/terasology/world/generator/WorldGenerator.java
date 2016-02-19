@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MovingBlocks
+ * Copyright 2015 MovingBlocks
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,32 +15,37 @@
  */
 package org.terasology.world.generator;
 
+
 import org.terasology.engine.SimpleUri;
-import org.terasology.math.Vector3i;
-import org.terasology.world.ChunkView;
-import org.terasology.world.chunks.Chunk;
+import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.logic.spawner.FixedSpawner;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.world.chunks.CoreChunk;
+import org.terasology.world.generation.EntityBuffer;
+import org.terasology.world.generation.World;
 
-import com.google.common.base.Optional;
-
-/**
- * @author Immortius
- */
 public interface WorldGenerator {
     SimpleUri getUri();
 
+    String getWorldSeed();
+
     void setWorldSeed(String seed);
 
-    void applySecondPass(Vector3i chunkPos, ChunkView view);
-
-    void createChunk(Chunk chunk);
-
-    float getFog(float x, float y, float z);
-
-    float getTemperature(float x, float y, float z);
-
-    float getHumidity(float x, float y, float z);
+    void createChunk(CoreChunk chunk, EntityBuffer buffer);
 
     void initialize();
 
-    Optional<WorldConfigurator> getConfigurator();
+    WorldConfigurator getConfigurator();
+
+    World getWorld();
+
+    /**
+     * Determines a spawn position suitable for this world, such as that used to spawn the initial player.
+     * The default implementation simply picks a position in the very center of the world.
+     * @param entity the entity related to spawning, if needed (or not). Can be ignored.
+     * @return the chosen position
+     */
+    default Vector3f getSpawnPosition(EntityRef entity) {
+        return new FixedSpawner(0, 0).getSpawnPosition(getWorld(), entity);
+    }
 }

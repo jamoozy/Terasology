@@ -15,20 +15,25 @@
  */
 package org.terasology.persistence.typeHandling.extensionTypes;
 
-import org.terasology.registry.CoreRegistry;
 import org.terasology.persistence.typeHandling.StringRepresentationTypeHandler;
 import org.terasology.world.block.Block;
 import org.terasology.world.block.BlockManager;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class BlockTypeHandler extends StringRepresentationTypeHandler<Block> {
 
-    private BlockManager blockManager = CoreRegistry.get(BlockManager.class);
+    private BlockManager blockManager;
+
+    public BlockTypeHandler(BlockManager blockManager) {
+        this.blockManager = blockManager;
+    }
 
     @Override
     public String getAsString(Block item) {
+        if (item == null) {
+            return "";
+        }
         return item.getURI().toString();
     }
 

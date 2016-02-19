@@ -17,7 +17,7 @@
 package org.terasology.input;
 
 /**
- * @author Immortius
+ * A Bind Axis is a (simulated) analog input axis, maintaining a value between -1 and 1.
  */
 public interface BindableAxis {
 

@@ -15,32 +15,23 @@
  */
 package org.terasology.logic.console.ui;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-
 import org.terasology.input.MouseInput;
 import org.terasology.logic.console.Console;
 import org.terasology.logic.console.Message;
-import org.terasology.logic.console.internal.CommandInfo;
 import org.terasology.logic.players.LocalPlayer;
-import org.terasology.math.Vector2i;
 import org.terasology.registry.In;
 import org.terasology.rendering.FontColor;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.CoreScreenLayer;
 import org.terasology.rendering.nui.InteractionListener;
-import org.terasology.rendering.nui.UIWidget;
 import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
 import org.terasology.rendering.nui.layouts.ScrollableArea;
-import org.terasology.rendering.nui.widgets.ActivateEventListener;
 import org.terasology.rendering.nui.widgets.UIText;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Collections2;
+import java.util.List;
 
 /**
- * @author Immortius
  */
 public class ConsoleScreen extends CoreScreenLayer {
 
@@ -52,10 +43,12 @@ public class ConsoleScreen extends CoreScreenLayer {
 
     private UICommandEntry commandLine;
 
+    private boolean welcomePrinted;
+
     private InteractionListener screenListener = new BaseInteractionListener() {
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT && commandLine != null) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (event.getMouseButton() == MouseInput.MOUSE_LEFT && commandLine != null) {
                 getManager().setFocus(commandLine);
             }
             return true;
@@ -67,33 +60,19 @@ public class ConsoleScreen extends CoreScreenLayer {
         final ScrollableArea scrollArea = find("scrollArea", ScrollableArea.class);
         scrollArea.moveToBottom();
 
-        List<CommandInfo> commands = console.getCommandList();
-        
-        // JAVA8: replace with lamba expression
-        Collection<String> commandNames = Collections2.transform(commands, new Function<CommandInfo, String>() {
-
-            @Override
-            public String apply(CommandInfo input) {
-                return input.getName();
-            }
-        });
-
         commandLine = find("commandLine", UICommandEntry.class);
         getManager().setFocus(commandLine);
-        commandLine.setTabCompletionEngine(new CyclingTabCompletionEngine(console, commandNames));
+        commandLine.setTabCompletionEngine(new CyclingTabCompletionEngine(console, localPlayer));
         commandLine.bindCommandHistory(new ReadOnlyBinding<List<String>>() {
             @Override
             public List<String> get() {
                 return console.getPreviousCommands();
             }
         });
-        commandLine.subscribe(new ActivateEventListener() {
-            @Override
-            public void onActivated(UIWidget widget) {
-                console.execute(commandLine.getText(), localPlayer.getClientEntity());
-                commandLine.setText("");
-                scrollArea.moveToBottom();
-            }
+        commandLine.subscribe(widget -> {
+            console.execute(commandLine.getText(), localPlayer.getClientEntity());
+            commandLine.setText("");
+            scrollArea.moveToBottom();
         });
 
         final UIText history = find("messageHistory", UIText.class);
@@ -101,22 +80,32 @@ public class ConsoleScreen extends CoreScreenLayer {
             @Override
             public String get() {
                 StringBuilder messageList = new StringBuilder();
-                Iterator<Message> messageIterator = console.getMessages().iterator();
-                while (messageIterator.hasNext()) {
-                    Message message = messageIterator.next();
+                for (Message message : console.getMessages()) {
                     messageList.append(FontColor.getColored(message.getMessage(), message.getType().getColor()));
-                    messageList.append(Message.NEW_LINE);
+                    messageList.append(Console.NEW_LINE);
                 }
                 return messageList.toString();
             }
         });
-
     }
 
     @Override
     public void onOpened() {
         super.onOpened();
         getManager().setFocus(commandLine);
+
+        if (!welcomePrinted) {
+            console.addMessage("Welcome to the wonderful world of Terasology!" + Console.NEW_LINE +
+                    Console.NEW_LINE +
+                    "Type 'help' to see a list with available commands or 'help <commandName>' for command details." + Console.NEW_LINE +
+                    "Text parameters do not need quotes, unless containing spaces. No commas between parameters." + Console.NEW_LINE +
+                    "You can use auto-completion by typing a partial command then hitting [tab] - examples:" + Console.NEW_LINE + Console.NEW_LINE +
+                    "gh + [tab] => 'ghost'" + Console.NEW_LINE +
+                    "help gh + [tab] => 'help ghost' (can auto complete commands fed to help)" + Console.NEW_LINE +
+                    "giv + [tab] => 'giveBlock giveItem givePermission' (use [tab] again to cycle between choices)" + Console.NEW_LINE +
+                    "lS + [tab] => 'listShapes' (camel casing abbreviated commands)" + Console.NEW_LINE);
+            welcomePrinted = true;
+        }
     }
 
     @Override

@@ -16,16 +16,15 @@
 
 package org.terasology.rendering.assets.skeletalmesh;
 
-import com.bulletphysics.linearmath.QuaternionUtil;
 import com.google.common.collect.Lists;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
+
 import java.util.Collection;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class Bone {
     private String name;
@@ -55,19 +54,27 @@ public class Bone {
         return objectSpacePos;
     }
 
+    public void setObjectPos(Vector3f newObjectSpacePos) {
+        this.objectSpacePos = newObjectSpacePos;
+    }
+
     public Vector3f getLocalPosition() {
         Vector3f pos = new Vector3f(objectSpacePos);
         if (parent != null) {
             pos.sub(parent.getObjectPosition());
             Quat4f inverseParentRot = new Quat4f();
             inverseParentRot.inverse(parent.getObjectRotation());
-            QuaternionUtil.quatRotate(inverseParentRot, pos, pos);
+            inverseParentRot.rotate(pos, pos);
         }
         return pos;
     }
 
     public Quat4f getObjectRotation() {
         return rotation;
+    }
+
+    public void setObjectRotation(Quat4f newRotation) {
+        this.rotation = newRotation;
     }
 
     public Quat4f getLocalRotation() {
@@ -82,6 +89,10 @@ public class Bone {
 
     public Bone getParent() {
         return parent;
+    }
+
+    public int getParentIndex() {
+        return parent != null ? parent.getIndex() : -1;
     }
 
     public void addChild(Bone child) {

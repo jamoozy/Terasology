@@ -30,13 +30,11 @@ import java.util.List;
 /**
  * Allows an entity to store items.
  *
- * @author Immortius <immortius@gmail.com>
  */
 @ForceBlockActive
 public final class InventoryComponent implements Component, ReplicationCheck {
 
     public boolean privateToOwner = true;
-    public List<EntityRef> accessors = Lists.newArrayList();
 
     @Replicate
     @Owns
@@ -52,7 +50,7 @@ public final class InventoryComponent implements Component, ReplicationCheck {
     }
 
     @Override
-    public boolean shouldReplicate(FieldMetadata field, boolean initial, boolean toOwner) {
+    public boolean shouldReplicate(FieldMetadata<?, ?> field, boolean initial, boolean toOwner) {
         return !privateToOwner || toOwner;
     }
 }

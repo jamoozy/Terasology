@@ -31,9 +31,10 @@ import java.util.Map;
 /**
  * A Gson Adapter factory for supporting enums in a case-insensitive manner
  *
- * @author Immortius
  */
 public class CaseInsensitiveEnumTypeAdapterFactory implements TypeAdapterFactory {
+
+    @Override
     public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
         Class<T> rawType = (Class<T>) type.getRawType();
         if (!rawType.isEnum()) {
@@ -42,8 +43,8 @@ public class CaseInsensitiveEnumTypeAdapterFactory implements TypeAdapterFactory
 
         final Map<String, T> lowercaseToConstant = Maps.newHashMap();
         for (T constant : rawType.getEnumConstants()) {
-            String lowercase = toLowercase(constant);
-            lowercaseToConstant.put(lowercase, constant);
+            String norm = normalize(constant.toString());
+            lowercaseToConstant.put(norm, constant);
         }
 
         return new TypeAdapter<T>() {
@@ -52,7 +53,7 @@ public class CaseInsensitiveEnumTypeAdapterFactory implements TypeAdapterFactory
                 if (value == null) {
                     out.nullValue();
                 } else {
-                    out.value(toLowercase(value));
+                    out.value(normalize(value.toString()));
                 }
             }
 
@@ -63,13 +64,13 @@ public class CaseInsensitiveEnumTypeAdapterFactory implements TypeAdapterFactory
                     return null;
                 } else {
                     String value = reader.nextString();
-                    return lowercaseToConstant.get(toLowercase(value));
+                    return lowercaseToConstant.get(normalize(value));
                 }
             }
         };
     }
 
-    private String toLowercase(Object o) {
-        return o.toString().toLowerCase(Locale.ENGLISH);
+    private String normalize(String name) {
+        return name.toLowerCase(Locale.ENGLISH);
     }
 }

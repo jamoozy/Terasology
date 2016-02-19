@@ -15,13 +15,11 @@
  */
 package org.terasology.rendering.world;
 
-import javax.vecmath.Vector3f;
-
 import org.terasology.logic.players.LocalPlayer;
-import org.terasology.math.AABB;
-import org.terasology.physics.engine.PhysicsEngine;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.rendering.cameras.Camera;
-import org.terasology.rendering.opengl.DefaultRenderingProcess.StereoRenderState;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
 import org.terasology.world.WorldProvider;
 import org.terasology.world.chunks.ChunkProvider;
 
@@ -30,10 +28,14 @@ public interface WorldRenderer {
     float BLOCK_LIGHT_SUN_POW = 0.96f;
     float BLOCK_INTENSITY_FACTOR = 1.25f;
 
+    void onChunkLoaded(Vector3i chunkPos);
+
+    void onChunkUnloaded(Vector3i chunkPos);
+
     public enum WorldRenderingStage {
-        DEFAULT,
-        OCULUS_LEFT_EYE,
-        OCULUS_RIGHT_EYE
+        MONO,
+        LEFT_EYE,
+        RIGHT_EYE
     }
 
     Camera getActiveCamera();
@@ -46,19 +48,15 @@ public interface WorldRenderer {
 
     void update(float delta);
 
-    void render(StereoRenderState mono);
+    void render(WorldRenderingStage renderingStage);
 
     void dispose();
-
-    PhysicsEngine getBulletRenderer();
 
     boolean pregenerateChunks();
 
     WorldProvider getWorldProvider();
 
     void changeViewDistance(ViewDistance viewDistance);
-
-    float getDaylight();
 
     float getSunlightValue();
 
@@ -78,10 +76,7 @@ public interface WorldRenderer {
 
     float getTick();
 
-    Skysphere getSkysphere();
-
-    boolean isAABBVisible(AABB aabb);
-
     WorldRenderingStage getCurrentRenderStage();
 
+    String getMetrics();
 }

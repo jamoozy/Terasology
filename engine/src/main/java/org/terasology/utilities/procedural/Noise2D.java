@@ -18,8 +18,10 @@ package org.terasology.utilities.procedural;
 
 /**
  * Provides or generates 2D noise
- * @author Martin Steiger
+ *
+ * @deprecated use {@link Noise} instead
  */
+@Deprecated
 public interface Noise2D {
 
     /**
@@ -29,6 +31,5 @@ public interface Noise2D {
      * @param y Position on the y-axis
      * @return The noise value
      */
-    double noise(double x, double y);
-
+    float noise(float x, float y);
 }

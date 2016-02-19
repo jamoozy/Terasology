@@ -15,6 +15,7 @@
  */
 package org.terasology.rendering;
 
+import com.google.common.collect.Sets;
 import org.lwjgl.LWJGLUtil;
 import org.lwjgl.Sys;
 import org.lwjgl.opengl.GL11;
@@ -22,10 +23,9 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
 import org.terasology.asset.Assets;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.material.MaterialData;
@@ -51,12 +51,14 @@ import org.terasology.rendering.shader.ShaderParametersShadowMap;
 import org.terasology.rendering.shader.ShaderParametersSky;
 import org.terasology.rendering.shader.ShaderParametersSobel;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Optional;
+import java.util.Set;
+
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * Provides support for loading and applying shaders.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderManagerLwjgl implements ShaderManager {
 
@@ -65,6 +67,8 @@ public class ShaderManagerLwjgl implements ShaderManager {
     private GLSLMaterial activeMaterial;
     private GLSLMaterial defaultShaderProgram;
     private GLSLMaterial defaultTexturedShaderProgram;
+
+    private Set<GLSLMaterial> progamaticShaders = Sets.newHashSet();
 
     public ShaderManagerLwjgl() {
         logger.info("Loading Terasology shader manager...");
@@ -84,7 +88,7 @@ public class ShaderManagerLwjgl implements ShaderManager {
         // GL_NUM_EXTENSIONS and glGetStringi(GL_EXTENSIONS, idx)
         String[] exts = extStr.split(" ");
         if (exts.length > 0) {
-            StringBuilder bldr = new StringBuilder(exts[0]); 
+            StringBuilder bldr = new StringBuilder(exts[0]);
             for (int i = 1; i < exts.length; i++) {
                 if (i % extsPerLine == 0) {
                     logger.info("EXTENSIONS: {}", bldr.toString());
@@ -92,7 +96,7 @@ public class ShaderManagerLwjgl implements ShaderManager {
                 } else {
                     bldr.append(" ");
                 }
-                bldr.append(exts[i]); 
+                bldr.append(exts[i]);
             }
             if (bldr.length() > 0) {
                 logger.info("EXTENSIONS: {}", bldr.toString());
@@ -156,24 +160,22 @@ public class ShaderManagerLwjgl implements ShaderManager {
 
     @Override
     public void recompileAllShaders() {
-        for (Shader shader : CoreRegistry.get(AssetManager.class).listLoadedAssets(AssetType.SHADER, Shader.class)) {
-            shader.recompile();
-        }
+        AssetManager assetManager = CoreRegistry.get(AssetManager.class);
+        assetManager.getLoadedAssets(Shader.class).forEach(Shader::recompile);
 
-        for (Material material : CoreRegistry.get(AssetManager.class).listLoadedAssets(AssetType.MATERIAL, Material.class)) {
-            material.recompile();
-        }
+        assetManager.getLoadedAssets(Material.class).forEach(Material::recompile);
 
         activeMaterial = null;
     }
 
     private GLSLMaterial prepareAndStoreShaderProgramInstance(String title, ShaderParameters params) {
         String uri = "engine:" + title;
-        Shader shader = Assets.getShader(uri);
-        checkNotNull(shader, "Failed to resolve %s", uri);
-        shader.recompile();
-        GLSLMaterial material = Assets.generateAsset(new AssetUri(AssetType.MATERIAL, "engine:prog." + title), new MaterialData(shader), GLSLMaterial.class);
+        Optional<? extends Shader> shader = Assets.getShader(uri);
+        checkState(shader.isPresent(), "Failed to resolve %s", uri);
+        shader.get().recompile();
+        GLSLMaterial material = (GLSLMaterial) Assets.generateAsset(new ResourceUrn("engine:prog." + title), new MaterialData(shader.get()), Material.class);
         material.setShaderParameters(params);
+        progamaticShaders.add(material);
 
         return material;
     }

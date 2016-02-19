@@ -17,23 +17,23 @@ package org.terasology.rendering.nui.layouts;
 
 import com.google.common.collect.Lists;
 import com.google.gson.annotations.SerializedName;
-import org.terasology.input.events.KeyEvent;
 import org.terasology.input.events.MouseButtonEvent;
 import org.terasology.input.events.MouseWheelEvent;
-import org.terasology.math.Rect2i;
+import org.terasology.math.geom.Rect2i;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreLayout;
 import org.terasology.rendering.nui.LayoutConfig;
 import org.terasology.rendering.nui.LayoutHint;
 import org.terasology.rendering.nui.UIWidget;
+import org.terasology.rendering.nui.events.NUIKeyEvent;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * @author Immortius
  */
 public class MultiRowLayout extends CoreLayout<LayoutHint> {
 
@@ -61,6 +61,11 @@ public class MultiRowLayout extends CoreLayout<LayoutHint> {
 
     public void addWidget(UIWidget widget) {
         widgetList.add(widget);
+    }
+
+    @Override
+    public void removeWidget(UIWidget widget) {
+        widgetList.remove(widget);
     }
 
     public int getRows() {
@@ -116,9 +121,7 @@ public class MultiRowLayout extends CoreLayout<LayoutHint> {
 
             List<List<UIWidget>> columns = Lists.newArrayList(getColumnIterator());
             List<ColumnInfo> columnInfos = Lists.newArrayList();
-            for (List<UIWidget> column : columns) {
-                columnInfos.add(calculateColumnSize(column, canvas, availableSize));
-            }
+            columnInfos.addAll(columns.stream().map(column -> calculateColumnSize(column, canvas, availableSize)).collect(Collectors.toList()));
 
             int[] minHeights = new int[rows];
             int minColumnHeight = 0;
@@ -283,7 +286,8 @@ public class MultiRowLayout extends CoreLayout<LayoutHint> {
     }
 
     @Override
-    public void onKeyEvent(KeyEvent event) {
+    public boolean onKeyEvent(NUIKeyEvent event) {
+        return false;
     }
 
     @Override

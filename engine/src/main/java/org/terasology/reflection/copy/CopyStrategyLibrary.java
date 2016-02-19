@@ -37,25 +37,35 @@ import java.util.Set;
 
 /**
  * A library of copy strategies.
- * <p/>
+ * <br><br>
  * This library is should be initialised by registering strategies for a number of core types.  Then as strategies are requested for unknown types,
  * new strategies are generated for those types.
  * The library knows how to generate strategies for Lists, Sets, Maps and types marked with the MappedContainer annotation.
  * If there is any trouble generating a strategy for a type, or it is unknown and generation is not appropriate for the type, a default strategy of returning the value
  * to be copied unaltered is returned.
  *
- * @author Immortius
  */
 public class CopyStrategyLibrary {
     private static final Logger logger = LoggerFactory.getLogger(CopyStrategyLibrary.class);
 
     private Map<Class<?>, CopyStrategy<?>> strategies = Maps.newHashMap();
-    private CopyStrategy<?> defaultStrategy = new ReturnAsIsStrategy();
+    private CopyStrategy<?> defaultStrategy = new ReturnAsIsStrategy<>();
     private ReflectFactory reflectFactory;
 
     public CopyStrategyLibrary(ReflectFactory reflectFactory) {
         this.reflectFactory = reflectFactory;
     }
+
+
+    /**
+     * This constructor is not public, as it allows the direct setting of an internal field without a save copy.
+     * @param strategies must not be used after it has been passed to this constructor.
+     */
+    private CopyStrategyLibrary(Map<Class<?>, CopyStrategy<?>> strategies, ReflectFactory reflectFactory) {
+        this.strategies = strategies;
+        this.reflectFactory = reflectFactory;
+    }
+
 
     /**
      * Registers a copy strategy for a base type.
@@ -145,6 +155,15 @@ public class CopyStrategyLibrary {
             strategies.put(typeClass, defaultStrategy);
             return defaultStrategy;
         }
+    }
+
+    /**
+     * @return a copy of the this library that uses the specified stategy for the specified type.
+     */
+    public <T>  CopyStrategyLibrary createCopyOfLibraryWithStrategy(Class<T> type, CopyStrategy<T> strategy) {
+        Map<Class<?>, CopyStrategy<?>> newStrategies = Maps.newHashMap(strategies);
+        newStrategies.put(type, strategy);
+        return new CopyStrategyLibrary(newStrategies, this.reflectFactory);
     }
 
     /**

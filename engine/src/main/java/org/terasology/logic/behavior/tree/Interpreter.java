@@ -19,8 +19,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.terasology.module.sandbox.API;
 import org.terasology.logic.common.DisplayNameComponent;
 import org.terasology.registry.InjectionHelper;
@@ -37,13 +35,11 @@ import java.util.Set;
  * An interpreter evaluates a behavior tree. This is done by creating tasks for an actor for the nodes of the BT.
  * If a task returns RUNNING, the task is placed to the active list and asked next tick again.
  * Finished nodes may create new tasks, which are placed to the active list.
- * <p/>
+ * <br><br>
  *
- * @author synopia
  */
 @API
 public class Interpreter {
-    private static final Logger logger = LoggerFactory.getLogger(Interpreter.class);
 
     private static final Task TERMINAL = new Task(null) {
         @Override
@@ -111,12 +107,9 @@ public class Interpreter {
             subTasks.add(task);
         }
         tasks.addFirst(task);
-        return AccessController.doPrivileged(new PrivilegedAction<Task>() {
-            @Override
-            public Task run() {
-                InjectionHelper.inject(task);
-                return task;
-            }
+        return AccessController.doPrivileged((PrivilegedAction<Task>) () -> {
+            InjectionHelper.inject(task);
+            return task;
         });
     }
 

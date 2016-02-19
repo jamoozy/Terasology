@@ -19,47 +19,49 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.terasology.asset.Assets;
 import org.terasology.config.Config;
-import org.terasology.editor.EditorRange;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.texture.Texture;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FrameBuffersManager;
 import org.terasology.rendering.world.WorldRenderer;
 
-import javax.vecmath.Vector3f;
+import java.util.Optional;
 
 import static org.lwjgl.opengl.GL11.glBindTexture;
 
 /**
  * Shader parameters for the Post-processing shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersPrePost extends ShaderParametersBase {
 
-    @EditorRange(min = 0.0f, max = 0.1f)
+    @Range(min = 0.0f, max = 0.1f)
     float aberrationOffsetX;
-    @EditorRange(min = 0.0f, max = 0.1f)
+    @Range(min = 0.0f, max = 0.1f)
     float aberrationOffsetY;
 
-    @EditorRange(min = 0.0f, max = 1.0f)
+    @Range(min = 0.0f, max = 1.0f)
     float bloomFactor = 0.5f;
 
     @Override
     public void applyParameters(Material program) {
         super.applyParameters(program);
 
+        FrameBuffersManager buffersManager = CoreRegistry.get(FrameBuffersManager.class);
+
         Vector3f tint = CoreRegistry.get(WorldRenderer.class).getTint();
         program.setFloat3("inLiquidTint", tint.x, tint.y, tint.z, true);
 
         int texId = 0;
         GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-        DefaultRenderingProcess.getInstance().bindFboTexture("sceneOpaque");
+        buffersManager.bindFboColorTexture("sceneOpaque");
         program.setInt("texScene", texId++, true);
 
         if (CoreRegistry.get(Config.class).getRendering().isBloom()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            DefaultRenderingProcess.getInstance().bindFboTexture("sceneBloom2");
+            buffersManager.bindFboColorTexture("sceneBloom2");
             program.setInt("texBloom", texId++, true);
 
             program.setFloat("bloomFactor", bloomFactor, true);
@@ -69,15 +71,15 @@ public class ShaderParametersPrePost extends ShaderParametersBase {
 
         if (CoreRegistry.get(Config.class).getRendering().isLightShafts()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            DefaultRenderingProcess.getInstance().bindFboTexture("lightShafts");
+            buffersManager.bindFboColorTexture("lightShafts");
             program.setInt("texLightShafts", texId++, true);
         }
 
-        Texture vignetteTexture = Assets.getTexture("engine:vignette");
+        Optional<? extends Texture> vignetteTexture = Assets.getTexture("engine:vignette");
 
-        if (vignetteTexture != null) {
+        if (vignetteTexture.isPresent()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            glBindTexture(GL11.GL_TEXTURE_2D, vignetteTexture.getId());
+            glBindTexture(GL11.GL_TEXTURE_2D, vignetteTexture.get().getId());
             program.setInt("texVignette", texId++, true);
         }
     }

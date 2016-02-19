@@ -24,9 +24,8 @@ import net.miginfocom.layout.ConstraintParser;
 import net.miginfocom.layout.ContainerWrapper;
 import net.miginfocom.layout.Grid;
 import net.miginfocom.layout.LC;
-import net.miginfocom.layout.LayoutCallback;
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.Color;
 import org.terasology.rendering.nui.CoreLayout;
@@ -43,10 +42,9 @@ import java.util.Map;
 
 /**
  * MigLayout Binding
- * <p/>
+ * <br><br>
  * see: http://www.miglayout.com/
- * <p/>
- * Created by synopia on 06.01.14.
+ * <br><br>
  */
 public class MigLayout extends CoreLayout<MigLayout.CCHint> implements ContainerWrapper {
     private Map<ComponentWrapper, CC> ccMap = Maps.newHashMap();
@@ -146,12 +144,7 @@ public class MigLayout extends CoreLayout<MigLayout.CCHint> implements Container
         final ComponentWrapper cw = getWrapper(element);
 
         final String cStr = ConstraintParser.prepare(hint != null ? hint.cc : "");
-        CC constraint = AccessController.doPrivileged(new PrivilegedAction<CC>() {
-            @Override
-            public CC run() {
-                return ConstraintParser.parseComponentConstraint(cStr);
-            }
-        });
+        CC constraint = AccessController.doPrivileged((PrivilegedAction<CC>) () -> ConstraintParser.parseComponentConstraint(cStr));
 
         ccMap.put(cw, constraint);
         wrappers.put(element, cw);
@@ -159,6 +152,7 @@ public class MigLayout extends CoreLayout<MigLayout.CCHint> implements Container
         dirty = true;
     }
 
+    @Override
     public void removeWidget(UIWidget element) {
         ComponentWrapper cw = wrappers.remove(element);
         ccMap.remove(cw);
@@ -207,7 +201,7 @@ public class MigLayout extends CoreLayout<MigLayout.CCHint> implements Container
         }
 
         if (grid == null) {
-            grid = new Grid(this, lc, rc, cc, ccMap, new ArrayList<LayoutCallback>());
+            grid = new Grid(this, lc, rc, cc, ccMap, new ArrayList<>());
         }
         debugRects.clear();
 
@@ -392,12 +386,17 @@ public class MigLayout extends CoreLayout<MigLayout.CCHint> implements Container
     }
 
     @Override
-    public void paintDebugOutline() {
+    public void paintDebugOutline(boolean showVisualPadding) {
     }
 
     @Override
-    public int getComponetType(boolean disregardScrollPane) {
+    public int getComponentType(boolean disregardScrollPane) {
         return 0;
+    }
+
+    @Override
+    public int getContentBias() {
+        return -1;
     }
 
     @Override

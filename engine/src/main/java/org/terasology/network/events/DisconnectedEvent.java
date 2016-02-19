@@ -17,24 +17,13 @@
 package org.terasology.network.events;
 
 import org.terasology.entitySystem.event.Event;
-import org.terasology.persistence.PlayerStore;
 
 /**
  * Event notifying of a client disconnecting.
  *
- * @author Immortius
  */
 public class DisconnectedEvent implements Event {
-    private PlayerStore entityStore;
 
-    public DisconnectedEvent(PlayerStore entityStore) {
-        this.entityStore = entityStore;
-    }
-
-    /**
-     * @return The Player's entity store. It is ready to store any entities that need to be stored.
-     */
-    public PlayerStore getPlayerStore() {
-        return entityStore;
+    public DisconnectedEvent() {
     }
 }

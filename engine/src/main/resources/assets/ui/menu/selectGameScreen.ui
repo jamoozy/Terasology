@@ -22,13 +22,12 @@
                 "type" : "UILabel",
                 "id" : "subtitle",
                 "family" : "title",
-                "text" : "Select Game",
+                "text": "${engine:menu#select-game-title}",
                 "layoutInfo" : {
                     "height" : 48,
                     "position-horizontal-center" : {},
                     "position-top" : {
                         "target" : "BOTTOM",
-                        "offset" : 16,
                         "widget" : "title"
                     }
                 }
@@ -44,6 +43,7 @@
                     "position-horizontal-center" : {},
                     "position-top" : {
                         "target" : "BOTTOM",
+                        "offset" : 16,
                         "widget" : "subtitle"
                     },
                     "position-bottom" : {
@@ -61,17 +61,17 @@
                     {
                         "type" : "UIButton",
                         "id" : "create",
-                        "text" : "Create"
+                        "text" : "${engine:menu#create-game}"
                     },
                     {
                         "type" : "UIButton",
                         "id" : "load",
-                        "text" : "Load"
+                        "text" : "${engine:menu#load-game}"
                     },
                     {
                         "type" : "UIButton",
                         "id" : "delete",
-                        "text" : "Delete"
+                        "text" : "${engine:menu#delete-game}"
                     }
                 ],
                 "layoutInfo" : {
@@ -87,7 +87,7 @@
             },
             {
                 "type" : "UIButton",
-                "text" : "Back",
+                "text" : "${engine:menu#back}",
                 "id" : "close",
                 "layoutInfo" : {
                     "width" : 128,

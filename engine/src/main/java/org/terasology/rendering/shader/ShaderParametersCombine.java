@@ -17,31 +17,30 @@ package org.terasology.rendering.shader;
 
 import org.lwjgl.opengl.GL13;
 import org.terasology.config.Config;
-import org.terasology.editor.EditorRange;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.cameras.Camera;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FrameBuffersManager;
 import org.terasology.rendering.world.WorldRenderer;
-
-import javax.vecmath.Vector4f;
 
 /**
  * Shader parameters for the Combine shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersCombine extends ShaderParametersBase {
-    @EditorRange(min = 0.001f, max = 0.005f)
+    @Range(min = 0.001f, max = 0.005f)
     private float outlineDepthThreshold = 0.001f;
-    @EditorRange(min = 0.0f, max = 1.0f)
+    @Range(min = 0.0f, max = 1.0f)
     private float outlineThickness = 0.65f;
 
-    @EditorRange(min = 0.0f, max = 1.0f)
+    @Range(min = 0.0f, max = 1.0f)
     private float skyInscatteringLength = 1.0f;
-    @EditorRange(min = 0.0f, max = 1.0f)
+    @Range(min = 0.0f, max = 1.0f)
     private float skyInscatteringStrength = 0.25f;
-    @EditorRange(min = 0.0f, max = 1.0f)
+    @Range(min = 0.0f, max = 1.0f)
     private float skyInscatteringThreshold = 0.8f;
 
     @Override
@@ -50,7 +49,8 @@ public class ShaderParametersCombine extends ShaderParametersBase {
 
         int texId = 0;
 
-        DefaultRenderingProcess.FBO sceneOpaque = DefaultRenderingProcess.getInstance().getFBO("sceneOpaque");
+        FrameBuffersManager frameBuffersManager = CoreRegistry.get(FrameBuffersManager.class);
+        FBO sceneOpaque = frameBuffersManager.getFBO("sceneOpaque");
 
         if (sceneOpaque != null) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
@@ -70,7 +70,7 @@ public class ShaderParametersCombine extends ShaderParametersBase {
             program.setInt("texSceneOpaqueLightBuffer", texId++, true);
         }
 
-        DefaultRenderingProcess.FBO sceneReflectiveRefractive = DefaultRenderingProcess.getInstance().getFBO("sceneReflectiveRefractive");
+        FBO sceneReflectiveRefractive = frameBuffersManager.getFBO("sceneReflectiveRefractive");
 
         if (sceneReflectiveRefractive != null) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
@@ -94,13 +94,13 @@ public class ShaderParametersCombine extends ShaderParametersBase {
 
         if (CoreRegistry.get(Config.class).getRendering().isSsao()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            DefaultRenderingProcess.getInstance().bindFboTexture("ssaoBlurred");
+            frameBuffersManager.bindFboColorTexture("ssaoBlurred");
             program.setInt("texSsao", texId++, true);
         }
 
         if (CoreRegistry.get(Config.class).getRendering().isOutline()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            DefaultRenderingProcess.getInstance().bindFboTexture("sobel");
+            frameBuffersManager.bindFboColorTexture("outline");
             program.setInt("texEdges", texId++, true);
 
             program.setFloat("outlineDepthThreshold", outlineDepthThreshold, true);
@@ -109,7 +109,7 @@ public class ShaderParametersCombine extends ShaderParametersBase {
 
         if (CoreRegistry.get(Config.class).getRendering().isInscattering()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            DefaultRenderingProcess.getInstance().bindFboTexture("sceneSkyBand1");
+            frameBuffersManager.bindFboColorTexture("sceneSkyBand1");
             program.setInt("texSceneSkyBand", texId++, true);
 
             Vector4f skyInscatteringSettingsFrag = new Vector4f();

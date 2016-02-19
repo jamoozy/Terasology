@@ -15,12 +15,18 @@
  */
 package org.terasology.input.device;
 
-import org.terasology.math.Vector2i;
+import java.util.Queue;
+
+import org.terasology.module.sandbox.API;
+import org.terasology.math.geom.Vector2i;
 
 /**
- * @author Immortius
  */
+@API
 public interface MouseDevice extends InputDevice {
+
+    @Override
+    Queue<MouseAction> getInputQueue();
 
     /**
      * @return The current position of the mouse in screen space
@@ -42,4 +48,9 @@ public interface MouseDevice extends InputDevice {
      * @return Whether the mouse cursor is visible
      */
     boolean isVisible();
+
+    /**
+     * Specifies if the mouse is grabbed and there is thus no mouse cursor that can get to a border.
+     */
+    void setGrabbed(boolean grabbed);
 }

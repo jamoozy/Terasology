@@ -19,8 +19,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreLayout;
 import org.terasology.rendering.nui.HorizontalAlign;
@@ -30,9 +30,9 @@ import org.terasology.rendering.nui.VerticalAlign;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
- * @author Immortius
  */
 public class RelativeLayout extends CoreLayout<RelativeLayoutHint> {
 
@@ -56,6 +56,15 @@ public class RelativeLayout extends CoreLayout<RelativeLayoutHint> {
         } else if (widget != null) {
             logger.error("Attempted to add widget '{}' of type '{}' with no layout hint", widget.getId(), widget.getClass().getSimpleName());
         }
+    }
+
+    @Override
+    public void removeWidget(UIWidget widget) {
+        String id = widget.getId();
+        WidgetInfo info = contentLookup.get(id);
+        contentLookup.remove(id);
+        contents.remove(info);
+        cachedRegions.remove(info);
     }
 
     public void addWidget(UIWidget widget, HorizontalHint horizontal, VerticalHint vertical) {
@@ -196,9 +205,7 @@ public class RelativeLayout extends CoreLayout<RelativeLayoutHint> {
     @Override
     public Iterator<UIWidget> iterator() {
         List<UIWidget> widgets = Lists.newArrayListWithCapacity(contents.size());
-        for (WidgetInfo info : contents) {
-            widgets.add(info.widget);
-        }
+        widgets.addAll(contents.stream().map(info -> info.widget).collect(Collectors.toList()));
         return widgets.iterator();
     }
 

@@ -15,10 +15,9 @@
  */
 package org.terasology.rendering.nui;
 
-/**
- * @author Immortius
- */
+@FunctionalInterface
 public interface SubRegion extends AutoCloseable {
 
+    @Override
     void close();
 }

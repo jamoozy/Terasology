@@ -15,10 +15,13 @@
  */
 package org.terasology.engine.subsystem.headless.renderer;
 
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.math.Border;
-import org.terasology.math.Rect2i;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.BaseVector2i;
+import org.terasology.math.geom.Rect2i;
+import org.terasology.math.geom.Vector2i;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.rendering.assets.font.Font;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.mesh.Mesh;
@@ -29,9 +32,6 @@ import org.terasology.rendering.nui.ScaleMode;
 import org.terasology.rendering.nui.VerticalAlign;
 import org.terasology.rendering.nui.internal.CanvasRenderer;
 import org.terasology.rendering.opengl.FrameBufferObject;
-
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
 
 public class HeadlessCanvasRenderer implements CanvasRenderer {
 
@@ -71,7 +71,7 @@ public class HeadlessCanvasRenderer implements CanvasRenderer {
     }
 
     @Override
-    public FrameBufferObject getFBO(AssetUri uri, Vector2i region) {
+    public FrameBufferObject getFBO(ResourceUrn uri, BaseVector2i region) {
         return null;
     }
 
@@ -82,7 +82,7 @@ public class HeadlessCanvasRenderer implements CanvasRenderer {
 
     @Override
     public void drawText(String text, Font font, HorizontalAlign hAlign, VerticalAlign vAlign, Rect2i absoluteRegion, Color color, Color shadowColor,
-                         float alpha) {
+                         float alpha, boolean underlined) {
         // Do nothing
     }
 

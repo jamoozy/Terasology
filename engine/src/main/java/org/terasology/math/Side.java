@@ -15,31 +15,31 @@
  */
 package org.terasology.math;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 
-import javax.vecmath.Vector3f;
 import java.util.EnumMap;
 
 /**
  * The six sides of a block and a slew of related utility.
- * <p/>
+ * <br><br>
  * Note that the FRONT of the block faces towards the player - this means Left and Right are a player's right and left.
  * See Direction for an enumeration of directions in terms of the player's perspective.
  *
- * @author Immortius <immortius@gmail.com>
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
- * @author Rasmus 'Cervator' Praestholm <cervator@gmail.com>
  */
 public enum Side {
     TOP(Vector3i.up(), true, false, true),
+    BOTTOM(Vector3i.down(), true, false, true),
     LEFT(new Vector3i(-1, 0, 0), false, true, true),
     RIGHT(new Vector3i(1, 0, 0), false, true, true),
     FRONT(new Vector3i(0, 0, -1), true, true, false),
-    BACK(new Vector3i(0, 0, 1), true, true, false),
-    BOTTOM(Vector3i.down(), true, false, true);
+    BACK(new Vector3i(0, 0, 1), true, true, false);
 
     private static EnumMap<Side, Side> reverseMap;
-    private static Side[] horizontalSides;
+    private static ImmutableList<Side> horizontalSides;
+    private static ImmutableList<Side> verticalSides;
     private static EnumMap<Side, Side> clockwiseYawSide;
     private static EnumMap<Side, Side> anticlockwiseYawSide;
     private static EnumMap<Side, Side> clockwisePitchSide;
@@ -47,8 +47,17 @@ public enum Side {
     private static EnumMap<Side, Side> clockwiseRollSide;
     private static EnumMap<Side, Side> anticlockwiseRollSide;
     private static EnumMap<Side, Direction> conversionMap;
+    private static EnumMap<Side, ImmutableList<Side>> tangents;
 
     static {
+        tangents = new EnumMap<>(Side.class);
+        tangents.put(TOP, ImmutableList.of(LEFT, RIGHT, FRONT, BACK));
+        tangents.put(BOTTOM, ImmutableList.of(LEFT, RIGHT, FRONT, BACK));
+        tangents.put(LEFT, ImmutableList.of(TOP, BOTTOM, FRONT, BACK));
+        tangents.put(RIGHT, ImmutableList.of(TOP, BOTTOM, FRONT, BACK));
+        tangents.put(FRONT, ImmutableList.of(TOP, BOTTOM, LEFT, RIGHT));
+        tangents.put(BACK, ImmutableList.of(TOP, BOTTOM, LEFT, RIGHT));
+
         reverseMap = new EnumMap<>(Side.class);
         reverseMap.put(TOP, BOTTOM);
         reverseMap.put(LEFT, RIGHT);
@@ -98,7 +107,8 @@ public enum Side {
         clockwiseRollSide.put(Side.RIGHT, Side.TOP);
         anticlockwiseRollSide.put(Side.RIGHT, Side.BOTTOM);
 
-        horizontalSides = new Side[]{LEFT, RIGHT, FRONT, BACK};
+        horizontalSides = ImmutableList.of(LEFT, RIGHT, FRONT, BACK);
+        verticalSides = ImmutableList.of(TOP, BOTTOM);
     }
 
     private Vector3i vector3iDir;
@@ -116,8 +126,15 @@ public enum Side {
     /**
      * @return The horizontal sides, for iteration
      */
-    public static Side[] horizontalSides() {
+    public static ImmutableList<Side> horizontalSides() {
         return horizontalSides;
+    }
+
+    /**
+     * @return The vertical sides, for iteration
+     */
+    public static ImmutableList<Side> verticalSides() {
+        return verticalSides;
     }
 
     public static Side inDirection(int x, int y, int z) {
@@ -276,5 +293,14 @@ public enum Side {
         } else {
             return this;
         }
+    }
+
+    public boolean isVertical() {
+        return !canYaw;
+    }
+
+
+    public Iterable<Side> tangents() {
+        return tangents.get(this);
     }
 }

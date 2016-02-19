@@ -15,33 +15,31 @@
  */
 package org.terasology.entitySystem.entity.internal;
 
-import com.google.common.base.Objects;
-import org.terasology.asset.AssetUri;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.LowLevelEntityManager;
+import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.network.NetworkComponent;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class PojoEntityRef extends BaseEntityRef {
-    private int id;
+    private long id;
     private boolean exists = true;
 
-    PojoEntityRef(LowLevelEntityManager manager, int id) {
+    PojoEntityRef(LowLevelEntityManager manager, long id) {
         super(manager);
         this.id = id;
     }
 
     @Override
-    public int getId() {
+    public long getId() {
         return id;
     }
 
     @Override
     public EntityRef copy() {
         if (exists) {
-            entityManager.create(entityManager.copyComponents(this).values());
+            return entityManager.create(entityManager.copyComponents(this).values());
         }
         return NULL;
     }
@@ -51,26 +49,10 @@ public class PojoEntityRef extends BaseEntityRef {
         return exists;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o instanceof PojoEntityRef) {
-            PojoEntityRef other = (PojoEntityRef) o;
-            return !exists() && !other.exists() || getId() == other.getId();
-        }
-        return false;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hashCode(id);
-    }
 
     @Override
     public String toString() {
-        AssetUri prefabUri = getPrefabURI();
+        Prefab parent = getParentPrefab();
         StringBuilder builder = new StringBuilder();
         builder.append("EntityRef{id = ");
         builder.append(id);
@@ -79,9 +61,9 @@ public class PojoEntityRef extends BaseEntityRef {
             builder.append(", netId = ");
             builder.append(networkComponent.getNetworkId());
         }
-        if (prefabUri != null) {
+        if (parent != null) {
             builder.append(", prefab = '");
-            builder.append(prefabUri.toSimpleString());
+            builder.append(parent.getUrn());
             builder.append("'");
         }
         builder.append("}");

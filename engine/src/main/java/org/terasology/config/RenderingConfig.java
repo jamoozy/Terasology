@@ -18,59 +18,67 @@ package org.terasology.config;
 
 import org.lwjgl.opengl.DisplayMode;
 import org.lwjgl.opengl.PixelFormat;
-import org.terasology.logic.players.LocalPlayer;
-import org.terasology.network.events.ChangeViewRangeRequest;
-import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.cameras.PerspectiveCameraSettings;
-import org.terasology.rendering.nui.layers.mainMenu.videoSettings.CameraSetting;
-import org.terasology.rendering.world.ViewDistance;
-import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.rendering.nui.layers.mainMenu.videoSettings.ScreenshotSize;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
+
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 
 /**
- * @author Immortius
  */
 public class RenderingConfig {
-    private PixelFormat pixelFormat = new PixelFormat().withDepthBits(24);
-    private int windowPosX = -1;
-    private int windowPosY = -1;
-    private int windowWidth = 1152;
-    private int windowHeight = 720;
+    public static final String VIEW_DISTANCE = "viewDistance";
+
+    private PixelFormat pixelFormat;
+    private int windowPosX;
+    private int windowPosY;
+    private int windowWidth;
+    private int windowHeight;
     private boolean fullscreen;
-    private ViewDistance viewDistance = ViewDistance.MODERATE;
-    private boolean flickeringLight = true;
-    private boolean animateGrass = true;
+    private ViewDistance viewDistance;
+    private boolean flickeringLight;
+    private boolean animateGrass;
     private boolean animateWater;
-    private float fieldOfView = 90;
-    private boolean cameraBobbing = true;
-    private boolean renderPlacingBox = true;
-    private int blurIntensity = 2;
+    private float fieldOfView;
+    private boolean cameraBobbing;
+    private boolean renderPlacingBox;
+    private int blurIntensity;
     private boolean reflectiveWater;
-    private boolean vignette = true;
-    private boolean motionBlur = true;
+    private boolean vignette;
+    private boolean motionBlur;
     private boolean ssao;
-    private boolean filmGrain = true;
-    private boolean outline = true;
-    private boolean lightShafts = true;
-    private boolean eyeAdaptation = true;
-    private boolean bloom = true;
-    private boolean dynamicShadows = true;
+    private boolean filmGrain;
+    private boolean outline;
+    private boolean lightShafts;
+    private boolean eyeAdaptation;
+    private boolean bloom;
+    private boolean dynamicShadows;
     private boolean oculusVrSupport;
-    private int maxTextureAtlasResolution = 4096;
-    private int maxChunksUsedForShadowMapping = 1024;
-    private int shadowMapResolution = 1024;
+    private int maxTextureAtlasResolution;
+    private int maxChunksUsedForShadowMapping;
+    private int shadowMapResolution;
     private boolean normalMapping;
     private boolean parallaxMapping;
     private boolean dynamicShadowsPcfFiltering;
-    private boolean cloudShadows = true;
-    private boolean renderNearest = true;
-    private int particleEffectLimit = 10;
-    private int meshLimit = 400;
-    private boolean inscattering = true;
+    private boolean cloudShadows;
+    private boolean renderNearest;
+    private int particleEffectLimit;
+    private int frameLimit;
+    private int meshLimit;
+    private boolean inscattering;
     private boolean localReflections;
     private boolean vSync;
-    private PerspectiveCameraSettings cameraSettings = new PerspectiveCameraSettings(CameraSetting.NORMAL);
+    private boolean clampLighting;
+    private int fboScale;
+    private boolean dumpShaders;
+    private ScreenshotSize screenshotSize;
+    private String screenshotFormat;
+    private PerspectiveCameraSettings cameraSettings;
 
     private RenderingDebugConfig debug = new RenderingDebugConfig();
+
+    private transient PropertyChangeSupport propertyChangeSupport = new PropertyChangeSupport(this);
 
     public PerspectiveCameraSettings getCameraSettings() {
         return cameraSettings;
@@ -132,18 +140,15 @@ public class RenderingConfig {
         return viewDistance;
     }
 
+    /**
+     * Sets the view distance and notifies the property change listeners registered via
+     * {@link RenderingConfig#subscribe(PropertyChangeListener)} that listen for the property {@link #VIEW_DISTANCE}.
+     * @param viewDistance the new view distance
+     */
     public void setViewDistance(ViewDistance viewDistance) {
+        ViewDistance oldValue = this.viewDistance;
         this.viewDistance = viewDistance;
-
-        // TODO: Remove this, switch to a property change listener
-        WorldRenderer worldRenderer = CoreRegistry.get(WorldRenderer.class);
-        LocalPlayer player = CoreRegistry.get(LocalPlayer.class);
-        if (player != null) {
-            player.getClientEntity().send(new ChangeViewRangeRequest(viewDistance));
-        }
-        if (worldRenderer != null) {
-            worldRenderer.changeViewDistance(viewDistance);
-        }
+        propertyChangeSupport.firePropertyChange(VIEW_DISTANCE, oldValue, viewDistance);
     }
 
     public boolean isFlickeringLight() {
@@ -402,8 +407,63 @@ public class RenderingConfig {
         return debug;
     }
 
-    @Override
-    public String toString() {
-        return Config.createGson().toJsonTree(this).toString();
+    public int getFrameLimit() {
+        return frameLimit;
     }
+
+    public void setFrameLimit(int frameLimit) {
+        this.frameLimit = frameLimit;
+    }
+
+    public int getFboScale() {
+        return fboScale;
+    }
+
+    public void setFboScale(int fboScale) {
+        this.fboScale = fboScale;
+    }
+
+    public boolean isClampLighting() {
+        return clampLighting;
+    }
+
+    public void setClampLighting(boolean clampLighting) {
+        this.clampLighting = clampLighting;
+    }
+
+    public ScreenshotSize getScreenshotSize() {
+        return screenshotSize;
+    }
+
+    public void setScreenshotSize(ScreenshotSize screenshotSize) {
+        this.screenshotSize = screenshotSize;
+    }
+
+    public String getScreenshotFormat() {
+        return screenshotFormat;
+    }
+
+    public void setScreenshotFormat(String screenshotFormat) {
+        this.screenshotFormat = screenshotFormat;
+    }
+
+    public boolean isDumpShaders() {
+        return dumpShaders;
+    }
+
+    public void setDumpShaders(boolean dumpShaders) {
+        this.dumpShaders = dumpShaders;
+    }
+
+    /**
+     * Subscribe a listener that gets nofified when a property cahnges..
+     */
+    public void subscribe(PropertyChangeListener changeListener) {
+        this.propertyChangeSupport.addPropertyChangeListener(changeListener);
+    }
+
+    public void unsubscribe(PropertyChangeListener changeListener) {
+        this.propertyChangeSupport.removePropertyChangeListener(changeListener);
+    }
+
 }

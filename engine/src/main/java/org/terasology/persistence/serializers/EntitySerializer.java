@@ -34,14 +34,13 @@ import java.util.Set;
 
 /**
  * Provides the ability to serialize and deserialize entities to the EntityData.Entity proto buffer format.
- * <p/>
+ * <br><br>
  * As with the component serializer, a component id mapping can be provided to have components serialized against
  * ids rather than name strings.
- * <p/>
+ * <br><br>
  * It is also possible to set whether entity ids will be handled or ignored - if ignored then deserialized entities will
  * be given new ids.
  *
- * @author Immortius
  */
 public class EntitySerializer {
     private EngineEntityManager entityManager;
@@ -198,7 +197,7 @@ public class EntitySerializer {
                     componentMap.put(component.getClass(), componentLibrary.copy(component));
                 }
             }
-            componentMap.put(EntityInfoComponent.class, new EntityInfoComponent(entityData.getParentPrefab(), true, prefab.isAlwaysRelevant()));
+            componentMap.put(EntityInfoComponent.class, new EntityInfoComponent(prefab, true, prefab.isAlwaysRelevant()));
         }
         return componentMap;
     }

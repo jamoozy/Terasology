@@ -18,21 +18,31 @@ package org.terasology.config;
 
 import com.google.common.collect.Lists;
 
-import java.util.Iterator;
-import java.util.List;
-
 import org.terasology.engine.TerasologyConstants;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
- * @author Immortius
  */
-public class NetworkConfig implements Iterable<ServerInfo> {
-    private List<ServerInfo> servers = Lists.newArrayList();
-    // Available upstream bandwidth in kilobits per second
-    private int upstreamBandwidth = 1024;
-    
-    // the port that is used for hosting
-    private int serverPort = TerasologyConstants.DEFAULT_PORT;
+public class NetworkConfig {
+
+    private List<ServerInfo> servers = Lists.newArrayList(new ServerInfo("localhost", "localhost", TerasologyConstants.DEFAULT_PORT));
+
+    /**
+     * Available upstream bandwidth in kilobits per second
+     */
+    private int upstreamBandwidth;
+
+    /**
+     * The port that is used for hosting
+     */
+    private int serverPort;
+
+    /**
+     * The master server URL
+     */
+    private String masterServer = "meta.terasology.org";
 
     public void clear() {
         servers.clear();
@@ -45,7 +55,7 @@ public class NetworkConfig implements Iterable<ServerInfo> {
     public void setUpstreamBandwidth(int upstreamBandwidth) {
         this.upstreamBandwidth = upstreamBandwidth;
     }
-    
+
     public int getServerPort() {
         return serverPort;
     }
@@ -54,24 +64,23 @@ public class NetworkConfig implements Iterable<ServerInfo> {
         this.serverPort = serverPort;
     }
 
-    @Override
-    public Iterator<ServerInfo> iterator() {
-        return servers.iterator();
-    }
-
-    public void add(ServerInfo serverInfo) {
+    public void addServerInfo(ServerInfo serverInfo) {
         servers.add(serverInfo);
     }
 
-    public void remove(ServerInfo info) {
+    public void removeServerInfo(ServerInfo info) {
         servers.remove(info);
     }
 
-    public List<ServerInfo> getServers() {
-        return servers;
+    public List<ServerInfo> getServerInfos() {
+        return Collections.unmodifiableList(servers);
     }
 
-    public void setServers(List<ServerInfo> servers) {
-        this.servers = servers;
+    public String getMasterServer() {
+        return masterServer;
+    }
+
+    public void setMasterServer(String masterServer) {
+        this.masterServer = masterServer;
     }
 }

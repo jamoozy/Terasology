@@ -17,10 +17,8 @@ package org.terasology.entitySystem.entity.internal;
 
 import org.terasology.entitySystem.entity.LowLevelEntityManager;
 
-/**
- * @author Immortius
- */
+@FunctionalInterface
 public interface RefStrategy {
 
-    BaseEntityRef createRefFor(int id, LowLevelEntityManager entityManager);
+    BaseEntityRef createRefFor(long id, LowLevelEntityManager entityManager);
 }

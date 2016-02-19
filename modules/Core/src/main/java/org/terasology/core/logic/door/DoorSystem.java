@@ -32,7 +32,8 @@ import org.terasology.logic.inventory.ItemComponent;
 import org.terasology.logic.location.LocationComponent;
 import org.terasology.math.Region3i;
 import org.terasology.math.Side;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.registry.In;
 import org.terasology.world.BlockEntityRegistry;
 import org.terasology.world.WorldProvider;
@@ -41,12 +42,10 @@ import org.terasology.world.block.BlockComponent;
 import org.terasology.world.block.entity.placement.PlaceBlocks;
 import org.terasology.world.block.regions.BlockRegionComponent;
 
-import javax.vecmath.Vector3f;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 @RegisterSystem
 public class DoorSystem extends BaseComponentSystem {
@@ -129,7 +128,7 @@ public class DoorSystem extends BaseComponentSystem {
         worldProvider.getWorldEntity().send(blockEvent);
 
         if (!blockEvent.isConsumed()) {
-            EntityRef newDoor = entityManager.copy(entity);
+            EntityRef newDoor = entity.copy();
             newDoor.addComponent(new BlockRegionComponent(Region3i.createBounded(bottomBlockPos, topBlockPos)));
             Vector3f doorCenter = bottomBlockPos.toVector3f();
             doorCenter.y += 0.5f;
@@ -140,7 +139,7 @@ public class DoorSystem extends BaseComponentSystem {
             newDoorComp.isOpen = false;
             newDoor.saveComponent(newDoorComp);
             newDoor.removeComponent(ItemComponent.class);
-            audioManager.playSound(Assets.getSound("engine:PlaceBlock"), 0.5f);
+            audioManager.playSound(Assets.getSound("engine:PlaceBlock").get(), 0.5f);
             logger.info("Closed Side: {}", newDoorComp.closedSide);
             logger.info("Open Side: {}", newDoorComp.openSide);
         }

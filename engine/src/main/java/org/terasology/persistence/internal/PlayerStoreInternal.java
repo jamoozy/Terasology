@@ -15,45 +15,38 @@
  */
 package org.terasology.persistence.internal;
 
-import gnu.trove.set.TIntSet;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.internal.EngineEntityManager;
 import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.persistence.PlayerStore;
 import org.terasology.protobuf.EntityData;
 
-import javax.vecmath.Vector3f;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 final class PlayerStoreInternal implements PlayerStore {
-    private static final String CHARACTER = "character";
+    static final String CHARACTER = "character";
 
     private final EngineEntityManager entityManager;
     private final String id;
-    private final StorageManagerInternal manager;
     private final Vector3f relevanceLocation = new Vector3f();
     private EntityRef character = EntityRef.NULL;
     private boolean hasCharacter;
     private EntityData.EntityStore entityStore;
-    private TIntSet externalRefs;
 
-    PlayerStoreInternal(String id, StorageManagerInternal entityStoreManager, EngineEntityManager entityManager) {
+    PlayerStoreInternal(String id, EngineEntityManager entityManager) {
         this.id = id;
-        this.manager = entityStoreManager;
         this.entityManager = entityManager;
     }
 
-    PlayerStoreInternal(String id, EntityData.PlayerStore store, TIntSet externalRefs, StorageManagerInternal entityStoreManager, EngineEntityManager entityManager) {
+    PlayerStoreInternal(String id, EntityData.PlayerStore store, EngineEntityManager entityManager) {
         this.id = id;
-        this.manager = entityStoreManager;
         this.entityManager = entityManager;
         this.entityStore = store.getStore();
         this.relevanceLocation.set(store.getCharacterPosX(), store.getCharacterPosY(), store.getCharacterPosZ());
         this.hasCharacter = store.getHasCharacter();
-        this.externalRefs = externalRefs;
     }
 
     @Override
@@ -61,32 +54,15 @@ final class PlayerStoreInternal implements PlayerStore {
         return id;
     }
 
-    @Override
-    public void save() {
-        save(true);
-    }
-
-    @Override
-    public void save(boolean deactivateEntities) {
-        EntityData.PlayerStore.Builder playerEntityStore = EntityData.PlayerStore.newBuilder();
-        playerEntityStore.setCharacterPosX(relevanceLocation.x);
-        playerEntityStore.setCharacterPosY(relevanceLocation.y);
-        playerEntityStore.setCharacterPosZ(relevanceLocation.z);
-        playerEntityStore.setHasCharacter(hasCharacter());
-        EntityStorer storer = new EntityStorer(entityManager);
-        storer.store(character, CHARACTER, deactivateEntities);
-        playerEntityStore.setStore(storer.finaliseStore());
-        manager.store(id, playerEntityStore.build(), storer.getExternalReferences());
-    }
 
     @Override
     public void restoreEntities() {
         if (entityStore != null) {
             EntityRestorer restorer = new EntityRestorer(entityManager);
-            Map<String, EntityRef> refMap = restorer.restore(entityStore, externalRefs);
+            Map<String, EntityRef> refMap = restorer.restore(entityStore);
             EntityRef loadedCharacter = refMap.get(CHARACTER);
             if (loadedCharacter != null) {
-                this.character = loadedCharacter;
+                setCharacter(loadedCharacter);
             }
             entityStore = null;
         }

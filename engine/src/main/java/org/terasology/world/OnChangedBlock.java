@@ -17,13 +17,12 @@
 package org.terasology.world;
 
 import org.terasology.entitySystem.event.Event;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.block.Block;
 
 /**
  * Event when a block has changed
  *
- * @author Immortius
  */
 public class OnChangedBlock implements Event {
     private Block oldType;

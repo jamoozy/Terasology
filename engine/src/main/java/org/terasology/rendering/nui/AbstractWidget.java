@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public abstract class AbstractWidget implements UIWidget {
 
@@ -133,6 +132,7 @@ public abstract class AbstractWidget implements UIWidget {
         }
     }
 
+    @Override
     public boolean isVisible() {
         return visible.get();
     }
@@ -143,6 +143,10 @@ public abstract class AbstractWidget implements UIWidget {
 
     public void bindVisible(Binding<Boolean> bind) {
         this.visible = bind;
+    }
+
+    public void clearVisibleBinding() {
+        this.visible = new DefaultBinding<>(true);
     }
 
     @Override

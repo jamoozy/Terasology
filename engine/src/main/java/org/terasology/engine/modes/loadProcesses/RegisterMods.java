@@ -16,53 +16,86 @@
 
 package org.terasology.engine.modes.loadProcesses;
 
-import com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
 import org.terasology.engine.GameEngine;
-import org.terasology.engine.bootstrap.ApplyModulesUtil;
+import org.terasology.engine.bootstrap.EnvironmentSwitchHandler;
 import org.terasology.engine.modes.StateMainMenu;
 import org.terasology.engine.module.ModuleManager;
 import org.terasology.game.GameManifest;
 import org.terasology.module.DependencyResolver;
+import org.terasology.module.Module;
+import org.terasology.module.ModuleEnvironment;
 import org.terasology.module.ResolutionResult;
 import org.terasology.naming.Name;
 import org.terasology.naming.NameVersion;
-import org.terasology.registry.CoreRegistry;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
- * @author Immortius
  */
 public class RegisterMods extends SingleStepLoadProcess {
 
-    private GameManifest gameManifest;
+    private static final Logger logger = LoggerFactory.getLogger(RegisterMods.class);
 
-    public RegisterMods(GameManifest gameManifest) {
+    private final Context context;
+    private final GameManifest gameManifest;
+    private Thread applyModulesThread;
+    private ModuleEnvironment oldEnvironment;
+
+    public RegisterMods(Context context, GameManifest gameManifest) {
+        this.context = context;
         this.gameManifest = gameManifest;
     }
 
     @Override
     public String getMessage() {
-        return "Registering Mods...";
+        if (applyModulesThread != null) {
+            return "Scanning for Assets...";
+        } else {
+            return "Registering Mods...";
+        }
     }
 
     @Override
     public boolean step() {
-        ModuleManager moduleManager = CoreRegistry.get(ModuleManager.class);
-        List<Name> moduleIds = Lists.newArrayListWithCapacity(gameManifest.getModules().size());
-        for (NameVersion moduleInfo : gameManifest.getModules()) {
-            moduleIds.add(moduleInfo.getName());
+        if (applyModulesThread != null) {
+            if (!applyModulesThread.isAlive()) {
+                if (oldEnvironment != null) {
+                    oldEnvironment.close();
+                }
+                return true;
+            }
+            return false;
+        } else {
+            ModuleManager moduleManager = context.get(ModuleManager.class);
+            List<Name> moduleIds = gameManifest.getModules().stream().map(NameVersion::getName)
+                    .collect(Collectors.toCollection(ArrayList::new));
+
+            DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());
+            ResolutionResult result = resolver.resolve(moduleIds);
+            if (result.isSuccess()) {
+                oldEnvironment = moduleManager.getEnvironment();
+                ModuleEnvironment env = moduleManager.loadEnvironment(result.getModules(), true);
+
+                for (Module moduleInfo : env.getModulesOrderedByDependencies()) {
+                    logger.info("Activating module: {}:{}", moduleInfo.getId(), moduleInfo.getVersion());
+                }
+
+                EnvironmentSwitchHandler environmentSwitchHandler = context.get(EnvironmentSwitchHandler.class);
+                applyModulesThread = new Thread(() -> environmentSwitchHandler.handleSwitchToGameEnvironment(context));
+                applyModulesThread.start();
+                return false;
+            } else {
+                logger.warn("Missing at least one required module or dependency: {}", moduleIds);
+                context.get(GameEngine.class).changeState(new StateMainMenu("Missing required module or dependency"));
+                return true;
+            }
         }
 
-        DependencyResolver resolver = new DependencyResolver(moduleManager.getRegistry());
-        ResolutionResult result = resolver.resolve(moduleIds);
-        if (result.isSuccess()) {
-            moduleManager.loadEnvironment(result.getModules(), true);
-            ApplyModulesUtil.applyModules();
-        } else {
-            CoreRegistry.get(GameEngine.class).changeState(new StateMainMenu("Missing required module or dependency"));
-        }
-        return true;
     }
 
     @Override

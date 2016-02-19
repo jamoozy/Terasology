@@ -15,28 +15,45 @@
  */
 package org.terasology.world.chunks.internal;
 
+import java.util.List;
+
 import gnu.trove.list.TIntList;
 import gnu.trove.map.TShortObjectMap;
-import org.terasology.math.Vector3i;
+
+import org.terasology.entitySystem.entity.EntityStore;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.persistence.ChunkStore;
+import org.terasology.world.chunks.Chunk;
 
 /**
- * @author Immortius
  */
 public class ReadyChunkInfo {
     private Vector3i pos;
     private TShortObjectMap<TIntList> blockPositionMapppings;
     private ChunkStore chunkStore;
+    private Chunk chunk;
+    private boolean newChunk;
+    private List<EntityStore> entities;
 
-    public ReadyChunkInfo(Vector3i pos, TShortObjectMap<TIntList> blockPositionMapppings) {
-        this.pos = pos;
+    public ReadyChunkInfo(Chunk chunk, TShortObjectMap<TIntList> blockPositionMapppings, List<EntityStore> entities) {
+        this.pos = chunk.getPosition();
         this.blockPositionMapppings = blockPositionMapppings;
+        this.newChunk = true;
+        this.chunk = chunk;
+        this.entities = entities;
     }
 
-    public ReadyChunkInfo(Vector3i pos, TShortObjectMap<TIntList> blockPositionMapppings, ChunkStore chunkStore) {
-        this.pos = pos;
+    public ReadyChunkInfo(Chunk chunk, TShortObjectMap<TIntList> blockPositionMapppings, ChunkStore chunkStore, List<EntityStore> entities) {
+        this.pos = chunk.getPosition();
         this.blockPositionMapppings = blockPositionMapppings;
         this.chunkStore = chunkStore;
+        this.newChunk = chunkStore == null;
+        this.chunk = chunk;
+        this.entities = entities;
+    }
+
+    public List<EntityStore> getEntities() {
+        return entities;
     }
 
     public Vector3i getPos() {
@@ -49,5 +66,13 @@ public class ReadyChunkInfo {
 
     public ChunkStore getChunkStore() {
         return chunkStore;
+    }
+
+    public boolean isNewChunk() {
+        return newChunk;
+    }
+
+    public Chunk getChunk() {
+        return chunk;
     }
 }

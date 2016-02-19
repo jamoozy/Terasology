@@ -23,18 +23,23 @@ import com.google.common.eventbus.Subscribe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terasology.logic.players.LocalPlayer;
-import org.terasology.math.TeraMath;
-import org.terasology.math.Vector3i;
-import org.terasology.monitoring.ChunkMonitor;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.monitoring.ThreadActivity;
 import org.terasology.monitoring.ThreadMonitor;
-import org.terasology.monitoring.impl.ChunkMonitorEntry;
-import org.terasology.monitoring.impl.ChunkMonitorEvent;
+import org.terasology.monitoring.chunk.ChunkMonitor;
+import org.terasology.monitoring.chunk.ChunkMonitorEntry;
+import org.terasology.monitoring.chunk.ChunkMonitorEvent;
 import org.terasology.registry.CoreRegistry;
-import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.chunks.Chunk;
 
-import javax.swing.*;
-import java.awt.*;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
 import java.awt.event.MouseEvent;
@@ -88,7 +93,7 @@ public class ChunkMonitorDisplay extends JPanel {
 
     private Vector3i selectedChunk;
 
-    private final BlockingQueue<Request> queue = new LinkedBlockingQueue<Request>();
+    private final BlockingQueue<Request> queue = new LinkedBlockingQueue<>();
     private final transient ExecutorService executor;
     private final transient Runnable renderTask;
 
@@ -155,7 +160,7 @@ public class ChunkMonitorDisplay extends JPanel {
     private Vector3i calcPlayerChunkPos() {
         final LocalPlayer p = CoreRegistry.get(LocalPlayer.class);
         if (p != null) {
-            return TeraMath.calcChunkPos(new Vector3i(p.getPosition()));
+            return ChunkMath.calcChunkPos(new Vector3i(p.getPosition()));
         }
         return null;
     }
@@ -663,7 +668,7 @@ public class ChunkMonitorDisplay extends JPanel {
         }
 
         private Color calcChunkColor(ChunkMonitorEntry entry) {
-            final ChunkImpl chunk = entry.getLatestChunk();
+            final Chunk chunk = entry.getLatestChunk();
 
             if (chunk == null) {
                 return COLOR_DEAD;
@@ -673,16 +678,11 @@ public class ChunkMonitorDisplay extends JPanel {
                 return COLOR_HIGHLIGHT_TESSELLATION;
             }
 
-            switch (chunk.getChunkState()) {
-                case ADJACENCY_GENERATION_PENDING:
-                    return COLOR_ADJACENCY_GENERATION_PENDING;
-                case INTERNAL_LIGHT_GENERATION_PENDING:
-                    return COLOR_INTERNAL_LIGHT_GENERATION_PENDING;
-                case COMPLETE:
-                    return COLOR_COMPLETE;
+            if (chunk.isReady()) {
+                return COLOR_COMPLETE;
+            } else {
+                return COLOR_INTERNAL_LIGHT_GENERATION_PENDING;
             }
-
-            return COLOR_INVALID;
         }
 
         private void renderSelectedChunk(Graphics2D g, int offsetx, int offsety, Vector3i pos) {
@@ -704,11 +704,8 @@ public class ChunkMonitorDisplay extends JPanel {
         }
 
         private void renderChunks(Graphics2D g, int offsetx, int offsety, List<ChunkMonitorEntry> chunkEntries) {
-            for (ChunkMonitorEntry entry : chunkEntries) {
-                if (entry.getPosition().y == renderY) {
-                    renderChunk(g, offsetx, offsety, entry.getPosition(), entry);
-                }
-            }
+            chunkEntries.stream().filter(entry -> entry.getPosition().y == renderY).forEach(entry ->
+                    renderChunk(g, offsetx, offsety, entry.getPosition(), entry));
         }
 
         private void renderChunk(Graphics2D g, int offsetx, int offsety, Vector3i pos, ChunkMonitorEntry entry) {
@@ -736,12 +733,7 @@ public class ChunkMonitorDisplay extends JPanel {
         }
 
         private void repaint() {
-            SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    ChunkMonitorDisplay.this.repaint();
-                }
-            });
+            SwingUtilities.invokeLater(ChunkMonitorDisplay.this::repaint);
         }
 
         private long poll(List<Request> output) throws InterruptedException {

@@ -16,24 +16,25 @@
 
 package org.terasology.persistence.typeHandling.extensionTypes;
 
-import org.terasology.registry.CoreRegistry;
 import org.terasology.persistence.typeHandling.StringRepresentationTypeHandler;
 import org.terasology.physics.CollisionGroup;
 import org.terasology.physics.CollisionGroupManager;
 
 /**
- * @author Immortius
  */
 public class CollisionGroupTypeHandler extends StringRepresentationTypeHandler<CollisionGroup> {
 
     private CollisionGroupManager groupManager;
 
-    public CollisionGroupTypeHandler() {
-        groupManager = CoreRegistry.get(CollisionGroupManager.class);
+    public CollisionGroupTypeHandler(CollisionGroupManager groupManager) {
+        this.groupManager = groupManager;
     }
 
     @Override
     public String getAsString(CollisionGroup item) {
+        if (item == null) {
+            return "";
+        }
         return item.getName();
     }
 

@@ -15,9 +15,7 @@
  */
 package org.terasology.audio.openAL;
 
-import com.bulletphysics.linearmath.QuaternionUtil;
 import com.google.common.collect.Maps;
-
 import org.lwjgl.BufferUtils;
 import org.lwjgl.LWJGLException;
 import org.lwjgl.openal.AL;
@@ -28,8 +26,7 @@ import org.lwjgl.openal.ALCcontext;
 import org.lwjgl.openal.ALCdevice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetFactory;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.AssetFactory;
 import org.terasology.audio.AudioEndListener;
 import org.terasology.audio.AudioManager;
 import org.terasology.audio.Sound;
@@ -43,11 +40,9 @@ import org.terasology.audio.openAL.streamingSound.OpenALStreamingSound;
 import org.terasology.audio.openAL.streamingSound.OpenALStreamingSoundPool;
 import org.terasology.config.AudioConfig;
 import org.terasology.math.Direction;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
-
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -69,14 +64,11 @@ public class OpenALManager implements AudioManager {
 
     private Map<SoundSource<?>, AudioEndListener> endListeners = Maps.newHashMap();
 
-    private PropertyChangeListener configListener = new PropertyChangeListener() {
-        @Override
-        public void propertyChange(PropertyChangeEvent evt) {
-            if (evt.getPropertyName().equals(AudioConfig.MUSIC_VOLUME)) {
-                setMusicVolume((Float) evt.getNewValue());
-            } else if (evt.getPropertyName().equals(AudioConfig.SOUND_VOLUME)) {
-                setSoundVolume((Float) evt.getNewValue());
-            }
+    private PropertyChangeListener configListener = evt -> {
+        if (evt.getPropertyName().equals(AudioConfig.MUSIC_VOLUME)) {
+            setMusicVolume((Float) evt.getNewValue());
+        } else if (evt.getPropertyName().equals(AudioConfig.SOUND_VOLUME)) {
+            setSoundVolume((Float) evt.getNewValue());
         }
     };
 
@@ -128,9 +120,7 @@ public class OpenALManager implements AudioManager {
 
     @Override
     public void stopAllSounds() {
-        for (SoundPool<?, ?> pool : pools.values()) {
-            pool.stopAll();
-        }
+        pools.values().forEach(SoundPool::stopAll);
     }
 
     @Override
@@ -191,7 +181,7 @@ public class OpenALManager implements AudioManager {
             return;
         }
         SoundPool<StaticSound, ?> pool = (SoundPool<StaticSound, ?>) pools.get("sfx");
-                
+
         SoundSource<?> source = pool.getSource(sound, priority);
         if (source != null) {
             source.setAbsolute(position != null);
@@ -211,7 +201,7 @@ public class OpenALManager implements AudioManager {
     public void playMusic(StreamingSound music) {
         playMusic(music, 1.0f, null);
     }
-    
+
     @Override
     public void playMusic(StreamingSound music, AudioEndListener endListener) {
         playMusic(music, 1.0f, endListener);
@@ -249,8 +239,8 @@ public class OpenALManager implements AudioManager {
 
         OpenALException.checkState("Setting listener velocity");
 
-        Vector3f dir = QuaternionUtil.quatRotate(orientation, Direction.FORWARD.getVector3f(), new Vector3f());
-        Vector3f up = QuaternionUtil.quatRotate(orientation, Direction.UP.getVector3f(), new Vector3f());
+        Vector3f dir = orientation.rotate(Direction.FORWARD.getVector3f(), new Vector3f());
+        Vector3f up = orientation.rotate(Direction.UP.getVector3f(), new Vector3f());
 
         FloatBuffer listenerOri = BufferUtils.createFloatBuffer(6).put(new float[]{dir.x, dir.y, dir.z, up.x, up.y, up.z});
         listenerOri.flip();
@@ -275,7 +265,11 @@ public class OpenALManager implements AudioManager {
             if (!entry.getKey().isPlaying()) {
                 iterator.remove();
 
-                entry.getValue().onAudioEnd();
+                try {
+                    entry.getValue().onAudioEnd();
+                } catch (Exception e) {
+                    logger.error("onAudioEnd() notification failed for {}", entry.getValue(), e);
+                }
             }
         }
     }
@@ -288,23 +282,13 @@ public class OpenALManager implements AudioManager {
     }
 
     @Override
-    public AssetFactory<StaticSoundData, StaticSound> getStaticSoundFactory() {
-        return new AssetFactory<StaticSoundData, StaticSound>() {
-            @Override
-            public StaticSound buildAsset(AssetUri uri, StaticSoundData data) {
-                return new OpenALSound(uri, data, OpenALManager.this);
-            }
-        };
+    public AssetFactory<StaticSound, StaticSoundData> getStaticSoundFactory() {
+        return (urn, assetType, data) -> new OpenALSound(urn, assetType, data, OpenALManager.this);
     }
 
     @Override
-    public AssetFactory<StreamingSoundData, StreamingSound> getStreamingSoundFactory() {
-        return new AssetFactory<StreamingSoundData, StreamingSound>() {
-            @Override
-            public StreamingSound buildAsset(AssetUri uri, StreamingSoundData data) {
-                return new OpenALStreamingSound(uri, data, OpenALManager.this);
-            }
-        };
+    public AssetFactory<StreamingSound, StreamingSoundData> getStreamingSoundFactory() {
+        return (urn, assetType, data) -> new OpenALStreamingSound(urn, assetType, data, OpenALManager.this);
     }
 
     public void purgeSound(Sound<?> sound) {

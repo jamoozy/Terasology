@@ -17,7 +17,8 @@ package org.terasology.world.block.family;
 
 import com.google.common.collect.Maps;
 import org.terasology.math.Side;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.naming.Name;
 import org.terasology.world.BlockEntityRegistry;
 import org.terasology.world.WorldProvider;
 import org.terasology.world.block.Block;
@@ -27,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class AttachedToSurfaceFamily extends AbstractBlockFamily {
     private Map<Side, Block> blocks = Maps.newEnumMap(Side.class);
@@ -44,7 +44,7 @@ public class AttachedToSurfaceFamily extends AbstractBlockFamily {
             if (block != null) {
                 this.blocks.put(side, block);
                 block.setBlockFamily(this);
-                block.setUri(new BlockUri(uri, side.name()));
+                block.setUri(new BlockUri(uri, new Name(side.name())));
             }
         }
         if (this.blocks.containsKey(Side.TOP)) {
@@ -68,7 +68,7 @@ public class AttachedToSurfaceFamily extends AbstractBlockFamily {
     public Block getBlockFor(BlockUri blockUri) {
         if (getURI().equals(blockUri.getFamilyUri())) {
             try {
-                Side side = Side.valueOf(blockUri.getIdentifier().toUpperCase());
+                Side side = Side.valueOf(blockUri.getIdentifier().toString().toUpperCase(Locale.ENGLISH));
                 return blocks.get(side);
             } catch (IllegalArgumentException e) {
                 return null;

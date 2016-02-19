@@ -15,36 +15,21 @@
  */
 package org.terasology.engine.subsystem.headless.assets;
 
-import java.util.Collections;
-
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.rendering.assets.shader.Shader;
 import org.terasology.rendering.assets.shader.ShaderData;
 import org.terasology.rendering.assets.shader.ShaderParameterMetadata;
 
-public class HeadlessShader extends AbstractAsset<ShaderData> implements Shader {
+import java.util.Collections;
+
+public class HeadlessShader extends Shader {
 
     private ShaderData shaderProgramBase;
 
-    public HeadlessShader(AssetUri uri, ShaderData data) {
-        super(uri);
+    public HeadlessShader(ResourceUrn urn, AssetType<?, ShaderData> assetType, ShaderData data) {
+        super(urn, assetType);
         reload(data);
-    }
-
-    @Override
-    public void reload(ShaderData data) {
-        shaderProgramBase = data;
-    }
-
-    @Override
-    public void dispose() {
-        shaderProgramBase = null;
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return shaderProgramBase == null;
     }
 
     @Override
@@ -61,4 +46,10 @@ public class HeadlessShader extends AbstractAsset<ShaderData> implements Shader 
     public Iterable<ShaderParameterMetadata> listParameters() {
         return Collections.emptyList();
     }
+
+    @Override
+    protected void doReload(ShaderData data) {
+        shaderProgramBase = data;
+    }
+
 }

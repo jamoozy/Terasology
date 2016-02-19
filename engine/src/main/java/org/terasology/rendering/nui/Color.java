@@ -16,11 +16,11 @@
 package org.terasology.rendering.nui;
 
 import com.google.common.base.Preconditions;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.module.sandbox.API;
-import org.terasology.math.Vector3i;
 
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
 import java.nio.ByteBuffer;
 import java.util.Locale;
 import java.util.Objects;
@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * Color is a representation of a RGBA color. Color components can be set and accessed via floats ranging from 0-1, or ints ranging from 0-255.
  * Color is immutable and thread safe.
- * <p/>
+ * <br><br>
  * There are a plethora of Color classes, but none that are quite suitable IMO:
  * <ul>
  * <li>vecmaths - doesn't access with r/g/b/a, separation by representation is awkward, feature bland.</li>
@@ -39,7 +39,6 @@ import java.util.Objects;
  * <li>awt - tempting, certainly feature-rich. Has some strange awt-specific functionality though (createContext) and native links</li>
  * </ul>
  *
- * @author Immortius
  */
 @API
 public class Color {

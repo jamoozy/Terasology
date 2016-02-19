@@ -25,8 +25,9 @@ import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.logic.health.DoDestroyEvent;
 import org.terasology.logic.inventory.InventoryManager;
 import org.terasology.logic.inventory.ItemComponent;
-import org.terasology.logic.inventory.PickupBuilder;
+import org.terasology.logic.inventory.events.DropItemEvent;
 import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.physics.events.ImpulseEvent;
 import org.terasology.registry.In;
 import org.terasology.utilities.random.FastRandom;
@@ -36,10 +37,9 @@ import org.terasology.world.block.entity.CreateBlockDropsEvent;
 import org.terasology.world.block.entity.damage.BlockDamageModifierComponent;
 import org.terasology.world.block.items.BlockItemFactory;
 
-import javax.vecmath.Vector3f;
+import java.util.List;
 
 /**
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 @RegisterSystem(RegisterMode.AUTHORITY)
 public class BlockDropGrammarSystem extends BaseComponentSystem {
@@ -51,13 +51,11 @@ public class BlockDropGrammarSystem extends BaseComponentSystem {
     private InventoryManager inventoryManager;
 
     private BlockItemFactory blockItemFactory;
-    private PickupBuilder pickupBuilder;
     private Random random;
 
     @Override
     public void initialise() {
         blockItemFactory = new BlockItemFactory(entityManager);
-        pickupBuilder = new PickupBuilder(entityManager);
         random = new FastRandom();
     }
 
@@ -76,8 +74,22 @@ public class BlockDropGrammarSystem extends BaseComponentSystem {
         }
 
         if (random.nextFloat() < chanceOfBlockDrop) {
-            if (blockDrop.blockDrops != null) {
-                for (String drop : blockDrop.blockDrops) {
+            List<String> blockDrops = blockDrop.blockDrops;
+            List<String> itemDrops = blockDrop.itemDrops;
+
+            if (blockDamageModifierComponent != null && blockDrop.droppedWithTool != null) {
+                for (String toolType : blockDamageModifierComponent.materialDamageMultiplier.keySet()) {
+                    if (blockDrop.droppedWithTool.containsKey(toolType)) {
+                        BlockDropGrammarComponent.DropDefinition dropDefinition = blockDrop.droppedWithTool.get(toolType);
+                        blockDrops = dropDefinition.blockDrops;
+                        itemDrops = dropDefinition.itemDrops;
+                        break;
+                    }
+                }
+            }
+
+            if (blockDrops != null) {
+                for (String drop : blockDrops) {
                     String dropResult = drop;
                     boolean dropping = true;
                     int pipeIndex = dropResult.indexOf('|');
@@ -98,8 +110,8 @@ public class BlockDropGrammarSystem extends BaseComponentSystem {
                 }
             }
 
-            if (blockDrop.itemDrops != null) {
-                for (String drop : blockDrop.itemDrops) {
+            if (itemDrops != null) {
+                for (String drop : itemDrops) {
                     String dropResult = drop;
                     boolean dropping = true;
                     int pipeIndex = dropResult.indexOf('|');
@@ -137,9 +149,9 @@ public class BlockDropGrammarSystem extends BaseComponentSystem {
     }
 
     private void createDrop(EntityRef item, Vector3f location, boolean applyMovement) {
-        EntityRef pickup = pickupBuilder.createPickupFor(item, location, 60, true);
+        item.send(new DropItemEvent(location));
         if (applyMovement) {
-            pickup.send(new ImpulseEvent(random.nextVector3f(30.0f)));
+            item.send(new ImpulseEvent(random.nextVector3f(30.0f)));
         }
     }
 

@@ -17,12 +17,27 @@
 package org.terasology.network;
 
 import org.terasology.entitySystem.Component;
+import org.terasology.entitySystem.entity.EntityRef;
 
 /**
  * The component that marks an entity as being a Client Info Entity.
- * @author Martin Steiger
  */
 @Replicate
 public final class ClientInfoComponent implements Component {
-    // just a marker
+
+    /**
+     * When a client connects, the game searches a client info component for the client id ({@link Client#getId()}).
+     * If it finds one it is gets reused, otherwise a new one will be created.
+     *
+     * The field does not get replicated as there is no need to tell the clients the player ids.
+     *
+     */
+    @NoReplicate
+    public String playerId;
+
+    /**
+     * Set to the client entity if it is connected, otherwise it is EntityRef.NULL.
+     */
+    @Replicate
+    public EntityRef client = EntityRef.NULL;
 }

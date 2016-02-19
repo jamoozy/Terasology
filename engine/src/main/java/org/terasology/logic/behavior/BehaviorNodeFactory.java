@@ -19,12 +19,17 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.asset.AssetManager;
-import org.terasology.asset.AssetType;
-import org.terasology.asset.AssetUri;
-import org.terasology.engine.module.ModuleManager;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.assets.management.AssetManager;
+import org.terasology.audio.StaticSound;
+import org.terasology.audio.StreamingSound;
+import org.terasology.engine.ComponentFieldUri;
+import org.terasology.engine.SimpleUri;
+import org.terasology.entitySystem.entity.EntityBuilder;
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.metadata.ComponentLibrary;
+import org.terasology.entitySystem.metadata.ComponentMetadata;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.entitySystem.prefab.PrefabManager;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
@@ -32,24 +37,29 @@ import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.logic.behavior.asset.NodesClassLibrary;
 import org.terasology.logic.behavior.tree.Node;
 import org.terasology.reflection.metadata.ClassMetadata;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.reflection.metadata.FieldMetadata;
 import org.terasology.registry.In;
+import org.terasology.registry.Share;
+import org.terasology.rendering.assets.animation.MeshAnimation;
 import org.terasology.rendering.nui.databinding.ReadOnlyBinding;
 import org.terasology.rendering.nui.itemRendering.StringTextRenderer;
 import org.terasology.rendering.nui.properties.OneOfProviderFactory;
+import org.terasology.utilities.ReflectionUtil;
 
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Factory to create node instances from node entities.
  *
- * @author synopia
  */
 @RegisterSystem
+@Share(BehaviorNodeFactory.class)
 public class BehaviorNodeFactory extends BaseComponentSystem {
     private static final Logger logger = LoggerFactory.getLogger(BehaviorNodeFactory.class);
 
@@ -57,8 +67,6 @@ public class BehaviorNodeFactory extends BaseComponentSystem {
     private Map<String, List<BehaviorNodeComponent>> categoryComponents = Maps.newHashMap();
     private List<String> categories;
 
-    @In
-    private ModuleManager moduleManager;
     @In
     private EntityManager entityManager;
     @In
@@ -70,12 +78,11 @@ public class BehaviorNodeFactory extends BaseComponentSystem {
     @In
     private OneOfProviderFactory providerFactory;
 
-    private List<AssetUri> sounds = Lists.newArrayList();
-    private List<AssetUri> music = Lists.newArrayList();
+    @In
+    private ComponentLibrary componentLibrary;
 
-    public BehaviorNodeFactory() {
-        CoreRegistry.put(BehaviorNodeFactory.class, this);
-    }
+    private List<ResourceUrn> sounds = Lists.newArrayList();
+    private List<ResourceUrn> music = Lists.newArrayList();
 
     @Override
     public void postBegin() {
@@ -83,33 +90,37 @@ public class BehaviorNodeFactory extends BaseComponentSystem {
     }
 
     public void refreshLibrary() {
-        for (AssetUri uri : assetManager.listAssets(AssetType.SOUND)) {
-            sounds.add(uri);
-        }
-        for (AssetUri uri : assetManager.listAssets(AssetType.MUSIC)) {
-            music.add(uri);
-        }
-        providerFactory.register("sounds", new ReadOnlyBinding<List<AssetUri>>() {
+        sounds.addAll(assetManager.getAvailableAssets(StaticSound.class).stream().collect(Collectors.toList()));
+        music.addAll(assetManager.getAvailableAssets(StreamingSound.class).stream().collect(Collectors.toList()));
+        providerFactory.register("sounds", new ReadOnlyBinding<List<ResourceUrn>>() {
                     @Override
-                    public List<AssetUri> get() {
+                    public List<ResourceUrn> get() {
                         return sounds;
                     }
-                }, new StringTextRenderer<AssetUri>() {
+                }, new StringTextRenderer<ResourceUrn>() {
                     @Override
-                    public String getString(AssetUri value) {
-                        return value.getAssetName().toString();
+                    public String getString(ResourceUrn value) {
+                        return value.getResourceName().toString();
                     }
                 }
         );
-        providerFactory.register("music", new ReadOnlyBinding<List<AssetUri>>() {
+        providerFactory.register("music", new ReadOnlyBinding<List<ResourceUrn>>() {
                     @Override
-                    public List<AssetUri> get() {
+                    public List<ResourceUrn> get() {
                         return music;
                     }
-                }, new StringTextRenderer<AssetUri>() {
+                }, new StringTextRenderer<ResourceUrn>() {
                     @Override
-                    public String getString(AssetUri value) {
-                        return value.getAssetName().toString();
+                    public String getString(ResourceUrn value) {
+                        return value.getResourceName().toString();
+                    }
+                }
+        );
+        providerFactory.register("animations", new AnimationPoolUriBinding(),
+                new StringTextRenderer<ComponentFieldUri>() {
+                    @Override
+                    public String getString(ComponentFieldUri value) {
+                        return value.toString();
                     }
                 }
         );
@@ -117,24 +128,44 @@ public class BehaviorNodeFactory extends BaseComponentSystem {
         sortLibrary();
     }
 
+    private List<ComponentFieldUri> determineAnimationPoolUris() {
+        final List<ComponentFieldUri> animationSetUris = Lists.newArrayList();
+        for (ComponentMetadata<?> componentMetadata : componentLibrary.iterateComponentMetadata()) {
+            SimpleUri uri = componentMetadata.getUri();
+
+            for (FieldMetadata<?, ?> fieldMetadata : componentMetadata.getFields()) {
+                if (fieldMetadata.getType().isAssignableFrom(List.class)) {
+                    Type fieldType = fieldMetadata.getField().getGenericType();
+                    if (fieldType instanceof ParameterizedType) {
+                        ParameterizedType parameterizedType = (ParameterizedType) fieldType;
+                        Type[] typeArguments = parameterizedType.getActualTypeArguments();
+                        if (typeArguments.length == 1) {
+                            Class<?> typeClass = ReflectionUtil.getClassOfType(typeArguments[0]);
+                            if (typeClass.isAssignableFrom(MeshAnimation.class)) {
+                                animationSetUris.add(new ComponentFieldUri(uri, fieldMetadata.getName()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return animationSetUris;
+    }
+
     private void sortLibrary() {
         categories = Lists.newArrayList(categoryComponents.keySet());
         Collections.sort(categories);
         for (String category : categories) {
-            Collections.sort(categoryComponents.get(category), new Comparator<BehaviorNodeComponent>() {
-                @Override
-                public int compare(BehaviorNodeComponent o1, BehaviorNodeComponent o2) {
-                    return o1.name.compareTo(o2.name);
-                }
-            });
+            Collections.sort(categoryComponents.get(category), (o1, o2) -> o1.name.compareTo(o2.name));
         }
     }
 
     private void refreshPrefabs() {
         Collection<Prefab> prefabs = prefabManager.listPrefabs(BehaviorNodeComponent.class);
         for (Prefab prefab : prefabs) {
-            EntityRef entityRef = entityManager.create(prefab);
-            entityRef.setPersistent(false);
+            EntityBuilder entityBuilder = entityManager.newBuilder(prefab);
+            entityBuilder.setPersistent(false);
+            EntityRef entityRef = entityBuilder.build();
             BehaviorNodeComponent component = entityRef.getComponent(BehaviorNodeComponent.class);
             ClassMetadata<? extends Node, ?> classMetadata = nodesClassLibrary.resolve(component.type);
             if (classMetadata != null) {
@@ -188,5 +219,17 @@ public class BehaviorNodeFactory extends BaseComponentSystem {
 
     public List<BehaviorNodeComponent> getNodesComponents(String category) {
         return categoryComponents.get(category);
+    }
+
+    private class AnimationPoolUriBinding extends ReadOnlyBinding<List<ComponentFieldUri>> {
+        private List<ComponentFieldUri> list;
+
+        @Override
+        public List<ComponentFieldUri> get() {
+            if (list == null) {
+                list = Collections.unmodifiableList(determineAnimationPoolUris());
+            }
+            return list;
+        }
     }
 }

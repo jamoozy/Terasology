@@ -17,19 +17,17 @@
 package org.terasology.world.internal;
 
 import org.terasology.engine.SimpleUri;
-import org.terasology.engine.TerasologyConstants;
 
 /**
  * Summary information on a world.
  *
- * @author Immortius
  */
 public class WorldInfo {
 
     private String title = "";
     private String seed = "";
     private long time;
-    private SimpleUri worldGenerator = new SimpleUri(TerasologyConstants.ENGINE_MODULE, "perlin");
+    private SimpleUri worldGenerator = new SimpleUri();
 
     public WorldInfo() {
     }

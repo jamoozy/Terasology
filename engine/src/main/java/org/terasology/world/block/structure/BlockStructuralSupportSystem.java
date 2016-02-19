@@ -25,9 +25,9 @@ import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.logic.health.DestroyEvent;
 import org.terasology.logic.inventory.InventoryComponent;
 import org.terasology.logic.inventory.InventoryManager;
-import org.terasology.logic.inventory.PickupBuilder;
+import org.terasology.logic.inventory.events.DropItemEvent;
 import org.terasology.math.Side;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.monitoring.PerformanceMonitor;
 import org.terasology.registry.In;
 import org.terasology.registry.Share;
@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 @RegisterSystem
 @Share(BlockStructuralSupportRegistry.class)
@@ -101,11 +100,10 @@ public class BlockStructuralSupportSystem extends BaseComponentSystem implements
                 }
 
                 if (initialEvent) {
-                    PickupBuilder pickupBuilder = new PickupBuilder(entityManager);
                     for (int i = 0; i < GATHERING_INVENTORY_SLOT_COUNT; i++) {
                         EntityRef item = inventoryManager.getItemInSlot(gatheringEntity, i);
                         if (item.exists()) {
-                            pickupBuilder.createPickupFor(item, event.getBlockPosition().toVector3f(), 60, true);
+                            item.send(new DropItemEvent(event.getBlockPosition().toVector3f()));
                         }
                     }
                 }
@@ -141,7 +139,6 @@ public class BlockStructuralSupportSystem extends BaseComponentSystem implements
 
             for (BlockStructuralSupport support : supports) {
                 if (support.shouldBeRemovedDueToChange(blockPosition, sideReverse)) {
-                    System.out.println("Removing block due to: " + support.getClass());
                     blockEntityRegistry.getBlockEntityAt(blockPosition).send(new DestroyEvent(gatheringEntity,
                             EntityRef.NULL, prefabManager.getPrefab("engine:supportRemovedDamage")));
                     break;

@@ -22,9 +22,8 @@ import org.terasology.entitySystem.metadata.ComponentMetadata;
 
 /**
  * Interface for checks as whether a component should be serialized
- *
- * @author Immortius
  */
+@FunctionalInterface
 public interface ComponentSerializeCheck {
 
     boolean serialize(ComponentMetadata<? extends Component> metadata);

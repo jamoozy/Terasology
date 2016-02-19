@@ -16,41 +16,27 @@
 package org.terasology.persistence.internal;
 
 import com.google.common.collect.Maps;
-import gnu.trove.set.TIntSet;
-import gnu.trove.set.hash.TIntHashSet;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.entity.internal.EngineEntityManager;
 import org.terasology.entitySystem.metadata.ComponentMetadata;
 import org.terasology.persistence.serializers.EntitySerializer;
-import org.terasology.persistence.typeHandling.extensionTypes.EntityRefTypeHandler;
 import org.terasology.protobuf.EntityData;
 
 import java.util.Map;
 
 /**
- * @author Immortius
  */
-final class EntityRestorer implements EntityRefTypeHandler.EntityRefInterceptor {
+final class EntityRestorer {
 
     private EngineEntityManager entityManager;
-    private TIntSet validRefs;
 
     public EntityRestorer(EngineEntityManager entityManager) {
         this.entityManager = entityManager;
     }
 
-    public Map<String, EntityRef> restore(EntityData.EntityStore store, TIntSet externalRefs) {
-        validRefs = new TIntHashSet();
-        if (externalRefs != null) {
-            validRefs.addAll(externalRefs);
-        }
-        for (EntityData.Entity entity : store.getEntityList()) {
-            validRefs.add(entity.getId());
-        }
-
+    public Map<String, EntityRef> restore(EntityData.EntityStore store) {
         EntitySerializer serializer = new EntitySerializer(entityManager);
-        EntityRefTypeHandler.setReferenceInterceptor(this);
         Map<Class<? extends Component>, Integer> idMap = Maps.newHashMap();
         for (int i = 0; i < store.getComponentClassCount(); ++i) {
             ComponentMetadata<?> metadata = entityManager.getComponentLibrary().resolve(store.getComponentClass(i));
@@ -59,25 +45,12 @@ final class EntityRestorer implements EntityRefTypeHandler.EntityRefInterceptor 
             }
         }
         serializer.setComponentIdMapping(idMap);
-        for (EntityData.Entity entity : store.getEntityList()) {
-            serializer.deserialize(entity);
-        }
-        EntityRefTypeHandler.setReferenceInterceptor(null);
+        store.getEntityList().forEach(serializer::deserialize);
 
         Map<String, EntityRef> namedEntities = Maps.newHashMap();
         for (int i = 0; i < store.getEntityNameCount() && i < store.getEntityNamedCount(); ++i) {
             namedEntities.put(store.getEntityName(i), entityManager.getEntity(store.getEntityNamed(i)));
         }
         return namedEntities;
-    }
-
-    @Override
-    public boolean loadingRef(int id) {
-        return validRefs.contains(id);
-    }
-
-    @Override
-    public boolean savingRef(EntityRef ref) {
-        return true;
     }
 }

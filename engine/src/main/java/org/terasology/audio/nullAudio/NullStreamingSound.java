@@ -16,39 +16,31 @@
 
 package org.terasology.audio.nullAudio;
 
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.audio.StreamingSound;
 import org.terasology.audio.StreamingSoundData;
+
+import java.util.Optional;
 
 /**
  *
  */
-public final class NullStreamingSound extends AbstractAsset<StreamingSoundData> implements StreamingSound {
+public final class NullStreamingSound extends StreamingSound {
 
     private int channels;
     private int sampleRate;
 
-    public NullStreamingSound(AssetUri uri, StreamingSoundData data) {
-        super(uri);
+    public NullStreamingSound(ResourceUrn urn, AssetType<?, StreamingSoundData> assetType, StreamingSoundData data) {
+        super(urn, assetType);
         reload(data);
     }
 
-    @Override
-    public void reload(StreamingSoundData data) {
-        channels = data.getChannels();
-        sampleRate = data.getSamplingRate();
-        data.dispose();
-    }
-
-    @Override
-    public void dispose() {
-
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return false;
+    public NullStreamingSound(ResourceUrn urn, AssetType<?, StreamingSoundData> assetType, int channels, int sampleRate) {
+        super(urn, assetType);
+        this.channels = channels;
+        this.sampleRate = sampleRate;
     }
 
     @Override
@@ -77,4 +69,17 @@ public final class NullStreamingSound extends AbstractAsset<StreamingSoundData> 
     @Override
     public void play(float volume) {
     }
+
+    @Override
+    protected void doReload(StreamingSoundData data) {
+        channels = data.getChannels();
+        sampleRate = data.getSamplingRate();
+        data.dispose();
+    }
+
+    @Override
+    protected Optional<? extends Asset<StreamingSoundData>> doCreateCopy(ResourceUrn copyUrn, AssetType<?, StreamingSoundData> parentAssetType) {
+        return Optional.of(new NullStreamingSound(copyUrn, parentAssetType, channels, sampleRate));
+    }
+
 }

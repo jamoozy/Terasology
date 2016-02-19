@@ -25,7 +25,6 @@ import java.util.Map;
 /**
  * TODO Type description
  *
- * @author Martin Steiger
  */
 public interface ServerInfoMessage {
 
@@ -46,6 +45,8 @@ public interface ServerInfoMessage {
      */
     Map<Integer, String> getBlockIds();
 
+    Map<Short, String> getBiomeIds();
+
     /**
      * @return
      */
@@ -55,5 +56,10 @@ public interface ServerInfoMessage {
      * @return
      */
     List<NameVersion> getModuleList();
+
+    /**
+     * @return the block height that is used to compute (water) reflections
+     */
+    float getReflectionHeight();
 
 }

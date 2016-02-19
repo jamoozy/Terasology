@@ -19,9 +19,6 @@ package org.terasology.world.chunks.blockdata;
 import com.google.common.base.Preconditions;
 import org.terasology.world.chunks.deflate.TeraVisitingDeflator;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 
@@ -29,7 +26,6 @@ import java.nio.ShortBuffer;
  * TeraDenseArray16Bit implements a dense array with elements of 16 bit size.
  * Its elements are in the range -32'768 through +32'767 and it internally uses the short type to store its elements.
  *
- * @author Manuel Brotz <manu.brotz@gmx.ch>
  */
 public class TeraDenseArray16Bit extends TeraDenseArray {
 
@@ -106,18 +102,6 @@ public class TeraDenseArray16Bit extends TeraDenseArray {
             return true;
         }
         return false;
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput out) throws IOException {
-        writeExternalHeader(out);
-        out.writeObject(data);
-    }
-
-    @Override
-    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
-        readExternalHeader(in);
-        data = (short[]) in.readObject();
     }
 
     public static class SerializationHandler extends TeraArray.BasicSerializationHandler<TeraDenseArray16Bit> {

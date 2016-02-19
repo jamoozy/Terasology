@@ -15,28 +15,42 @@
  */
 package org.terasology.logic.behavior.asset;
 
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.logic.behavior.BehaviorNodeFactory;
 import org.terasology.logic.behavior.nui.RenderableNode;
 import org.terasology.logic.behavior.tree.Node;
+import org.terasology.module.sandbox.API;
 
 import java.util.List;
 
 /**
  * Behavior tree asset. Can be loaded and saved into json.
- * <p/>
+ * <br><br>
  * This asset keeps track of the tree of Nodes and the associated RenderableNodes. If there are no RenderableNodes,
  * the helper class will generate and layout some.
  *
- * @author synopia
  */
-public class BehaviorTree extends AbstractAsset<BehaviorTreeData> {
+@API
+public class BehaviorTree extends Asset<BehaviorTreeData> {
     private BehaviorTreeData data;
 
-    public BehaviorTree(AssetUri uri, BehaviorTreeData data) {
-        super(uri);
-        this.data = data;
+    /**
+     * The constructor for an asset. It is suggested that implementing classes provide a constructor taking both the urn, and an initial AssetData to load.
+     *
+     * @param urn       The urn identifying the asset.
+     * @param assetType The asset type this asset belongs to.
+     */
+    public BehaviorTree(ResourceUrn urn, AssetType<?, BehaviorTreeData> assetType, BehaviorTreeData data) {
+        super(urn, assetType);
+        reload(data);
     }
+
+//    public BehaviorTree(AssetUri uri, BehaviorTreeData data) {
+//        super(uri);
+//        this.data = data;
+//    }
 
     public Node getRoot() {
         return data.getRoot();
@@ -50,9 +64,9 @@ public class BehaviorTree extends AbstractAsset<BehaviorTreeData> {
         return data.getRenderableNode(node);
     }
 
-    public List<RenderableNode> getRenderableNodes() {
+    public List<RenderableNode> getRenderableNodes(BehaviorNodeFactory factory) {
         if (!data.hasRenderable()) {
-            data.createRenderable();
+            data.createRenderable(factory);
             layout(null);
         }
         return data.getRenderableNodes();
@@ -64,26 +78,16 @@ public class BehaviorTree extends AbstractAsset<BehaviorTreeData> {
 
     @Override
     public String toString() {
-        return getURI().getAssetName().toString();
+        return getUrn().toString();
     }
 
     @Override
-    public void reload(BehaviorTreeData newData) {
+    protected void doReload(BehaviorTreeData newData) {
         this.data = newData;
     }
 
-    @Override
-    public void dispose() {
-        this.data = null;
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return data == null;
-    }
-
-    public RenderableNode createNode(Node node) {
-        RenderableNode renderable = data.createRenderable(node);
+    public RenderableNode createNode(Node node, BehaviorNodeFactory factory) {
+        RenderableNode renderable = data.createRenderable(node, factory);
         data.layout(renderable);
         return renderable;
     }

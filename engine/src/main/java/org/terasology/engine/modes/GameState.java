@@ -19,8 +19,13 @@ package org.terasology.engine.modes;
 import org.terasology.engine.GameEngine;
 
 /**
- * @author Anton Kireev <adeon.k87@gmail.com>
  * @version 0.1
+ *
+ * A GameState encapsulates a different set of systems and managers being initialized
+ * on state change and updated every iteration of the main loop (every frame). Existing
+ * GameState implementations do not necessarily represent a state of play.
+ * I.e. interacting with the Main Menu is handled through a GameState.
+ *
  */
 public interface GameState {
 
@@ -38,4 +43,9 @@ public interface GameState {
      * @return Whether the game should hibernate when it loses focus
      */
     boolean isHibernationAllowed();
+
+    /**
+     * @return identifies the target for logging events
+     */
+    String getLoggingPhase();
 }

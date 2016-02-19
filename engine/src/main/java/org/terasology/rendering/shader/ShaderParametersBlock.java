@@ -26,7 +26,6 @@ import static org.lwjgl.opengl.GL11.glBindTexture;
 /**
  * Shader parameters for the Block shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 // TODO: Put these values in a material and use that.
 public class ShaderParametersBlock extends ShaderParametersBase {
@@ -38,7 +37,7 @@ public class ShaderParametersBlock extends ShaderParametersBase {
     public void applyParameters(Material program) {
         super.applyParameters(program);
 
-        Texture terrainTex = Assets.getTexture("engine:terrain");
+        Texture terrainTex = Assets.getTexture("engine:terrain").get();
 
         if (terrainTex == null) {
             return;

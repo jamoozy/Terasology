@@ -19,10 +19,10 @@ import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.GL11;
 import org.terasology.math.MatrixUtils;
 import org.terasology.math.TeraMath;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.rendering.nui.layers.mainMenu.videoSettings.CameraSetting;
 
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Vector3f;
 import java.util.Deque;
 import java.util.LinkedList;
 
@@ -32,7 +32,6 @@ import static org.lwjgl.opengl.GL11.glMatrixMode;
 /**
  * Simple default camera.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class PerspectiveCamera extends Camera {
     // Values used for smoothing
@@ -59,22 +58,26 @@ public class PerspectiveCamera extends Camera {
         return true;
     }
 
+    @Override
     public void loadProjectionMatrix() {
         glMatrixMode(GL_PROJECTION);
         GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getProjectionMatrix()));
         glMatrixMode(GL11.GL_MODELVIEW);
     }
 
+    @Override
     public void loadModelViewMatrix() {
         glMatrixMode(GL11.GL_MODELVIEW);
         GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getViewMatrix()));
     }
 
+    @Override
     public void loadNormalizedModelViewMatrix() {
         glMatrixMode(GL11.GL_MODELVIEW);
         GL11.glLoadMatrix(MatrixUtils.matrixToFloatBuffer(getNormViewMatrix()));
     }
 
+    @Override
     public void update(float deltaT) {
         applyCinematicEffect();
 
@@ -115,16 +118,19 @@ public class PerspectiveCamera extends Camera {
         return new Vector3f(x / factorMult, y / factorMult, z / factorMult);
     }
 
+    @Override
     public void updateMatrices() {
         updateMatrices(activeFov);
     }
 
+    @Override
     public void updateMatrices(float fov) {
         // Nothing to do...
         if (cachedPosition.equals(getPosition()) && cachedViewigDirection.equals(getViewingDirection())
                 && cachedBobbingRotationOffsetFactor == bobbingRotationOffsetFactor && cachedBobbingVerticalOffsetFactor == bobbingVerticalOffsetFactor
                 && cachedFov == fov
-                && cachedZFar == getzFar() && cachedZNear == getzNear()) {
+                && cachedZFar == getzFar() && cachedZNear == getzNear()
+                && cachedReflectionHeight == getReflectionHeight()) {
             return;
         }
 
@@ -140,7 +146,7 @@ public class PerspectiveCamera extends Camera {
                 up.x + tempRightVector.x, up.y + tempRightVector.y, up.z + tempRightVector.z);
 
         reflectionMatrix.setRow(0, 1.0f, 0.0f, 0.0f, 0.0f);
-        reflectionMatrix.setRow(1, 0.0f, -1.0f, 0.0f, 2f * (-position.y + 32f));
+        reflectionMatrix.setRow(1, 0.0f, -1.0f, 0.0f, 2f * (-position.y + getReflectionHeight()));
         reflectionMatrix.setRow(2, 0.0f, 0.0f, 1.0f, 0.0f);
         reflectionMatrix.setRow(3, 0.0f, 0.0f, 0.0f, 1.0f);
         viewMatrixReflected.mul(viewMatrix, reflectionMatrix);
@@ -161,6 +167,7 @@ public class PerspectiveCamera extends Camera {
         cachedFov = fov;
         cachedZNear = getzNear();
         cachedZFar = getzFar();
+        cachedReflectionHeight = getReflectionHeight();
 
         updateFrustum();
     }
@@ -174,7 +181,7 @@ public class PerspectiveCamera extends Camera {
     }
 
     // TODO: Move the dependency on LWJGL (Display) elsewhere
-    public Matrix4f createPerspectiveProjectionMatrix(float fov, float zNear, float zFar) {
+    private static Matrix4f createPerspectiveProjectionMatrix(float fov, float zNear, float zFar) {
         float aspectRatio = (float) Display.getWidth() / Display.getHeight();
         float fovY = (float) (2 * Math.atan2(Math.tan(0.5 * fov * TeraMath.DEG_TO_RAD), aspectRatio));
 

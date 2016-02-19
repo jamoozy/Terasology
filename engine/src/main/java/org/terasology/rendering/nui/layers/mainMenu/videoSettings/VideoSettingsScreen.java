@@ -20,23 +20,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terasology.config.Config;
 import org.terasology.engine.GameEngine;
+import org.terasology.engine.subsystem.DisplayDevice;
+import org.terasology.i18n.TranslationSystem;
+import org.terasology.logic.players.LocalPlayer;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.registry.In;
 import org.terasology.rendering.ShaderManager;
 import org.terasology.rendering.nui.CoreScreenLayer;
-import org.terasology.rendering.nui.UIWidget;
 import org.terasology.rendering.nui.WidgetUtil;
 import org.terasology.rendering.nui.databinding.BindHelper;
+import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.itemRendering.StringTextRenderer;
-import org.terasology.rendering.nui.widgets.ActivateEventListener;
 import org.terasology.rendering.nui.widgets.UIDropdown;
 import org.terasology.rendering.nui.widgets.UISlider;
-import org.terasology.rendering.world.ViewDistance;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
 
+import javax.imageio.ImageIO;
 import java.util.Arrays;
 
 /**
- * @author Immortius
  */
 public class VideoSettingsScreen extends CoreScreenLayer {
     private static final Logger logger = LoggerFactory.getLogger(VideoSettingsScreen.class);
@@ -46,6 +48,15 @@ public class VideoSettingsScreen extends CoreScreenLayer {
 
     @In
     private Config config;
+
+    @In
+    private DisplayDevice displayDevice;
+
+    @In
+    private LocalPlayer localPlayer;
+
+    @In
+    private TranslationSystem translationSystem;
 
     public VideoSettingsScreen() {
     }
@@ -75,6 +86,18 @@ public class VideoSettingsScreen extends CoreScreenLayer {
         if (waterReflection != null) {
             waterReflection.setOptions(Lists.newArrayList(WaterReflection.SKY, WaterReflection.GLOBAL, WaterReflection.LOCAL));
             waterReflection.bindSelection(new WaterReflectionBinding(config.getRendering()));
+        }
+
+        UIDropdown<ScreenshotSize> screenshotSize = find("screenshotSize", UIDropdown.class);
+        if (screenshotSize != null) {
+            screenshotSize.setOptions(Arrays.asList(ScreenshotSize.values()));
+            screenshotSize.bindSelection(BindHelper.bindBeanProperty("screenshotSize", config.getRendering(), ScreenshotSize.class));
+        }
+
+        UIDropdown<String> screenshotFormat = find("screenshotFormat", UIDropdown.class);
+        if (screenshotFormat != null) {
+            screenshotFormat.setOptions(Arrays.asList(ImageIO.getWriterFileSuffixes()));
+            screenshotFormat.bindSelection(BindHelper.bindBeanProperty("screenshotFormat", config.getRendering(), String.class));
         }
 
         UIDropdown<Integer> blur = find("blur", UIDropdown.class);
@@ -114,6 +137,62 @@ public class VideoSettingsScreen extends CoreScreenLayer {
             fovSlider.bindValue(BindHelper.bindBeanProperty("fieldOfView", config.getRendering(), Float.TYPE));
         }
 
+        final UISlider frameLimitSlider = find("frameLimit", UISlider.class);
+        if (frameLimitSlider != null) {
+            frameLimitSlider.setIncrement(5.0f);
+            frameLimitSlider.setPrecision(0);
+            frameLimitSlider.setMinimum(30);
+            frameLimitSlider.setRange(175); // Goes up to 205 (which is off)
+            // Frame limit > 200 is just displayed and treated as "off"
+            frameLimitSlider.setLabelFunction(input -> {
+                if (input > 200) {
+                    return " Off "; // Spaces to get wider than "200" (otherwise the display jumps around)
+                } else {
+                    return String.valueOf(input.intValue());
+                }
+            });
+            frameLimitSlider.bindValue(new Binding<Float>() {
+                @Override
+                public Float get() {
+                    if (config.getRendering().getFrameLimit() == -1) {
+                        return 205f;
+                    } else {
+                        return (float) config.getRendering().getFrameLimit();
+                    }
+                }
+
+                @Override
+                public void set(Float value) {
+                    int frameLimit = value.intValue();
+                    if (frameLimit > 200) {
+                        config.getRendering().setFrameLimit(-1);
+                    } else {
+                        config.getRendering().setFrameLimit(frameLimit);
+                    }
+                }
+            });
+        }
+
+        final UISlider fboScaleSlider = find("fboScale", UISlider.class);
+        if (fboScaleSlider != null) {
+            fboScaleSlider.setIncrement(5.0f);
+            fboScaleSlider.setPrecision(0);
+            fboScaleSlider.setMinimum(25);
+            fboScaleSlider.setRange(200);
+            fboScaleSlider.setLabelFunction(input -> String.valueOf(input.intValue()) + "%");
+            fboScaleSlider.bindValue(new Binding<Float>() {
+                @Override
+                public Float get() {
+                    return (float) config.getRendering().getFboScale();
+                }
+
+                @Override
+                public void set(Float value) {
+                    config.getRendering().setFboScale(value.intValue());
+                }
+            });
+        }
+
         UIDropdown<CameraSetting> cameraSetting = find("camera", UIDropdown.class);
         if (cameraSetting != null) {
             cameraSetting.setOptions(Arrays.asList(CameraSetting.values()));
@@ -128,27 +207,24 @@ public class VideoSettingsScreen extends CoreScreenLayer {
         WidgetUtil.tryBindCheckbox(this, "outline", BindHelper.bindBeanProperty("outline", config.getRendering(), Boolean.TYPE));
         WidgetUtil.tryBindCheckbox(this, "vsync", BindHelper.bindBeanProperty("vSync", config.getRendering(), Boolean.TYPE));
         WidgetUtil.tryBindCheckbox(this, "eyeAdaptation", BindHelper.bindBeanProperty("eyeAdaptation", config.getRendering(), Boolean.TYPE));
-        WidgetUtil.tryBindCheckbox(this, "fullscreen", BindHelper.bindBeanProperty("fullscreen", engine, Boolean.TYPE));
+        WidgetUtil.tryBindCheckbox(this, "fullscreen", BindHelper.bindBeanProperty("fullscreen", displayDevice, Boolean.TYPE));
+        WidgetUtil.tryBindCheckbox(this, "ssao", BindHelper.bindBeanProperty("ssao", config.getRendering(), Boolean.TYPE));
+        WidgetUtil.tryBindCheckbox(this, "clampLighting", BindHelper.bindBeanProperty("clampLighting", config.getRendering(), Boolean.TYPE));
+        WidgetUtil.tryBindCheckbox(this, "bloom", BindHelper.bindBeanProperty("bloom", config.getRendering(), Boolean.TYPE));
+        WidgetUtil.tryBindCheckbox(this, "lightShafts", BindHelper.bindBeanProperty("lightShafts", config.getRendering(), Boolean.TYPE));
+        WidgetUtil.tryBindCheckbox(this, "vignette", BindHelper.bindBeanProperty("vignette", config.getRendering(), Boolean.TYPE));
+        WidgetUtil.tryBindCheckbox(this, "flickeringLight", BindHelper.bindBeanProperty("flickeringLight", config.getRendering(), Boolean.TYPE));
 
-        WidgetUtil.trySubscribe(this, "fovReset", new ActivateEventListener() {
-            @Override
-            public void onActivated(UIWidget widget) {
-                CameraSettingBinding cam;
-                fovSlider.setValue(100.0f);
-            }
-        });
+        if (fovSlider != null) {
+            WidgetUtil.trySubscribe(this, "fovReset", widget -> fovSlider.setValue(100.0f));
+        }
 
-        WidgetUtil.trySubscribe(this, "close", new ActivateEventListener() {
-            @Override
-            public void onActivated(UIWidget button) {
-                getManager().popScreen();
-            }
-        });
+        WidgetUtil.trySubscribe(this, "close", button -> getManager().popScreen());
     }
 
     @Override
     public void onClosed() {
-        logger.info("Video Settings: " + config.getRendering().toString());
+        logger.info("Video Settings: {}", config.renderConfigAsJson(config.getRendering()));
         CoreRegistry.get(ShaderManager.class).recompileAllShaders();
     }
 

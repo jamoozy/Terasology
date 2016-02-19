@@ -19,13 +19,12 @@ package org.terasology.config;
 import org.terasology.engine.SimpleUri;
 
 /**
- * @author Immortius
  */
 public class WorldGenerationConfig {
-    private String worldTitle = "New World";
-    private String defaultSeed = "nowater4";
+    private String worldTitle;
+    private String defaultSeed;
 
-    private SimpleUri defaultGenerator = new SimpleUri("core:perlin");
+    private SimpleUri defaultGenerator = new SimpleUri();
 
     public String getWorldTitle() {
         return worldTitle;

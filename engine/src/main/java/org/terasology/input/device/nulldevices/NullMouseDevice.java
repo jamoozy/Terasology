@@ -16,14 +16,14 @@
 package org.terasology.input.device.nulldevices;
 
 import com.google.common.collect.Queues;
-import org.terasology.input.device.InputAction;
+
+import org.terasology.input.device.MouseAction;
 import org.terasology.input.device.MouseDevice;
-import org.terasology.math.Vector2i;
+import org.terasology.math.geom.Vector2i;
 
 import java.util.Queue;
 
 /**
- * @author Immortius
  */
 public class NullMouseDevice implements MouseDevice {
     @Override
@@ -47,7 +47,11 @@ public class NullMouseDevice implements MouseDevice {
     }
 
     @Override
-    public Queue<InputAction> getInputQueue() {
+    public Queue<MouseAction> getInputQueue() {
         return Queues.newArrayDeque();
+    }
+
+    @Override
+    public void setGrabbed(boolean grabbed) {
     }
 }

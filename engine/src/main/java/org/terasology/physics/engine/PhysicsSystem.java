@@ -30,6 +30,8 @@ import org.terasology.entitySystem.systems.RegisterMode;
 import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
 import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.monitoring.PerformanceMonitor;
 import org.terasology.network.NetworkComponent;
 import org.terasology.network.NetworkSystem;
@@ -44,8 +46,6 @@ import org.terasology.registry.In;
 import org.terasology.world.OnChangedBlock;
 import org.terasology.world.block.BlockComponent;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
 import java.util.Iterator;
 import java.util.List;
 
@@ -55,7 +55,6 @@ import java.util.List;
  * translates output of the physics engine into events. It also calls the update
  * method of the PhysicsEngine every frame.
  *
- * @author Immortius
  */
 @RegisterSystem
 public class PhysicsSystem extends BaseComponentSystem implements UpdateSubscriberSystem {

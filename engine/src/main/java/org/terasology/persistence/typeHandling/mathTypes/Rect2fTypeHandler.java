@@ -17,18 +17,17 @@
 package org.terasology.persistence.typeHandling.mathTypes;
 
 import com.google.common.collect.Maps;
-import org.terasology.math.Rect2f;
+import org.terasology.math.geom.Rect2f;
+import org.terasology.math.geom.Vector2f;
 import org.terasology.persistence.typeHandling.DeserializationContext;
 import org.terasology.persistence.typeHandling.PersistedData;
 import org.terasology.persistence.typeHandling.PersistedDataMap;
 import org.terasology.persistence.typeHandling.SerializationContext;
 import org.terasology.persistence.typeHandling.SimpleTypeHandler;
 
-import javax.vecmath.Vector2f;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 public class Rect2fTypeHandler extends SimpleTypeHandler<Rect2f> {
 
@@ -37,18 +36,25 @@ public class Rect2fTypeHandler extends SimpleTypeHandler<Rect2f> {
 
     @Override
     public PersistedData serialize(Rect2f value, SerializationContext context) {
-        Map<String, PersistedData> map = Maps.newLinkedHashMap();
-        map.put(MIN_FIELD, context.create(value.min(), Vector2f.class));
-        map.put(SIZE_FIELD, context.create(value.size(), Vector2f.class));
-        return context.create(map);
+        if (value == null) {
+            return context.createNull();
+        } else {
+            Map<String, PersistedData> map = Maps.newLinkedHashMap();
+            map.put(MIN_FIELD, context.create(value.min(), Vector2f.class));
+            map.put(SIZE_FIELD, context.create(value.size(), Vector2f.class));
+            return context.create(map);
+        }
     }
 
     @Override
     public Rect2f deserialize(PersistedData data, DeserializationContext context) {
-        PersistedDataMap map = data.getAsValueMap();
-        Vector2f min = context.deserializeAs(map.get(MIN_FIELD), Vector2f.class);
-        Vector2f size = context.deserializeAs(map.get(SIZE_FIELD), Vector2f.class);
-        return Rect2f.createFromMinAndSize(min, size);
+        if (data.isValueMap()) {
+            PersistedDataMap map = data.getAsValueMap();
+            Vector2f min = context.deserializeAs(map.get(MIN_FIELD), Vector2f.class);
+            Vector2f size = context.deserializeAs(map.get(SIZE_FIELD), Vector2f.class);
+            return Rect2f.createFromMinAndSize(min, size);
+        }
+        return null;
     }
 
 }

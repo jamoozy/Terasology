@@ -15,17 +15,17 @@
  */
 package org.terasology.logic.location;
 
-import com.bulletphysics.linearmath.QuaternionUtil;
 import com.google.common.collect.Lists;
-import org.terasology.reflection.metadata.FieldMetadata;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.math.Direction;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.network.Replicate;
 import org.terasology.network.ReplicationCheck;
+import org.terasology.reflection.metadata.FieldMetadata;
 import org.terasology.rendering.nui.properties.TextField;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -33,7 +33,6 @@ import java.util.Objects;
 /**
  * Component represent the location and facing of an entity in the world
  *
- * @author Immortius <immortius@gmail.com>
  */
 public final class LocationComponent implements Component, ReplicationCheck {
 
@@ -73,6 +72,12 @@ public final class LocationComponent implements Component, ReplicationCheck {
         position.set(newPos);
     }
 
+    public Vector3f getLocalDirection() {
+        Vector3f result = Direction.FORWARD.getVector3f();
+        getLocalRotation().rotate(result, result);
+        return result;
+    }
+
     public Quat4f getLocalRotation() {
         return rotation;
     }
@@ -101,11 +106,17 @@ public final class LocationComponent implements Component, ReplicationCheck {
         LocationComponent parentLoc = parent.getComponent(LocationComponent.class);
         while (parentLoc != null) {
             output.scale(parentLoc.scale);
-            QuaternionUtil.quatRotate(parentLoc.getLocalRotation(), output, output);
+            parentLoc.getLocalRotation().rotate(output, output);
             output.add(parentLoc.position);
             parentLoc = parentLoc.parent.getComponent(LocationComponent.class);
         }
         return output;
+    }
+
+    public Vector3f getWorldDirection() {
+        Vector3f result = Direction.FORWARD.getVector3f();
+        getWorldRotation().rotate(result, result);
+        return result;
     }
 
     public Quat4f getWorldRotation() {
@@ -140,7 +151,7 @@ public final class LocationComponent implements Component, ReplicationCheck {
             this.position.scale(1f / parentLoc.getWorldScale());
             Quat4f rot = new Quat4f(0, 0, 0, 1);
             rot.inverse(parentLoc.getWorldRotation());
-            QuaternionUtil.quatRotate(rot, this.position, this.position);
+            rot.rotate(this.position, this.position);
         }
     }
 
@@ -188,7 +199,7 @@ public final class LocationComponent implements Component, ReplicationCheck {
     }
 
     @Override
-    public boolean shouldReplicate(FieldMetadata field, boolean initial, boolean toOwner) {
+    public boolean shouldReplicate(FieldMetadata<?, ?> field, boolean initial, boolean toOwner) {
         return initial || replicateChanges;
     }
 }

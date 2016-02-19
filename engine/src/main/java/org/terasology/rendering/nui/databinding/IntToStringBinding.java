@@ -23,7 +23,6 @@ import com.google.common.primitives.Ints;
 /**
  * Links a Integer-{@link Binding} to a String-{@link Binding}.
  * Also allows to restrict the valid value to a {@link Range}.
- * @author Martin Steiger
  */
 public final class IntToStringBinding implements Binding<String> {
 
@@ -59,7 +58,7 @@ public final class IntToStringBinding implements Binding<String> {
         Integer val = Ints.tryParse(text);
         if (val != null && validRange.contains(val)) {
             // An alternative would be to clamp the value to min/max
-            intBinding.set(val.intValue());
+            intBinding.set(val);
         }
     }
 }

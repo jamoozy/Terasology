@@ -15,39 +15,34 @@
  */
 package org.terasology.engine.subsystem.headless.assets;
 
-import java.nio.FloatBuffer;
-
-import javax.vecmath.Matrix3f;
-import javax.vecmath.Matrix4f;
-
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Matrix3f;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.rendering.assets.material.BaseMaterial;
 import org.terasology.rendering.assets.material.MaterialData;
 import org.terasology.rendering.assets.shader.ShaderProgramFeature;
 import org.terasology.rendering.assets.texture.Texture;
-import org.terasology.rendering.assets.material.BaseMaterial;
+
+import java.nio.FloatBuffer;
 
 public class HeadlessMaterial extends BaseMaterial {
 
     private MaterialData data;
 
-    public HeadlessMaterial(AssetUri uri, MaterialData data) {
-        super(uri);
+    public HeadlessMaterial(ResourceUrn urn, AssetType<?, MaterialData> assetType, MaterialData data) {
+        super(urn, assetType);
         reload(data);
     }
 
     @Override
-    public void reload(MaterialData newData) {
+    protected void doReload(MaterialData newData) {
         this.data = newData;
     }
 
     @Override
-    public void dispose() {
-        data = null;
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return data == null;
+    public boolean isRenderable() {
+        return true;
     }
 
     @Override
@@ -151,7 +146,7 @@ public class HeadlessMaterial extends BaseMaterial {
     }
 
     @Override
-    public void deactivateFeatures(ShaderProgramFeature ... features) {
+    public void deactivateFeatures(ShaderProgramFeature... features) {
         // Do nothing
     }
 

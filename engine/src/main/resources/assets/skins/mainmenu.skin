@@ -32,17 +32,23 @@
             }
         },
         "title": {
-            "font": "title"
+            "font": "NotoSans-Regular-Large",
+            "text-color": "F0F0F0FF"
         },
         "error": {
             "text-color": "FF4444FF"
         },
         "highlight": {
-            "text-color": "FFFF00FF"
+            "text-color": "FFFF00FF",
+            "font" : "NotoSans-Bold"
         },
-        "heading-input": {
-            "font": "title",
-            "text-align-horizontal": "left"
+        "subheading": {
+            "font": "NotoSans-Regular-Medium",
+            "text-align-horizontal": "left",
+            "margin" : {
+                "bottom" : 4,
+                "left" : 4
+            }
         },
         "left-label": {
             "elements": {
@@ -58,11 +64,17 @@
                     "parts": {
                         "item": {
                             "modes": {
+                                "gameplay": {
+                                    "text-color": "8B85FFFF"
+                                },
                                 "enabled": {
                                     "text-color": "00FF00FF"
                                 },
                                 "dependency": {
                                     "text-color": "FFFF00FF"
+                                },
+                                "available": {
+                                    "text-color": "FFFFFFFF"
                                 },
                                 "disabled": {
                                     "text-color": "AAAAAAFF"

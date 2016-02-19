@@ -16,13 +16,12 @@
 package org.terasology.rendering.nui.widgets;
 
 import com.google.common.collect.Lists;
-
 import org.terasology.asset.Assets;
 import org.terasology.audio.StaticSound;
 import org.terasology.input.MouseInput;
-import org.terasology.math.Vector2i;
-import org.terasology.rendering.assets.texture.TextureRegion;
+import org.terasology.math.geom.Vector2i;
 import org.terasology.rendering.assets.font.Font;
+import org.terasology.rendering.assets.texture.TextureRegion;
 import org.terasology.rendering.nui.BaseInteractionListener;
 import org.terasology.rendering.nui.Canvas;
 import org.terasology.rendering.nui.CoreWidget;
@@ -31,11 +30,12 @@ import org.terasology.rendering.nui.LayoutConfig;
 import org.terasology.rendering.nui.TextLineBuilder;
 import org.terasology.rendering.nui.databinding.Binding;
 import org.terasology.rendering.nui.databinding.DefaultBinding;
+import org.terasology.rendering.nui.events.NUIMouseClickEvent;
+import org.terasology.rendering.nui.events.NUIMouseReleaseEvent;
 
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class UIButton extends CoreWidget {
     public static final String DOWN_MODE = "down";
@@ -48,7 +48,7 @@ public class UIButton extends CoreWidget {
     private Binding<String> text = new DefaultBinding<>("");
 
     @LayoutConfig
-    private Binding<StaticSound> clickSound = new DefaultBinding<StaticSound>(Assets.getSound("engine:click"));
+    private Binding<StaticSound> clickSound = new DefaultBinding<>(Assets.getSound("engine:click").get());
 
     @LayoutConfig
     private Binding<Float> clickVolume = new DefaultBinding<>(1.0f);
@@ -63,8 +63,8 @@ public class UIButton extends CoreWidget {
     private InteractionListener interactionListener = new BaseInteractionListener() {
 
         @Override
-        public boolean onMouseClick(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
+        public boolean onMouseClick(NUIMouseClickEvent event) {
+            if (enabled.get() && event.getMouseButton() == MouseInput.MOUSE_LEFT) {
                 down = true;
                 return true;
             }
@@ -72,8 +72,8 @@ public class UIButton extends CoreWidget {
         }
 
         @Override
-        public void onMouseRelease(MouseInput button, Vector2i pos) {
-            if (button == MouseInput.MOUSE_LEFT) {
+        public void onMouseRelease(NUIMouseReleaseEvent event) {
+            if (enabled.get() && event.getMouseButton() == MouseInput.MOUSE_LEFT) {
                 if (isMouseOver()) {
                     if (getClickSound() != null) {
                         getClickSound().play(getClickVolume());
@@ -108,10 +108,7 @@ public class UIButton extends CoreWidget {
             canvas.drawTexture(image.get());
         }
         canvas.drawText(text.get());
-
-        if (enabled.get()) {
-            canvas.addInteractionRegion(interactionListener);
-        }
+        canvas.addInteractionRegion(interactionListener);
     }
 
     @Override
@@ -186,7 +183,7 @@ public class UIButton extends CoreWidget {
     public void setClickVolume(float val) {
         clickVolume.set(val);
     }
-    
+
     public void bindEnabled(Binding<Boolean> binding) {
         enabled = binding;
     }

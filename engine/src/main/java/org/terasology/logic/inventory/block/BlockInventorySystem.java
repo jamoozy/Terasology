@@ -26,8 +26,9 @@ import org.terasology.logic.inventory.InventoryComponent;
 import org.terasology.logic.inventory.InventoryManager;
 import org.terasology.logic.inventory.InventoryUtils;
 import org.terasology.logic.inventory.ItemComponent;
-import org.terasology.logic.inventory.PickupBuilder;
+import org.terasology.logic.inventory.events.DropItemEvent;
 import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.physics.events.ImpulseEvent;
 import org.terasology.registry.In;
 import org.terasology.utilities.random.FastRandom;
@@ -35,10 +36,7 @@ import org.terasology.world.block.items.BlockItemComponent;
 import org.terasology.world.block.items.OnBlockItemPlaced;
 import org.terasology.world.block.items.OnBlockToItem;
 
-import javax.vecmath.Vector3f;
-
 /**
- * @author Immortius
  */
 @RegisterSystem(RegisterMode.AUTHORITY)
 public class BlockInventorySystem extends BaseComponentSystem {
@@ -47,14 +45,6 @@ public class BlockInventorySystem extends BaseComponentSystem {
     private EntityManager entityManager;
     @In
     private InventoryManager inventoryManager;
-
-    private PickupBuilder pickupBuilder;
-
-    @Override
-    public void initialise() {
-        pickupBuilder = new PickupBuilder(entityManager);
-    }
-
 
     @ReceiveEvent(components = {InventoryComponent.class, RetainBlockInventoryComponent.class})
     public void copyBlockInventory(OnBlockToItem event, EntityRef blockEntity) {
@@ -88,8 +78,8 @@ public class BlockInventorySystem extends BaseComponentSystem {
         for (int i = 0; i < slotCount; i++) {
             EntityRef itemInSlot = InventoryUtils.getItemAt(entity, i);
             if (itemInSlot.exists()) {
-                EntityRef pickup = pickupBuilder.createPickupFor(itemInSlot, position, 60, true);
-                pickup.send(new ImpulseEvent(random.nextVector3f(30.0f)));
+                itemInSlot.send(new DropItemEvent(position));
+                itemInSlot.send(new ImpulseEvent(random.nextVector3f(30.0f)));
             }
         }
     }

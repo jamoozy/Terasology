@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class FloatTypeHandler implements TypeHandler<Float> {
 

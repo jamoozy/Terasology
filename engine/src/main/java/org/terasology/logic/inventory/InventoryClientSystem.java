@@ -17,35 +17,37 @@ package org.terasology.logic.inventory;
 
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.ReceiveEvent;
-import org.terasology.entitySystem.metadata.EntitySystemLibrary;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
 import org.terasology.entitySystem.systems.RegisterMode;
 import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.logic.inventory.action.MoveItemAction;
 import org.terasology.logic.inventory.action.SwitchItemAction;
+import org.terasology.logic.inventory.events.AbstractMoveItemRequest;
 import org.terasology.logic.inventory.events.InventoryChangeAcknowledgedRequest;
 import org.terasology.logic.inventory.events.MoveItemAmountRequest;
 import org.terasology.logic.inventory.events.MoveItemRequest;
+import org.terasology.logic.inventory.events.MoveItemToSlotsRequest;
 import org.terasology.logic.players.LocalPlayer;
 import org.terasology.registry.In;
 import org.terasology.registry.Share;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 @RegisterSystem(RegisterMode.REMOTE_CLIENT)
 @Share(value = InventoryManager.class)
 public class InventoryClientSystem extends BaseComponentSystem implements InventoryManager {
+
     @In
     private LocalPlayer localPlayer;
-    @In
-    private EntitySystemLibrary entitySystemLibrary;
 
-    private Map<Integer, MoveItemRequest> pendingMoves = new LinkedHashMap<>();
+    private Map<Integer, AbstractMoveItemRequest> pendingMoves = new LinkedHashMap<>();
 
     private int changeId;
 
@@ -63,18 +65,51 @@ public class InventoryClientSystem extends BaseComponentSystem implements Invent
 
     @ReceiveEvent(components = {InventoryComponent.class})
     public void inventoryChangeAcknowledge(InventoryChangeAcknowledgedRequest event, EntityRef entity) {
-        pendingMoves.remove(event.getChangeId());
+        AbstractMoveItemRequest removedRequest = pendingMoves.remove(event.getChangeId());
+        if (removedRequest != null) {
+            destroyClientTempEntities(removedRequest);
+        }
+
         recalculatePredictedState();
     }
 
+    private void destroyClientTempEntities(AbstractMoveItemRequest removedRequest) {
+        for (EntityRef tempEntity : removedRequest.getClientSideTempEntities()) {
+            if (tempEntity.exists()) {
+                tempEntity.destroy();
+            }
+        }
+    }
+
     private void recalculatePredictedState() {
-        for (MoveItemRequest request : pendingMoves.values()) {
-            if (request instanceof MoveItemAmountRequest) {
-                int amount = ((MoveItemAmountRequest) request).getAmount();
-                InventoryUtils.moveItemAmount(request.getInstigator(), request.getFromInventory(),
-                        request.getFromSlot(), request.getToInventory(), request.getToSlot(), amount);
-            } else {
-                InventoryUtils.moveItem(request.getInstigator(), request.getFromInventory(), request.getFromSlot(), request.getToInventory(), request.getToSlot());
+        for (AbstractMoveItemRequest request : pendingMoves.values()) {
+            // For each remaining pending request, we need to destroy all temp entities that request previously created,
+            // then redo the change requested and store new temp entities in the request to be destroyed once that
+            // pending request is acknowledged by the server
+            if (request instanceof MoveItemRequest) {
+                MoveItemRequest r = (MoveItemRequest) request;
+                destroyClientTempEntities(r);
+
+                Collection<EntityRef> newClientTempEntities = new HashSet<>();
+                moveItemFillClientTempEntities(request.getFromInventory(), r.getInstigator(), r.getFromSlot(), r.getToInventory(),
+                        r.getToSlot(), newClientTempEntities);
+                r.setClientSideTempEntities(newClientTempEntities);
+            } else if (request instanceof MoveItemAmountRequest) {
+                MoveItemAmountRequest r = (MoveItemAmountRequest) request;
+                destroyClientTempEntities(r);
+
+                Collection<EntityRef> newClientTempEntities = new HashSet<>();
+                moveItemAmountFillClientTempEntities(r.getFromInventory(), r.getInstigator(), r.getFromSlot(), r.getToInventory(),
+                        r.getToSlot(), r.getAmount(), newClientTempEntities);
+                r.setClientSideTempEntities(newClientTempEntities);
+            } else if (request instanceof MoveItemToSlotsRequest) {
+                MoveItemToSlotsRequest r = (MoveItemToSlotsRequest) request;
+                destroyClientTempEntities(r);
+
+                Collection<EntityRef> newClientTempEntities = new HashSet<>();
+                moveItemToSlotsFillClientTempEntities(r.getInstigator(), r.getFromInventory(), r.getFromSlot(), r.getToInventory(),
+                        r.getToSlots(), newClientTempEntities);
+                r.setClientSideTempEntities(newClientTempEntities);
             }
         }
     }
@@ -140,29 +175,111 @@ public class InventoryClientSystem extends BaseComponentSystem implements Invent
     }
 
     @Override
+    public EntityRef removeItem(EntityRef inventory, EntityRef instigator, int slotNo, boolean destroyRemoved, int count) {
+        throw new UnsupportedOperationException("This operation cannot be invoked on the client");
+    }
+
+    @Override
     public boolean moveItem(EntityRef fromInventory, EntityRef instigator, int slotFrom, EntityRef toInventory, int slotTo, int count) {
-        if (!InventoryUtils.moveItemAmount(instigator, fromInventory, slotFrom, toInventory, slotTo, count)) {
+        Collection<EntityRef> clientTempEntities = new HashSet<>();
+        if (moveItemAmountFillClientTempEntities(fromInventory, instigator, slotFrom, toInventory, slotTo, count, clientTempEntities)) {
             return false;
         }
 
         MoveItemAmountRequest request = new MoveItemAmountRequest(instigator, fromInventory,
-                slotFrom, toInventory, slotTo, count, changeId++);
+                slotFrom, toInventory, slotTo, count, changeId++, clientTempEntities);
         pendingMoves.put(request.getChangeId(), request);
         localPlayer.getClientEntity().send(request);
 
         return true;
     }
 
+    private boolean moveItemAmountFillClientTempEntities(EntityRef fromInventory, EntityRef instigator, int slotFrom,
+            EntityRef toInventory, int slotTo, int count, Collection<EntityRef> clientTempEntities) {
+        EntityRef itemAtBefore = InventoryUtils.getItemAt(toInventory, slotTo);
+        boolean itemExisted = itemAtBefore.exists();
+        if (!InventoryUtils.moveItemAmount(instigator, fromInventory, slotFrom, toInventory, slotTo, count)) {
+            return true;
+        }
+
+        if (!itemExisted) {
+            clientTempEntities.add(InventoryUtils.getItemAt(toInventory, slotTo));
+        }
+        return false;
+    }
+
+
     @Override
-    public boolean switchItem(EntityRef fromInventory, EntityRef instigator, int slotFrom, EntityRef toInventory, int slotTo) {
-        if (!InventoryUtils.moveItem(instigator, fromInventory, slotFrom, toInventory, slotTo)) {
+    public boolean moveItemToSlots(EntityRef instigator, EntityRef fromInventory, int slotFrom, EntityRef toInventory, List<Integer> toSlots) {
+        Collection<EntityRef> clientTempEntities = new HashSet<>();
+        if (moveItemToSlotsFillClientTempEntities(instigator, fromInventory, slotFrom, toInventory, toSlots, clientTempEntities)) {
             return false;
         }
 
-        MoveItemRequest request = new MoveItemRequest(instigator, fromInventory, slotFrom, toInventory, slotTo, changeId++);
+        MoveItemToSlotsRequest request = new MoveItemToSlotsRequest(instigator, fromInventory,
+                slotFrom, toInventory, toSlots, changeId++, clientTempEntities);
         pendingMoves.put(request.getChangeId(), request);
         localPlayer.getClientEntity().send(request);
 
         return true;
+    }
+
+    private boolean moveItemToSlotsFillClientTempEntities(EntityRef instigator, EntityRef fromInventory, int slotFrom,
+            EntityRef toInventory, List<Integer> toSlots, Collection<EntityRef> clientTempEntities) {
+        Set<Integer> emptySlotsBefore = new HashSet<>();
+        for (Integer toSlot : toSlots) {
+            if (!InventoryUtils.getItemAt(toInventory, toSlot).exists()) {
+                emptySlotsBefore.add(toSlot);
+            }
+        }
+
+        if (!InventoryUtils.moveItemToSlots(instigator, fromInventory, slotFrom, toInventory, toSlots)) {
+            return true;
+        }
+
+        for (Integer slot : emptySlotsBefore) {
+            EntityRef itemAt = InventoryUtils.getItemAt(toInventory, slot);
+            if (itemAt.exists()) {
+                clientTempEntities.add(itemAt);
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean switchItem(EntityRef fromInventory, EntityRef instigator, int slotFrom, EntityRef toInventory, int slotTo) {
+        Collection<EntityRef> clientTempEntities = new HashSet<>();
+        if (moveItemFillClientTempEntities(fromInventory, instigator, slotFrom, toInventory, slotTo, clientTempEntities)) {
+            return false;
+        }
+
+        MoveItemRequest request = new MoveItemRequest(instigator, fromInventory, slotFrom, toInventory, slotTo, changeId++, clientTempEntities);
+        pendingMoves.put(request.getChangeId(), request);
+        localPlayer.getClientEntity().send(request);
+
+        return true;
+    }
+
+    private boolean moveItemFillClientTempEntities(EntityRef fromInventory, EntityRef instigator, int slotFrom,
+            EntityRef toInventory, int slotTo, Collection<EntityRef> clientTempEntities) {
+        boolean slotFromEmpty = !InventoryUtils.getItemAt(fromInventory, slotFrom).exists();
+        boolean slotToEmpty = !InventoryUtils.getItemAt(toInventory, slotTo).exists();
+        if (!InventoryUtils.moveItem(instigator, fromInventory, slotFrom, toInventory, slotTo)) {
+            return true;
+        }
+
+        if (slotFromEmpty) {
+            EntityRef itemAt = InventoryUtils.getItemAt(fromInventory, slotFrom);
+            if (itemAt.exists()) {
+                clientTempEntities.add(itemAt);
+            }
+        }
+        if (slotToEmpty) {
+            EntityRef itemAt = InventoryUtils.getItemAt(toInventory, slotTo);
+            if (itemAt.exists()) {
+                clientTempEntities.add(itemAt);
+            }
+        }
+        return false;
     }
 }

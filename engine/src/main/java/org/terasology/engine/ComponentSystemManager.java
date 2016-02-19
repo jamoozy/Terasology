@@ -21,6 +21,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.terasology.context.Context;
 import org.terasology.engine.subsystem.DisplayDevice;
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.systems.ComponentSystem;
@@ -28,11 +29,11 @@ import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.RenderSystem;
 import org.terasology.entitySystem.systems.UpdateSubscriberSystem;
 import org.terasology.logic.console.Console;
+import org.terasology.logic.console.commandSystem.MethodCommand;
 import org.terasology.module.Module;
 import org.terasology.module.ModuleEnvironment;
 import org.terasology.naming.Name;
 import org.terasology.network.NetworkMode;
-import org.terasology.registry.CoreRegistry;
 import org.terasology.registry.InjectionHelper;
 
 import java.util.List;
@@ -47,9 +48,10 @@ import java.util.Map;
  * <li>Inactive: In this state the registered systems are created, but not initialised</li>
  * <li>Active: In this state all the registered systems are initialised</li>
  * </ul>
- * It becomes active when initialise() is called, and inactive when shutdown() is called.
+ * It starts inactive and becomes active when initialise() is called.
  *
- * @author Immortius <immortius@gmail.com>
+ * After a call of shutdown it should not be used anymore.
+ *
  */
 public class ComponentSystemManager {
 
@@ -61,15 +63,17 @@ public class ComponentSystemManager {
     private List<ComponentSystem> store = Lists.newArrayList();
 
     private Console console;
+    private Context context;
 
     private boolean initialised;
 
-    public ComponentSystemManager() {
+    public ComponentSystemManager(Context context) {
+        this.context = context;
     }
 
     public void loadSystems(ModuleEnvironment environment, NetworkMode netMode) {
-        DisplayDevice displayDevice = CoreRegistry.get(DisplayDevice.class);
-        boolean isHeadless = displayDevice.isHeadless();
+        DisplayDevice display = context.get(DisplayDevice.class);
+        boolean isHeadless = display.isHeadless();
 
         ListMultimap<Name, Class<?>> systemsByModule = ArrayListMultimap.create();
         for (Class<?> type : environment.getTypesAnnotatedWith(RegisterSystem.class)) {
@@ -93,7 +97,8 @@ public class ComponentSystemManager {
                     InjectionHelper.share(newSystem);
                     register(newSystem, id);
                     logger.debug("Loaded system {}", id);
-                } catch (InstantiationException | IllegalAccessException e) {
+                } catch (RuntimeException | IllegalAccessException | InstantiationException
+                        | NoClassDefFoundError e) {
                     logger.error("Failed to load system {}", id, e);
                 }
             }
@@ -108,7 +113,7 @@ public class ComponentSystemManager {
         if (object instanceof RenderSystem) {
             renderSubscribers.add((RenderSystem) object);
         }
-        CoreRegistry.get(EntityManager.class).getEventSystem().registerEventHandler(object);
+        context.get(EntityManager.class).getEventSystem().registerEventHandler(object);
 
         if (initialised) {
             initialiseSystem(object);
@@ -122,23 +127,26 @@ public class ComponentSystemManager {
 
     public void initialise() {
         if (!initialised) {
-            console = CoreRegistry.get(Console.class);
+            console = context.get(Console.class);
             for (ComponentSystem system : iterateAll()) {
                 initialiseSystem(system);
             }
             initialised = true;
+        } else {
+            logger.error("ComponentSystemManager got initialized twice");
         }
     }
 
     private void initialiseSystem(ComponentSystem system) {
         InjectionHelper.inject(system);
+
         if (console != null) {
-            console.registerCommandProvider(system);
+            MethodCommand.registerAvailable(system, console, context);
         }
 
         try {
             system.initialise();
-        } catch (Throwable e) {
+        } catch (RuntimeException e) {
             logger.error("Failed to initialise system {}", system, e);
         }
     }
@@ -149,18 +157,6 @@ public class ComponentSystemManager {
 
     public ComponentSystem get(String name) {
         return namedLookup.get(name);
-    }
-
-    private void clear() {
-        for (ComponentSystem system : store) {
-            InjectionHelper.unshare(system);
-        }
-        console = null;
-        namedLookup.clear();
-        store.clear();
-        updateSubscribers.clear();
-        renderSubscribers.clear();
-        initialised = false;
     }
 
     public Iterable<ComponentSystem> iterateAll() {
@@ -179,6 +175,5 @@ public class ComponentSystemManager {
         for (ComponentSystem system : iterateAll()) {
             system.shutdown();
         }
-        clear();
     }
 }

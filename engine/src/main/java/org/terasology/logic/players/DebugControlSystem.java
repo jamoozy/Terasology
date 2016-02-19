@@ -16,9 +16,10 @@
 
 package org.terasology.logic.players;
 
+import org.lwjgl.input.Mouse;
 import org.terasology.config.Config;
-import org.terasology.engine.GameEngine;
 import org.terasology.entitySystem.entity.EntityRef;
+import org.terasology.entitySystem.event.EventPriority;
 import org.terasology.entitySystem.event.ReceiveEvent;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
 import org.terasology.entitySystem.systems.RegisterMode;
@@ -27,31 +28,26 @@ import org.terasology.input.Keyboard;
 import org.terasology.input.binds.general.HideHUDButton;
 import org.terasology.input.events.KeyDownEvent;
 import org.terasology.input.events.KeyEvent;
+import org.terasology.input.events.MouseXAxisEvent;
+import org.terasology.input.events.MouseYAxisEvent;
+import org.terasology.logic.characters.CharacterComponent;
 import org.terasology.logic.console.ConsoleMessageEvent;
+import org.terasology.logic.debug.DebugProperties;
 import org.terasology.logic.health.DoDamageEvent;
 import org.terasology.network.ClientComponent;
 import org.terasology.registry.In;
 import org.terasology.rendering.nui.NUIManager;
 import org.terasology.rendering.nui.layers.ingame.metrics.DebugOverlay;
-import org.terasology.rendering.world.ViewDistance;
-import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
 import org.terasology.world.WorldProvider;
 
 /**
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
- * @author Immortius
  */
 @RegisterSystem(RegisterMode.CLIENT)
 public class DebugControlSystem extends BaseComponentSystem {
 
     @In
-    private GameEngine engine;
-
-    @In
     private WorldProvider world;
-
-    @In
-    private WorldRenderer worldRenderer;
 
     @In
     private Config config;
@@ -60,6 +56,8 @@ public class DebugControlSystem extends BaseComponentSystem {
     private NUIManager nuiManager;
 
     private DebugOverlay overlay;
+
+    private boolean mouseGrabbed = true;
 
     @Override
     public void initialise() {
@@ -85,7 +83,7 @@ public class DebugControlSystem extends BaseComponentSystem {
         int maxViewDistance = ViewDistance.values().length - 1;
 
         if (viewDistance != maxViewDistance) {
-            config.getRendering().setViewDistance(ViewDistance.forIndex((config.getRendering().getViewDistance().getIndex() + 1)));
+            config.getRendering().setViewDistance(ViewDistance.forIndex((viewDistance + 1)));
         }
         button.consume();
     }
@@ -96,7 +94,7 @@ public class DebugControlSystem extends BaseComponentSystem {
         int minViewDistance = 0;
 
         if (viewDistance != minViewDistance) {
-            config.getRendering().setViewDistance(ViewDistance.forIndex((config.getRendering().getViewDistance().getIndex() - 1)));
+            config.getRendering().setViewDistance(ViewDistance.forIndex((viewDistance - 1)));
         }
         button.consume();
     }
@@ -135,12 +133,9 @@ public class DebugControlSystem extends BaseComponentSystem {
         // Features for debug mode only
         if (debugEnabled) {
             switch (event.getKey().getId()) {
-                case Keyboard.KeyId.R:
-                    config.getRendering().getDebug().setWireframe(!config.getRendering().getDebug().isWireframe());
-                    event.consume();
-                    break;
                 case Keyboard.KeyId.K:
                     entity.send(new DoDamageEvent(9999, null));
+                    //TODO: Seems to be broken, which is probably not a terrible thing ... remove?
                     break;
                 case Keyboard.KeyId.F6:
                     config.getRendering().getDebug().setEnabled(!config.getRendering().getDebug().isEnabled());
@@ -155,14 +150,21 @@ public class DebugControlSystem extends BaseComponentSystem {
                     config.getRendering().getDebug().setRenderChunkBoundingBoxes(!config.getRendering().getDebug().isRenderChunkBoundingBoxes());
                     event.consume();
                     break;
+                case Keyboard.KeyId.F9:
+                    config.getRendering().getDebug().setWireframe(!config.getRendering().getDebug().isWireframe());
+                    event.consume();
+                    break;
                 default:
                     break;
             }
         }
 
         switch (event.getKey().getId()) {
-            case Keyboard.KeyId.F1:
-                engine.setFocus(!engine.hasFocus());
+            case Keyboard.KeyId.F2:
+                mouseGrabbed = !mouseGrabbed;
+                DebugProperties debugProperties = (DebugProperties) nuiManager.getHUD().getHUDElement("engine:DebugProperties");
+                debugProperties.setVisible(!mouseGrabbed);
+                Mouse.setGrabbed(mouseGrabbed);
                 event.consume();
                 break;
             case Keyboard.KeyId.F3:
@@ -179,4 +181,17 @@ public class DebugControlSystem extends BaseComponentSystem {
         }
     }
 
+    @ReceiveEvent(components = CharacterComponent.class, priority = EventPriority.PRIORITY_HIGH)
+    public void onMouseX(MouseXAxisEvent event, EntityRef entity) {
+        if (!mouseGrabbed) {
+            event.consume();
+        }
+    }
+
+    @ReceiveEvent(components = CharacterComponent.class, priority = EventPriority.PRIORITY_HIGH)
+    public void onMouseY(MouseYAxisEvent event, EntityRef entity) {
+        if (!mouseGrabbed) {
+            event.consume();
+        }
+    }
 }

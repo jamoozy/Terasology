@@ -17,9 +17,8 @@ package org.terasology.logic.console;
 
 /**
  * Interface for subscribers to messages being added to the console
- *
- * @author Immortius
  */
+@FunctionalInterface
 public interface ConsoleSubscriber {
 
     /**

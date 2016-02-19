@@ -4,8 +4,7 @@
         "name": "Pick Axe"
     },
     "Item": {
-        "icon": "engine:items.pick",
-        "renderWithIcon": true,
+        "icon": "engine:items#pick",
         "damageType": "pickaxeDamage"
     }
 }

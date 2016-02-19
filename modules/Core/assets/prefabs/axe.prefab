@@ -4,8 +4,7 @@
         "name" : "Axe"
     },
     "Item" : {
-        "icon" : "engine:items.axe",
-        "renderWithIcon" : true,
+        "icon" : "engine:items#axe",
         "damageType" : "axeDamage"
     }
 }

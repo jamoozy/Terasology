@@ -32,34 +32,30 @@ import org.terasology.entitySystem.systems.BaseComponentSystem;
 import org.terasology.entitySystem.systems.RegisterMode;
 import org.terasology.entitySystem.systems.RegisterSystem;
 import org.terasology.entitySystem.systems.RenderSystem;
-import org.terasology.logic.characters.CharacterComponent;
 import org.terasology.logic.location.LocationComponent;
 import org.terasology.logic.players.LocalPlayer;
 import org.terasology.math.AABB;
 import org.terasology.math.MatrixUtils;
-import org.terasology.math.TeraMath;
+import org.terasology.math.VecMath;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.network.ClientComponent;
 import org.terasology.network.NetworkSystem;
 import org.terasology.registry.In;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.opengl.OpenGLMesh;
 import org.terasology.rendering.world.WorldRenderer;
+import org.terasology.world.WorldProvider;
 
-import javax.vecmath.AxisAngle4f;
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
-import static org.lwjgl.opengl.GL11.*;
-
 /**
  * TODO: This should be made generic (no explicit shader or mesh) and ported directly into WorldRenderer? Later note: some GelCube functionality moved to a module
  *
- * @author Immortius <immortius@gmail.com>
  */
 @RegisterSystem(RegisterMode.CLIENT)
 public class MeshRenderer extends BaseComponentSystem implements RenderSystem {
@@ -76,6 +72,9 @@ public class MeshRenderer extends BaseComponentSystem implements RenderSystem {
 
     @In
     private WorldRenderer worldRenderer;
+
+    @In
+    private WorldProvider worldProvider;
 
     private SetMultimap<Material, EntityRef> opaqueMesh = HashMultimap.create();
     private SetMultimap<Material, EntityRef> translucentMesh = HashMultimap.create();
@@ -104,15 +103,17 @@ public class MeshRenderer extends BaseComponentSystem implements RenderSystem {
         addMesh(entity);
     }
 
+
+    private boolean isHidden(EntityRef entity, MeshComponent mesh) {
+        if (!mesh.hideFromOwner) {
+            return false;
+        }
+        ClientComponent owner = network.getOwnerEntity(entity).getComponent(ClientComponent.class);
+        return (owner != null && owner.local);
+    }
+
     private void addMesh(EntityRef entity) {
         MeshComponent meshComp = entity.getComponent(MeshComponent.class);
-        // Don't render if hidden from owner (need to improve for third person)
-        if (meshComp.hideFromOwner) {
-            ClientComponent owner = network.getOwnerEntity(entity).getComponent(ClientComponent.class);
-            if (owner != null && owner.local) {
-                return;
-            }
-        }
         if (meshComp.material != null) {
             if (meshComp.translucent) {
                 translucentMesh.put(meshComp.material, entity);
@@ -126,16 +127,12 @@ public class MeshRenderer extends BaseComponentSystem implements RenderSystem {
         }
     }
 
-    @ReceiveEvent(components = {CharacterComponent.class, MeshComponent.class})
-    public void onLocalMesh(OnChangedComponent event, EntityRef entity) {
-        removeMesh(entity);
-        addMesh(entity);
-    }
-
     @ReceiveEvent(components = {MeshComponent.class})
     public void onChangeMesh(OnChangedComponent event, EntityRef entity) {
         removeMesh(entity);
-        addMesh(entity);
+        if (entity.hasComponent(LocationComponent.class)) {
+            addMesh(entity);
+        }
     }
 
     private void removeMesh(EntityRef entity) {
@@ -169,33 +166,45 @@ public class MeshRenderer extends BaseComponentSystem implements RenderSystem {
     private void renderAlphaBlend(Iterable<EntityRef> entityRefs) {
         Vector3f cameraPosition = worldRenderer.getActiveCamera().getPosition();
 
+        FloatBuffer tempMatrixBuffer44 = BufferUtils.createFloatBuffer(16);
+        FloatBuffer tempMatrixBuffer33 = BufferUtils.createFloatBuffer(12);
+
         for (EntityRef entity : entityRefs) {
             MeshComponent meshComp = entity.getComponent(MeshComponent.class);
-            meshComp.material.enable();
-            LocationComponent location = entity.getComponent(LocationComponent.class);
-            if (location == null) {
-                continue;
-            }
+            if (meshComp.material.isRenderable()) {
+                meshComp.material.enable();
+                LocationComponent location = entity.getComponent(LocationComponent.class);
+                if (location == null) {
+                    continue;
+                }
+                if (isHidden(entity, meshComp)) {
+                    continue;
+                }
 
-            Quat4f worldRot = location.getWorldRotation();
-            Vector3f worldPos = location.getWorldPosition();
-            float worldScale = location.getWorldScale();
-            AABB aabb = meshComp.mesh.getAABB().transform(worldRot, worldPos, worldScale);
-            if (worldRenderer.isAABBVisible(aabb)) {
-                glPushMatrix();
+                Quat4f worldRot = location.getWorldRotation();
+                Vector3f worldPos = location.getWorldPosition();
+                float worldScale = location.getWorldScale();
+                AABB aabb = meshComp.mesh.getAABB().transform(worldRot, worldPos, worldScale);
+                if (worldRenderer.getActiveCamera().hasInSight(aabb)) {
+                    Vector3f worldPositionCameraSpace = new Vector3f();
+                    worldPositionCameraSpace.sub(worldPos, cameraPosition);
+                    Matrix4f matrixCameraSpace = new Matrix4f(worldRot, worldPositionCameraSpace, worldScale);
+                    Matrix4f modelViewMatrix = MatrixUtils.calcModelViewMatrix(worldRenderer.getActiveCamera().getViewMatrix(), matrixCameraSpace);
+                    MatrixUtils.matrixToFloatBuffer(modelViewMatrix, tempMatrixBuffer44);
 
-                glTranslated(worldPos.x - cameraPosition.x, worldPos.y - cameraPosition.y, worldPos.z - cameraPosition.z);
-                AxisAngle4f rot = new AxisAngle4f();
-                rot.set(worldRot);
-                glRotatef(TeraMath.RAD_TO_DEG * rot.angle, rot.x, rot.y, rot.z);
-                glScalef(worldScale, worldScale, worldScale);
+                    meshComp.material.setMatrix4("projectionMatrix", worldRenderer.getActiveCamera().getProjectionMatrix());
+                    meshComp.material.setMatrix4("worldViewMatrix", tempMatrixBuffer44, true);
 
-                meshComp.material.setFloat4("colorOffset", meshComp.color.rf(), meshComp.color.gf(), meshComp.color.bf(), meshComp.color.af(), true);
-                meshComp.material.setFloat("light", worldRenderer.getRenderingLightValueAt(worldPos), true);
+                    MatrixUtils.matrixToFloatBuffer(MatrixUtils.calcNormalMatrix(modelViewMatrix), tempMatrixBuffer33);
+                    meshComp.material.setMatrix3("normalMatrix", tempMatrixBuffer33, true);
+                    meshComp.material.setFloat4("colorOffset", meshComp.color.rf(), meshComp.color.gf(), meshComp.color.bf(), meshComp.color.af(), true);
+                    meshComp.material.setFloat("light", worldRenderer.getRenderingLightValueAt(worldPos), true);
+                    meshComp.material.setFloat("sunlight", worldRenderer.getSunlightValueAt(worldPos), true);
 
-                meshComp.mesh.render();
-
-                glPopMatrix();
+                    OpenGLMesh mesh = (OpenGLMesh) meshComp.mesh;
+                    meshComp.material.bindTextures();
+                    mesh.render();
+                }
             }
         }
     }
@@ -221,50 +230,48 @@ public class MeshRenderer extends BaseComponentSystem implements RenderSystem {
 
         Quat4f worldRot = new Quat4f();
         Vector3f worldPos = new Vector3f();
-        Matrix4f matrixWorldSpace = new Matrix4f();
         Transform transWorldSpace = new Transform();
-        Matrix4f matrixCameraSpace = new Matrix4f();
 
         FloatBuffer tempMatrixBuffer44 = BufferUtils.createFloatBuffer(16);
         FloatBuffer tempMatrixBuffer33 = BufferUtils.createFloatBuffer(12);
 
         for (Material material : meshByMaterial.keySet()) {
-            OpenGLMesh lastMesh = null;
-            material.enable();
-            material.setFloat("sunlight", 1.0f);
-            material.setFloat("blockLight", 1.0f);
-            material.setMatrix4("projectionMatrix", worldRenderer.getActiveCamera().getProjectionMatrix());
-            material.bindTextures();
+            if (material.isRenderable()) {
+                OpenGLMesh lastMesh = null;
+                material.enable();
+                material.setFloat("sunlight", 1.0f);
+                material.setFloat("blockLight", 1.0f);
+                material.setMatrix4("projectionMatrix", worldRenderer.getActiveCamera().getProjectionMatrix());
+                material.bindTextures();
 
-            Set<EntityRef> entities = meshByMaterial.get(material);
-            lastRendered = entities.size();
-            for (EntityRef entity : entities) {
-                MeshComponent meshComp = entity.getComponent(MeshComponent.class);
-                LocationComponent location = entity.getComponent(LocationComponent.class);
+                Set<EntityRef> entities = meshByMaterial.get(material);
+                lastRendered = entities.size();
+                for (EntityRef entity : entities) {
+                    MeshComponent meshComp = entity.getComponent(MeshComponent.class);
+                    LocationComponent location = entity.getComponent(LocationComponent.class);
 
-                if (location == null || meshComp.mesh == null) {
-                    continue;
-                }
-                if (meshComp.mesh.isDisposed()) {
-                    logger.error("Attempted to render disposed mesh");
-                    continue;
-                }
+                    if (isHidden(entity, meshComp) || location == null || meshComp.mesh == null
+                            || !worldProvider.isBlockRelevant(location.getWorldPosition())) {
+                        continue;
+                    }
+                    if (meshComp.mesh.isDisposed()) {
+                        logger.error("Attempted to render disposed mesh");
+                        continue;
+                    }
 
-                location.getWorldRotation(worldRot);
-                location.getWorldPosition(worldPos);
-                float worldScale = location.getWorldScale();
+                    location.getWorldRotation(worldRot);
+                    location.getWorldPosition(worldPos);
+                    float worldScale = location.getWorldScale();
 
-                matrixWorldSpace.set(worldRot, worldPos, worldScale);
-                transWorldSpace.set(matrixWorldSpace);
+                    javax.vecmath.Matrix4f matrixWorldSpace = new javax.vecmath.Matrix4f(VecMath.to(worldRot), VecMath.to(worldPos), worldScale);
+                    transWorldSpace.set(matrixWorldSpace);
 
-                Vector3f worldPositionCameraSpace = new Vector3f();
-                worldPositionCameraSpace.sub(worldPos, cameraPosition);
-                matrixCameraSpace.set(worldRot, worldPositionCameraSpace, worldScale);
+                    Vector3f worldPositionCameraSpace = new Vector3f();
+                    worldPositionCameraSpace.sub(worldPos, cameraPosition);
+                    Matrix4f matrixCameraSpace = new Matrix4f(worldRot, worldPositionCameraSpace, worldScale);
 
-                AABB aabb = meshComp.mesh.getAABB().transform(transWorldSpace);
-                boolean visible = worldRenderer.isAABBVisible(aabb);
-                if (visible) {
-                    if (worldRenderer.isAABBVisible(aabb)) {
+                    AABB aabb = meshComp.mesh.getAABB().transform(transWorldSpace);
+                    if (worldRenderer.getActiveCamera().hasInSight(aabb)) {
                         if (meshComp.mesh != lastMesh) {
                             if (lastMesh != null) {
                                 lastMesh.postRender();
@@ -287,9 +294,9 @@ public class MeshRenderer extends BaseComponentSystem implements RenderSystem {
                         lastMesh.doRender();
                     }
                 }
-            }
-            if (lastMesh != null) {
-                lastMesh.postRender();
+                if (lastMesh != null) {
+                    lastMesh.postRender();
+                }
             }
         }
     }

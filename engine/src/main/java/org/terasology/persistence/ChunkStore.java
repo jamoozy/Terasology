@@ -15,14 +15,12 @@
  */
 package org.terasology.persistence;
 
-import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.math.Vector3i;
-import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.math.geom.Vector3i;
+import org.terasology.world.chunks.Chunk;
 
 /**
  * A chunk store is used to save a chunk and its entity contents.
  *
- * @author Immortius
  */
 public interface ChunkStore {
 
@@ -34,31 +32,11 @@ public interface ChunkStore {
     /**
      * @return The chunk itself
      */
-    ChunkImpl getChunk();
-
-    /**
-     * Saves the chunk store, deactivating contained entities
-     */
-    void save();
-
-    /**
-     * Saves the chunk store
-     *
-     * @param deactivateEntities Whether the contained entities should be deactivated
-     */
-    void save(boolean deactivateEntities);
-
-    /**
-     * Stores an entity into this chunk store
-     *
-     * @param entity
-     */
-    void store(EntityRef entity);
+    Chunk getChunk();
 
     /**
      * Restores all the entities stored with this chunk
      */
     void restoreEntities();
 
-    void storeAllEntities();
 }

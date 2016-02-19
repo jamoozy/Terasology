@@ -18,46 +18,35 @@ package org.terasology.engine.subsystem.lwjgl;
 import org.lwjgl.LWJGLException;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.terasology.assets.module.ModuleAwareAssetTypeManager;
 import org.terasology.config.Config;
-import org.terasology.engine.ComponentSystemManager;
-import org.terasology.engine.GameEngine;
+import org.terasology.config.ControllerConfig;
+import org.terasology.context.Context;
 import org.terasology.engine.modes.GameState;
 import org.terasology.input.InputSystem;
+import org.terasology.input.lwjgl.JInputControllerDevice;
 import org.terasology.input.lwjgl.LwjglKeyboardDevice;
 import org.terasology.input.lwjgl.LwjglMouseDevice;
-import org.terasology.registry.CoreRegistry;
-import org.terasology.rendering.nui.NUIManager;
 
 public class LwjglInput extends BaseLwjglSubsystem {
 
-    private static final Logger logger = LoggerFactory.getLogger(LwjglInput.class);
-    private boolean mouseGrabbed;
+    private Context context;
 
     @Override
-    public void preInitialise() {
-        super.preInitialise();
+    public String getName() {
+        return "Input";
     }
 
     @Override
-    public void postInitialise(Config config) {
+    public void registerCoreAssetTypes(ModuleAwareAssetTypeManager assetTypeManager) {
+    }
+
+    @Override
+    public void postInitialise(Context rootContext) {
+        this.context = rootContext;
         initControls();
-        updateInputConfig(config);
+        updateInputConfig();
         Mouse.setGrabbed(false);
-    }
-
-    @Override
-    public void preUpdate(GameState currentState, float delta) {
-        NUIManager nuiManager = CoreRegistry.get(NUIManager.class);
-        GameEngine engine = CoreRegistry.get(GameEngine.class);
-
-        // TODO: this originally occurred before GameThread.processWaitingProcesses();
-        boolean newGrabbed = engine.hasMouseFocus() && !(nuiManager.isReleasingMouse());
-        if (newGrabbed != mouseGrabbed) {
-            Mouse.setGrabbed(newGrabbed);
-            mouseGrabbed = newGrabbed;
-        }
     }
 
     @Override
@@ -66,11 +55,7 @@ public class LwjglInput extends BaseLwjglSubsystem {
     }
 
     @Override
-    public void shutdown(Config config) {
-    }
-
-    @Override
-    public void dispose() {
+    public void shutdown() {
         Mouse.destroy();
         Keyboard.destroy();
     }
@@ -80,21 +65,22 @@ public class LwjglInput extends BaseLwjglSubsystem {
             Keyboard.create();
             Keyboard.enableRepeatEvents(true);
             Mouse.create();
-            InputSystem inputSystem = CoreRegistry.putPermanently(InputSystem.class, new InputSystem());
+            InputSystem inputSystem = new InputSystem();
+            context.put(InputSystem.class, inputSystem);
             inputSystem.setMouseDevice(new LwjglMouseDevice());
             inputSystem.setKeyboardDevice(new LwjglKeyboardDevice());
+
+            ControllerConfig controllerConfig = context.get(Config.class).getInput().getControllers();
+            JInputControllerDevice controllerDevice = new JInputControllerDevice(controllerConfig);
+            inputSystem.setControllerDevice(controllerDevice);
         } catch (LWJGLException e) {
             throw new RuntimeException("Could not initialize controls.", e);
         }
     }
 
-    private void updateInputConfig(Config config) {
-        config.getInput().getBinds().updateForChangedMods();
+    private void updateInputConfig() {
+        Config config = context.get(Config.class);
+        config.getInput().getBinds().updateForChangedMods(context);
         config.save();
     }
-
-    @Override
-    public void registerSystems(ComponentSystemManager componentSystemManager) {
-    }
-
 }

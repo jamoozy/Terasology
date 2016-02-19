@@ -16,6 +16,7 @@
 package org.terasology.reflection.metadata;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
@@ -40,13 +41,12 @@ import java.util.Map;
 
 /**
  * Class Metadata provides information on a class and its fields, and the ability to create, copy or manipulate an instance of the class.
- * <p/>
+ * <br><br>
  * Subclasses can be created to hold additional information for specific types of objects.  These may override createField()
  * to change how fields are processed and possibly switch to a subtype of FieldMetadata that holds additional information.
- * <p/>
+ * <br><br>
  * Consumed classes are required to have a default constructor (this may be private)
  *
- * @author Immortius
  */
 public abstract class ClassMetadata<T, FIELD extends FieldMetadata<T, ?>> {
 
@@ -68,7 +68,7 @@ public abstract class ClassMetadata<T, FIELD extends FieldMetadata<T, ?>> {
      * @param copyStrategyLibrary A copy strategy library
      * @throws NoSuchMethodException If the class has no default constructor
      */
-    public ClassMetadata(SimpleUri uri, Class<T> type, ReflectFactory factory, CopyStrategyLibrary copyStrategyLibrary, Predicate includedFieldPredicate)
+    public ClassMetadata(SimpleUri uri, Class<T> type, ReflectFactory factory, CopyStrategyLibrary copyStrategyLibrary, Predicate<Field> includedFieldPredicate)
             throws NoSuchMethodException {
         if (System.getSecurityManager() != null) {
             System.getSecurityManager().checkPermission(CREATE_CLASS_METADATA);
@@ -95,7 +95,7 @@ public abstract class ClassMetadata<T, FIELD extends FieldMetadata<T, ?>> {
      * @param copyStrategyLibrary The library of copy strategies
      * @param factory             The reflection provider
      */
-    private void addFields(CopyStrategyLibrary copyStrategyLibrary, ReflectFactory factory, Predicate includedFieldsPredicate) {
+    private void addFields(CopyStrategyLibrary copyStrategyLibrary, ReflectFactory factory, Predicate<Field> includedFieldsPredicate) {
         for (Field field : ReflectionUtils.getAllFields(clazz, includedFieldsPredicate)) {
             if (Modifier.isTransient(field.getModifiers()) || Modifier.isStatic(field.getModifiers())) {
                 continue;
@@ -162,6 +162,7 @@ public abstract class ClassMetadata<T, FIELD extends FieldMetadata<T, ?>> {
      * @return A new instance of this class.
      */
     public T newInstance() {
+        Preconditions.checkState(isConstructable(), "Cannot construct '" + this + "' - no accessible default constructor");
         return constructor.construct();
     }
 
@@ -172,7 +173,7 @@ public abstract class ClassMetadata<T, FIELD extends FieldMetadata<T, ?>> {
     public T copy(T object) {
         T result = constructor.construct();
         if (result != null) {
-            for (FieldMetadata field : fields.values()) {
+            for (FIELD field : fields.values()) {
                 field.setValue(result, field.getCopyOfValue(object));
             }
         }
@@ -185,7 +186,6 @@ public abstract class ClassMetadata<T, FIELD extends FieldMetadata<T, ?>> {
      * @param object The instance of this class to copy
      * @return A copy of the given object, or null if object is not of the type described by this metadata.
      */
-    @SuppressWarnings("unchecked")
     public T copyRaw(Object object) {
         if (getType().isInstance(object)) {
             return copy(getType().cast(object));
@@ -206,7 +206,7 @@ public abstract class ClassMetadata<T, FIELD extends FieldMetadata<T, ?>> {
             return true;
         }
         if (obj instanceof ClassMetadata) {
-            ClassMetadata other = (ClassMetadata) obj;
+            ClassMetadata<?, ?> other = (ClassMetadata<?, ?>) obj;
             return Objects.equal(other.clazz, clazz);
         }
         return false;

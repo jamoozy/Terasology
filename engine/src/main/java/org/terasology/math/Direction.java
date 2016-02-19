@@ -17,14 +17,14 @@
 package org.terasology.math;
 
 import com.google.common.collect.Maps;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 
-import javax.vecmath.Vector3f;
 import java.util.EnumMap;
 
 /**
  * An enumeration of the axis of the world from the player perspective. There is also
  *
- * @author Immortius
  */
 public enum Direction {
     UP(Vector3i.up(), new Vector3f(0, 1, 0)),

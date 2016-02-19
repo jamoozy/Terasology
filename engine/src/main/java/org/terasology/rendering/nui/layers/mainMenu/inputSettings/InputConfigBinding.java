@@ -18,6 +18,7 @@ package org.terasology.rendering.nui.layers.mainMenu.inputSettings;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import org.terasology.config.BindsConfig;
+import org.terasology.context.Context;
 import org.terasology.engine.SimpleUri;
 import org.terasology.input.Input;
 import org.terasology.rendering.nui.databinding.Binding;
@@ -25,7 +26,6 @@ import org.terasology.rendering.nui.databinding.Binding;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class InputConfigBinding implements Binding<Input> {
 
@@ -54,15 +54,24 @@ public class InputConfigBinding implements Binding<Input> {
         List<Input> binds = Lists.newArrayList(config.getBinds(bindUri));
         if (value == null) {
             if (position < binds.size()) {
-                binds.remove(position);
+                binds.set(position, null);
             }
         } else {
-            if (position < binds.size()) {
-                binds.set(position, value);
-            } else {
-                binds.add(value);
+            while (binds.size() <= position) {
+                binds.add(null);
             }
+            binds.set(position, value);
         }
         config.setBinds(bindUri, binds);
+    }
+
+    public void reset(Context context) {
+        BindsConfig defaultBindings = BindsConfig.createDefault(context);
+        set(Iterators.get(defaultBindings.getBinds(bindUri).iterator(), position, null));
+    }
+
+    public Input getDefault(Context context) {
+        BindsConfig defaultBindings = BindsConfig.createDefault(context);
+        return Iterators.get(defaultBindings.getBinds(bindUri).iterator(), position, null);
     }
 }

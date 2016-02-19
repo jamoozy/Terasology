@@ -19,21 +19,20 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.terasology.asset.Assets;
 import org.terasology.config.Config;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
 import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.rendering.cameras.Camera;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FrameBuffersManager;
 import org.terasology.rendering.world.WorldRenderer;
-
-import javax.vecmath.Vector3f;
 
 import static org.lwjgl.opengl.GL11.glBindTexture;
 
 /**
  * Shader parameters for the LightBufferPass shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersLightGeometryPass extends ShaderParametersBase {
 
@@ -41,7 +40,8 @@ public class ShaderParametersLightGeometryPass extends ShaderParametersBase {
     public void applyParameters(Material program) {
         super.applyParameters(program);
 
-        DefaultRenderingProcess.FBO sceneOpaque = DefaultRenderingProcess.getInstance().getFBO("sceneOpaque");
+        FrameBuffersManager buffersManager = CoreRegistry.get(FrameBuffersManager.class);
+        FBO sceneOpaque = buffersManager.getFBO("sceneOpaque");
 
         int texId = 0;
         if (sceneOpaque != null) {
@@ -60,7 +60,7 @@ public class ShaderParametersLightGeometryPass extends ShaderParametersBase {
 
         if (CoreRegistry.get(Config.class).getRendering().isDynamicShadows()) {
             GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
-            DefaultRenderingProcess.getInstance().bindFboDepthTexture("sceneShadowMap");
+            buffersManager.bindFboDepthTexture("sceneShadowMap");
             program.setInt("texSceneShadowMap", texId++, true);
 
             Camera lightCamera = CoreRegistry.get(WorldRenderer.class).getLightCamera();
@@ -76,7 +76,7 @@ public class ShaderParametersLightGeometryPass extends ShaderParametersBase {
             }
 
             if (CoreRegistry.get(Config.class).getRendering().isCloudShadows()) {
-                Texture clouds = Assets.getTexture("engine:perlinNoiseTileable");
+                Texture clouds = Assets.getTexture("engine:perlinNoiseTileable").get();
 
                 GL13.glActiveTexture(GL13.GL_TEXTURE0 + texId);
                 glBindTexture(GL11.GL_TEXTURE_2D, clouds.getId());

@@ -19,10 +19,11 @@ package org.terasology.entitySystem.entity.internal;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityRef;
 
+import java.util.Collection;
+
 /**
  * Primarily for internal use, is informed of all component lifecycle events for all components.
  *
- * @author Immortius
  */
 public interface EntityChangeSubscriber {
 
@@ -31,6 +32,10 @@ public interface EntityChangeSubscriber {
     void onEntityComponentChange(EntityRef entity, Class<? extends Component> component);
 
     void onEntityComponentRemoved(EntityRef entity, Class<? extends Component> component);
+
+    void onReactivation(EntityRef entity, Collection<Component> components);
+
+    void onBeforeDeactivation(EntityRef entity, Collection<Component> components);
 
 
 }

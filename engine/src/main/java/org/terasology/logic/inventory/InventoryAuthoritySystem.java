@@ -31,17 +31,18 @@ import org.terasology.logic.inventory.events.BeforeItemRemovedFromInventory;
 import org.terasology.logic.inventory.events.InventoryChangeAcknowledgedRequest;
 import org.terasology.logic.inventory.events.MoveItemAmountRequest;
 import org.terasology.logic.inventory.events.MoveItemRequest;
+import org.terasology.logic.inventory.events.MoveItemToSlotsRequest;
 import org.terasology.registry.In;
 import org.terasology.registry.Share;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * @author Marcin Sciesinski <marcins78@gmail.com>
  */
 @RegisterSystem(RegisterMode.AUTHORITY)
 @Share(value = InventoryManager.class)
@@ -248,10 +249,20 @@ public class InventoryAuthoritySystem extends BaseComponentSystem implements Inv
     @ReceiveEvent
     public void moveItemRequest(MoveItemRequest request, EntityRef entity) {
         try {
-            if (!(request instanceof MoveItemAmountRequest)) {
-                InventoryUtils.moveItem(request.getInstigator(), request.getFromInventory(), request.getFromSlot(),
-                        request.getToInventory(), request.getToSlot());
-            }
+            InventoryUtils.moveItem(request.getInstigator(), request.getFromInventory(), request.getFromSlot(),
+                    request.getToInventory(), request.getToSlot());
+
+        } finally {
+            entity.send(new InventoryChangeAcknowledgedRequest(request.getChangeId()));
+        }
+    }
+
+    @ReceiveEvent
+    public void moveItemToSlotsRequest(MoveItemToSlotsRequest request, EntityRef entity) {
+        try {
+            InventoryUtils.moveItemToSlots(request.getInstigator(), request.getFromInventory(), request.getFromSlot(),
+                    request.getToInventory(), request.getToSlots());
+
         } finally {
             entity.send(new InventoryChangeAcknowledgedRequest(request.getChangeId()));
         }
@@ -330,6 +341,15 @@ public class InventoryAuthoritySystem extends BaseComponentSystem implements Inv
         return removeItemInternal(inventory, instigator, items, destroyRemoved, count);
     }
 
+    @Override
+    public EntityRef removeItem(EntityRef inventory, EntityRef instigator, int slotNo, boolean destroyRemoved, int count) {
+        EntityRef item = InventoryUtils.getItemAt(inventory, slotNo);
+        if (InventoryUtils.getStackCount(item) < count) {
+            return null;
+        }
+        return removeItemFromSlots(instigator, destroyRemoved, inventory, Collections.singletonList(slotNo), count);
+    }
+
     private EntityRef removeItemInternal(EntityRef inventory, EntityRef instigator, List<EntityRef> items, boolean destroyRemoved, Integer count) {
         final EntityRef firstItem = items.get(0);
         for (EntityRef item : items) {
@@ -368,6 +388,11 @@ public class InventoryAuthoritySystem extends BaseComponentSystem implements Inv
     @Override
     public boolean moveItem(EntityRef fromInventory, EntityRef instigator, int slotFrom, EntityRef toInventory, int slotTo, int count) {
         return InventoryUtils.moveItemAmount(instigator, fromInventory, slotFrom, toInventory, slotTo, count);
+    }
+
+    @Override
+    public boolean moveItemToSlots(EntityRef instigator, EntityRef fromInventory, int slotFrom, EntityRef toInventory, List<Integer> toSlots) {
+        return InventoryUtils.moveItemToSlots(instigator, fromInventory, slotFrom, toInventory, toSlots);
     }
 
     @Override

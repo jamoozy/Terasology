@@ -20,6 +20,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import org.terasology.engine.SimpleUri;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.reflection.copy.CopyStrategyLibrary;
 import org.terasology.reflection.metadata.ClassMetadata;
 import org.terasology.reflection.metadata.DefaultClassMetadata;
@@ -34,12 +35,9 @@ import org.terasology.rendering.nui.widgets.UIDropdown;
 import org.terasology.rendering.nui.widgets.UISlider;
 import org.terasology.rendering.nui.widgets.UITextEntry;
 
-import javax.vecmath.Vector3f;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -48,26 +46,40 @@ import java.util.regex.Pattern;
 import static org.reflections.ReflectionUtils.getAllFields;
 
 /**
- * @author synopia
+ *
+ * Provides properties of a given object using annotations.
+ *
+ * Range:
+ *   * creates a slider with given min, max and precision maps to a float
+ *
+ * Checkbox:
+ *   * creates a checkbox that maps to a boolean
+ *
+ * TextField:
+ *   * creates a text box that maps to a string
+ *
+ * OneOf:
+ *   * creates a combobox that maps to a list of strings, an enum or a custom defined item provider
  */
-public class PropertyProvider<T> {
+public class PropertyProvider {
     private static final Pattern VECTOR_3F = Pattern.compile("\\((\\d*\\.?\\d), (\\d*\\.?\\d), (\\d*\\.?\\d)\\)");
-    private T target;
-    private List<Property<?, ?>> properties = Lists.newArrayList();
 
-    private Map<Class, PropertyFactory> factories = Maps.newHashMap();
+    private final Map<Class<?>, PropertyFactory<?>> factories = Maps.newHashMap();
 
-    public PropertyProvider(T target) {
+    public PropertyProvider() {
         factories.put(Range.class, new RangePropertyFactory());
         factories.put(Checkbox.class, new CheckboxPropertyFactory());
         factories.put(OneOf.List.class, new OneOfListPropertyFactory());
         factories.put(OneOf.Enum.class, new OneOfEnumPropertyFactory());
         factories.put(OneOf.Provider.class, new OneOfProviderPropertyFactory());
         factories.put(TextField.class, new TextPropertyFactory());
+    }
 
+    public List<Property<?, ?>> createProperties(Object target) {
+        List<Property<?, ?>> properties = Lists.newArrayList();
         try {
-            this.target = target;
             Class<?> type = target.getClass();
+
             ReflectFactory reflectFactory = CoreRegistry.get(ReflectFactory.class);
             CopyStrategyLibrary copyStrategies = new CopyStrategyLibrary(reflectFactory);
             ClassMetadata<?, ?> classMetadata = new DefaultClassMetadata<>(new SimpleUri(), type, reflectFactory, copyStrategies);
@@ -76,13 +88,15 @@ public class PropertyProvider<T> {
                 if (annotation != null) {
                     FieldMetadata<Object, ?> fieldMetadata = (FieldMetadata<Object, ?>) classMetadata.getField(field.getName());
                     PropertyFactory factory = factories.get(annotation.annotationType());
-                    Property property = factory.create(fieldMetadata, field.getName(), annotation);
+                    Property property = factory.create(target, fieldMetadata, field.getName(), annotation);
                     properties.add(property);
                 }
             }
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);
         }
+
+        return properties;
     }
 
     private Annotation getFactory(Field field) {
@@ -95,33 +109,29 @@ public class PropertyProvider<T> {
         return null;
     }
 
-    public List<Property<?, ?>> getProperties() {
-        return Collections.unmodifiableList(properties);
-    }
-
-    public boolean isEmpty() {
-        return properties.isEmpty();
-    }
-
-    private <T> TextBinding<T> createTextBinding(final FieldMetadata<Object, T> fieldMetadata) {
-        Class<?> type = fieldMetadata.getType();
-        TextBinding<?> textBinding;
+    private <T> TextMapper<T> createTextMapping(Class<?> type) {
+        TextMapper<?> textBinding = null;
         if (type == String.class) {
-            textBinding = new StringTextBinding((FieldMetadata<Object, String>) fieldMetadata);
+            textBinding = new StringTextBinding();
+        } else if (type == Boolean.TYPE || type == Boolean.class) {
+            textBinding = new BooleanTextBinding();
         } else if (type == Integer.TYPE || type == Integer.class) {
-            textBinding = new IntegerTextBinding((FieldMetadata<Object, Integer>) fieldMetadata);
+            textBinding = new IntegerTextBinding();
         } else if (type == Float.TYPE || type == Float.class) {
-            textBinding = new FloatTextBinding((FieldMetadata<Object, Float>) fieldMetadata);
+            textBinding = new FloatTextBinding();
         } else if (type == Vector3f.class) {
-            textBinding = new Vector3fTextBinding((FieldMetadata<Object, Vector3f>) fieldMetadata);
+            textBinding = new Vector3fTextBinding();
         } else {
             throw new IllegalArgumentException("Cannot create Binding<String> for a field of type " + type);
         }
-        return (TextBinding<T>) textBinding;
+        return (TextMapper<T>) textBinding;
     }
 
+    protected <T> Binding<T> createTextBinding(Object target, final FieldMetadata<Object, T> fieldMetadata) {
+        return new TextBinding<>(target, fieldMetadata);
+    }
 
-    private Binding<Float> createFloatBinding(final FieldMetadata<Object, ?> fieldMetadata) {
+    protected Binding<Float> createFloatBinding(Object target, final FieldMetadata<Object, ?> fieldMetadata) {
         Class<?> type = fieldMetadata.getType();
         if (type == Integer.class || type == Integer.TYPE) {
             return new Binding<Float>() {
@@ -163,7 +173,7 @@ public class PropertyProvider<T> {
             throw new IllegalArgumentException("Cannot create Binding<Float> for a field of type " + type);
         }
     }
-    
+
     private String fromLabelOrId(String label, String id) {
         if (Strings.isNullOrEmpty(label)) {
             char first = Character.toUpperCase(id.charAt(0));
@@ -172,20 +182,20 @@ public class PropertyProvider<T> {
             return label;
         }
     }
-    
+
     private interface PropertyFactory<T> {
-        Property create(FieldMetadata<Object, ?> fieldMetadata, String id, T info);
+        Property<?, ?> create(Object target, FieldMetadata<Object, ?> fieldMetadata, String id, T info);
     }
 
     private class RangePropertyFactory implements PropertyFactory<Range> {
         @Override
-        public Property create(FieldMetadata<Object, ?> fieldMetadata, String id, Range range) {
+        public Property create(Object target, FieldMetadata<Object, ?> fieldMetadata, String id, Range range) {
             UISlider slider = new UISlider();
             slider.setMinimum(range.min());
             slider.setRange(range.max() - range.min());
             slider.setPrecision(range.precision());
             slider.setIncrement(range.increment());
-            Binding<Float> binding = createFloatBinding(fieldMetadata);
+            Binding<Float> binding = createFloatBinding(target, fieldMetadata);
             slider.bindValue(binding);
             String label = fromLabelOrId(range.label(), id);
             return new Property<>(label, binding, slider, range.description());
@@ -194,9 +204,9 @@ public class PropertyProvider<T> {
 
     private class CheckboxPropertyFactory implements PropertyFactory<Checkbox> {
         @Override
-        public Property create(FieldMetadata<Object, ?> fieldMetadata, String id, Checkbox info) {
+        public Property create(Object target, FieldMetadata<Object, ?> fieldMetadata, String id, Checkbox info) {
             UICheckbox checkbox = new UICheckbox();
-            Binding<Boolean> binding = new BooleanTextBinding((FieldMetadata<Object, Boolean>) fieldMetadata);
+            Binding<Boolean> binding = createTextBinding(target, (FieldMetadata<Object, Boolean>) fieldMetadata);
             checkbox.bindChecked(binding);
             String label = fromLabelOrId(info.label(), id);
             return new Property<>(label, binding, checkbox, info.description());
@@ -205,10 +215,10 @@ public class PropertyProvider<T> {
 
     private class OneOfListPropertyFactory implements PropertyFactory<OneOf.List> {
         @Override
-        public Property create(FieldMetadata<Object, ?> fieldMetadata, String id, OneOf.List info) {
+        public Property create(Object target, FieldMetadata<Object, ?> fieldMetadata, String id, OneOf.List info) {
             UIDropdown<String> dropdown = new UIDropdown<>();
             dropdown.bindOptions(new DefaultBinding<>(Arrays.asList(info.items())));
-            Binding<String> binding = createTextBinding((FieldMetadata<Object, String>) fieldMetadata);
+            Binding<String> binding = createTextBinding(target, (FieldMetadata<Object, String>) fieldMetadata);
             dropdown.bindSelection(binding);
             String label = fromLabelOrId(info.label(), id);
             return new Property<>(label, binding, dropdown, info.description());
@@ -217,22 +227,12 @@ public class PropertyProvider<T> {
 
     private class OneOfEnumPropertyFactory implements PropertyFactory<OneOf.Enum> {
         @Override
-        public Property create(final FieldMetadata<Object, ?> fieldMetadata, String id, OneOf.Enum info) {
-            Class cls = fieldMetadata.getType();
+        public Property create(Object target, final FieldMetadata<Object, ?> fieldMetadata, String id, OneOf.Enum info) {
+            Class<?> cls = fieldMetadata.getType();
             Object[] items = cls.getEnumConstants();
             UIDropdown dropdown = new UIDropdown();
             dropdown.bindOptions(new DefaultBinding(Arrays.asList(items)));
-            Binding binding = new Binding() {
-                @Override
-                public Object get() {
-                    return fieldMetadata.getValueChecked(target);
-                }
-
-                @Override
-                public void set(Object value) {
-                    fieldMetadata.setValue(target, value);
-                }
-            };
+            Binding binding = createTextBinding(target, fieldMetadata);
             dropdown.bindSelection(binding);
             String label = fromLabelOrId(info.label(), id);
             return new Property<>(label, binding, dropdown, info.description());
@@ -241,49 +241,49 @@ public class PropertyProvider<T> {
 
     private class OneOfProviderPropertyFactory implements PropertyFactory<OneOf.Provider> {
         @Override
-        public Property create(final FieldMetadata<Object, ?> fieldMetadata, String id, OneOf.Provider info) {
+        public Property create(Object target, final FieldMetadata<Object, ?> fieldMetadata, String id, OneOf.Provider info) {
             UIDropdown dropdown = new UIDropdown();
             OneOfProviderFactory factory = CoreRegistry.get(OneOfProviderFactory.class);
-            dropdown.bindOptions(factory.get(info.name()));
+            Binding<?> listBinding = factory.get(info.name());
+            if (listBinding != null) {
+                dropdown.bindOptions(listBinding);
+            }
             ItemRenderer<?> itemRenderer = factory.getItemRenderer(info.name());
             if (itemRenderer != null) {
                 dropdown.setOptionRenderer(itemRenderer);
             }
-            Binding binding = new Binding() {
-                @Override
-                public Object get() {
-                    return fieldMetadata.getValueChecked(target);
-                }
-
-                @Override
-                public void set(Object value) {
-                    fieldMetadata.setValue(target, value);
-                }
-            };
+            Binding binding = createTextBinding(target, fieldMetadata);
             dropdown.bindSelection(binding);
             String label = fromLabelOrId(info.label(), id);
             return new Property<>(label, binding, dropdown, info.description());
         }
     }
 
-    private class TextPropertyFactory implements PropertyFactory<TextField> {
+    private class TextPropertyFactory<T> implements PropertyFactory<TextField> {
         @Override
-        public Property create(FieldMetadata<Object, ?> fieldMetadata, String id, TextField info) {
+        public Property create(Object target, FieldMetadata<Object, ?> fieldMetadata, String id, TextField info) {
             UITextEntry<T> text = new UITextEntry<>();
 
-            TextBinding<T> textBinding = createTextBinding((FieldMetadata<Object, T>) fieldMetadata);
-            text.setFormatter(textBinding);
-            text.setParser(textBinding);
+            Binding<T> textBinding = createTextBinding(target, (FieldMetadata<Object, T>) fieldMetadata);
+            TextMapper<T> textMapper = createTextMapping(fieldMetadata.getType());
+            text.setFormatter(textMapper);
+            text.setParser(textMapper);
             text.bindValue(textBinding);
             String label = fromLabelOrId(info.label(), id);
             return new Property<>(label, textBinding, text, info.description());
         }
     }
 
-    private abstract class TextBinding<T> implements UITextEntry.Formatter<T>, UITextEntry.Parser<T>, Binding<T> {
-        private FieldMetadata<Object, T> fieldMetadata;
+    private interface TextMapper<T> extends UITextEntry.Formatter<T>, UITextEntry.Parser<T> {
 
-        protected TextBinding(FieldMetadata<Object, T> fieldMetadata) {
+    }
+
+    private class TextBinding<T> implements Binding<T> {
+        private FieldMetadata<Object, T> fieldMetadata;
+        private final Object target;
+
+        protected TextBinding(Object target, FieldMetadata<Object, T> fieldMetadata) {
+            this.target = target;
             this.fieldMetadata = fieldMetadata;
         }
 
@@ -298,10 +298,7 @@ public class PropertyProvider<T> {
         }
     }
 
-    private final class StringTextBinding extends TextBinding<String> {
-        private StringTextBinding(FieldMetadata<Object, String> fieldMetadata) {
-            super(fieldMetadata);
-        }
+    private final class StringTextBinding implements TextMapper<String> {
 
         @Override
         public String toString(String value) {
@@ -314,10 +311,7 @@ public class PropertyProvider<T> {
         }
     }
 
-    private final class IntegerTextBinding extends TextBinding<Integer> {
-        private IntegerTextBinding(FieldMetadata<Object, Integer> fieldMetadata) {
-            super(fieldMetadata);
-        }
+    private final class IntegerTextBinding implements TextMapper<Integer> {
 
         @Override
         public String toString(Integer value) {
@@ -330,11 +324,7 @@ public class PropertyProvider<T> {
         }
     }
 
-    private final class FloatTextBinding extends TextBinding<Float> {
-
-        private FloatTextBinding(FieldMetadata<Object, Float> fieldMetadata) {
-            super(fieldMetadata);
-        }
+    private final class FloatTextBinding implements TextMapper<Float> {
 
         @Override
         public String toString(Float value) {
@@ -348,10 +338,7 @@ public class PropertyProvider<T> {
 
     }
 
-    private final class BooleanTextBinding extends TextBinding<Boolean> {
-        private BooleanTextBinding(FieldMetadata<Object, Boolean> fieldMetadata) {
-            super(fieldMetadata);
-        }
+    private final class BooleanTextBinding implements TextMapper<Boolean> {
 
         @Override
         public String toString(Boolean value) {
@@ -364,11 +351,7 @@ public class PropertyProvider<T> {
         }
     }
 
-    private final class Vector3fTextBinding extends TextBinding<Vector3f> {
-
-        private Vector3fTextBinding(FieldMetadata<Object, Vector3f> fieldMetadata) {
-            super(fieldMetadata);
-        }
+    private final class Vector3fTextBinding implements TextMapper<Vector3f> {
 
         @Override
         public String toString(Vector3f value) {

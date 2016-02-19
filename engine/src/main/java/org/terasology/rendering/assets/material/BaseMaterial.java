@@ -15,73 +15,89 @@
  */
 package org.terasology.rendering.assets.material;
 
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
+import org.terasology.math.geom.Matrix3f;
+import org.terasology.math.geom.Matrix4f;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.rendering.assets.shader.ShaderProgramFeature;
 import org.terasology.rendering.assets.texture.Texture;
 import org.terasology.rendering.cameras.Camera;
 
-import javax.vecmath.Matrix3f;
-import javax.vecmath.Matrix4f;
-import javax.vecmath.Tuple2f;
-import javax.vecmath.Tuple3f;
-import javax.vecmath.Tuple4f;
 import java.nio.FloatBuffer;
 
-public abstract class BaseMaterial extends AbstractAsset<MaterialData> implements Material {
+public abstract class BaseMaterial extends Material {
 
-    public BaseMaterial(AssetUri uri) {
-        super(uri);
+    protected BaseMaterial(ResourceUrn urn, AssetType<?, MaterialData> assetType) {
+        super(urn, assetType);
     }
 
-    public abstract void reload(MaterialData data);
-
-    public abstract void dispose();
-
-    public abstract boolean isDisposed();
-
+    @Override
     public abstract void recompile();
 
+    @Override
     public abstract void enable();
 
+    @Override
     public abstract void setFloat(String name, float f, boolean currentOnly);
 
+    @Override
     public abstract void setFloat1(String name, FloatBuffer buffer, boolean currentOnly);
 
+    @Override
     public abstract void setFloat2(String name, float f1, float f2, boolean currentOnly);
 
+    @Override
     public abstract void setFloat2(String name, FloatBuffer buffer, boolean currentOnly);
 
+    @Override
     public abstract void setFloat3(String name, float f1, float f2, float f3, boolean currentOnly);
 
+    @Override
     public abstract void setFloat3(String name, FloatBuffer buffer, boolean currentOnly);
 
+    @Override
     public abstract void setFloat4(String name, float f1, float f2, float f3, float f4, boolean currentOnly);
 
+    @Override
     public abstract void setFloat4(String name, FloatBuffer buffer, boolean currentOnly);
 
+    @Override
     public abstract void setInt(String name, int i, boolean currentOnly);
 
+    @Override
     public abstract void setBoolean(String name, boolean value, boolean currentOnly);
 
+    @Override
     public abstract void setMatrix3(String name, Matrix3f matrix, boolean currentOnly);
 
+    @Override
     public abstract void setMatrix3(String name, FloatBuffer buffer, boolean currentOnly);
 
+    @Override
     public abstract void setMatrix4(String name, Matrix4f matrix, boolean currentOnly);
 
+    @Override
     public abstract void setMatrix4(String name, FloatBuffer buffer, boolean currentOnly);
 
+    @Override
     public abstract void setTexture(String name, Texture texture);
 
+    @Override
     public abstract boolean supportsFeature(ShaderProgramFeature feature);
 
+    @Override
     public abstract void activateFeature(ShaderProgramFeature feature);
 
+    @Override
     public abstract void deactivateFeature(ShaderProgramFeature feature);
 
+    @Override
     public abstract void deactivateFeatures(ShaderProgramFeature... features);
 
+    @Override
     public abstract void bindTextures();
 
     @Override
@@ -100,12 +116,12 @@ public abstract class BaseMaterial extends AbstractAsset<MaterialData> implement
     }
 
     @Override
-    public void setFloat2(String name, Tuple2f value) {
+    public void setFloat2(String name, Vector2f value) {
         setFloat2(name, value.x, value.y);
     }
 
     @Override
-    public void setFloat2(String name, Tuple2f value, boolean currentOnly) {
+    public void setFloat2(String name, Vector2f value, boolean currentOnly) {
         setFloat2(name, value.x, value.y, currentOnly);
     }
 
@@ -120,11 +136,12 @@ public abstract class BaseMaterial extends AbstractAsset<MaterialData> implement
     }
 
     @Override
-    public void setFloat3(String name, Tuple3f value) {
+    public void setFloat3(String name, Vector3f value) {
         setFloat3(name, value.x, value.y, value.z);
     }
 
-    public void setFloat3(String name, Tuple3f value, boolean currentOnly) {
+    @Override
+    public void setFloat3(String name, Vector3f value, boolean currentOnly) {
         setFloat3(name, value.x, value.y, value.z, currentOnly);
     }
 
@@ -139,12 +156,12 @@ public abstract class BaseMaterial extends AbstractAsset<MaterialData> implement
     }
 
     @Override
-    public void setFloat4(String name, Tuple4f value) {
+    public void setFloat4(String name, Vector4f value) {
         setFloat4(name, value.x, value.y, value.z, value.w);
     }
 
     @Override
-    public void setFloat4(String name, Tuple4f value, boolean currentOnly) {
+    public void setFloat4(String name, Vector4f value, boolean currentOnly) {
         setFloat4(name, value.x, value.y, value.z, value.w, currentOnly);
     }
 

@@ -17,10 +17,9 @@ package org.terasology.math;
 
 /**
  * Enumeration for yaw
- * <p/>
+ * <br><br>
  * Pitch, yaw and roll enumerations are all very similar, but separated to allow for safer usage in Rotation.
  *
- * @author Immortius
  */
 public enum Yaw {
     NONE((byte) 0b00, 0, 0),

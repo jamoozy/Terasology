@@ -23,7 +23,6 @@ import org.terasology.entitySystem.Component;
 import java.util.List;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public final class CharacterSoundComponent implements Component {
 

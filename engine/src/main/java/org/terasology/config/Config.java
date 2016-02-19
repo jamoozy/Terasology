@@ -46,135 +46,130 @@ import org.terasology.utilities.gson.InputHandler;
 import org.terasology.utilities.gson.SetMultimapTypeAdapter;
 import org.terasology.utilities.gson.UriTypeAdapterFactory;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
  * Terasology user config. Holds the various global configuration information that the user can modify. It can be saved
  * and loaded in a JSON format.
  *
- * @author Immortius
  */
 public final class Config {
     private static final Logger logger = LoggerFactory.getLogger(Config.class);
 
-    private SystemConfig system = new SystemConfig();
-    private PlayerConfig player = new PlayerConfig();
-    private InputConfig input = new InputConfig();
-    private AudioConfig audio = new AudioConfig();
-    private RenderingConfig rendering = new RenderingConfig();
-    private ModuleConfig defaultModSelection = new ModuleConfig();
-    private WorldGenerationConfig worldGeneration = new WorldGenerationConfig();
-    private Map<SimpleUri, Map<String, JsonElement>> moduleConfigs = Maps.newHashMap();
-    private NetworkConfig network = new NetworkConfig();
-    private SecurityConfig security = new SecurityConfig();
+    private RootConfig config;
 
-    /**
-     * Create a new, empty config
-     */
-    public Config() {
+    public PermissionConfig getPermission() {
+        return config.getPermission();
     }
 
     /**
      * @return Input configuration (mostly binds)
      */
     public InputConfig getInput() {
-        return input;
+        return config.getInput();
     }
 
     public ModuleConfig getDefaultModSelection() {
-        return defaultModSelection;
+        return config.getDefaultModSelection();
     }
 
     public NetworkConfig getNetwork() {
-        return network;
+        return config.getNetwork();
     }
 
     public PlayerConfig getPlayer() {
-        return player;
+        return config.getPlayer();
     }
 
     public AudioConfig getAudio() {
-        return audio;
+        return config.getAudio();
     }
 
     public SystemConfig getSystem() {
-        return system;
+        return config.getSystem();
     }
 
     public RenderingConfig getRendering() {
-        return rendering;
+        return config.getRendering();
     }
 
     public WorldGenerationConfig getWorldGeneration() {
-        return worldGeneration;
+        return config.getWorldGeneration();
     }
 
     public SecurityConfig getSecurity() {
-        return security;
+        return config.getSecurity();
+    }
+
+    public String renderConfigAsJson(Object configObject) {
+        return createGson().toJsonTree(configObject).toString();
     }
 
     /**
      * Saves this config to the default configuration file
      */
     public void save() {
-        try {
-            save(getConfigFile(), this);
+        try (BufferedWriter writer = Files.newBufferedWriter(getConfigFile(), TerasologyConstants.CHARSET)) {
+            createGson().toJson(config, writer);
         } catch (IOException e) {
             logger.error("Failed to save config", e);
         }
     }
 
+    public void loadDefaults() {
+        JsonObject jsonConfig = loadDefaultToJson();
+        config = createGson().fromJson(jsonConfig, RootConfig.class);
+    }
+
+    public void load() {
+        JsonObject jsonConfig = loadDefaultToJson();
+        Optional<JsonObject> userConfig = loadFileToJson();
+        if (userConfig.isPresent()) {
+            merge(jsonConfig, userConfig.get());
+        }
+
+        config = createGson().fromJson(jsonConfig, RootConfig.class);
+    }
+
+    public JsonObject loadDefaultToJson() {
+        try (Reader baseReader = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/default.cfg")))) {
+            return new JsonParser().parse(baseReader).getAsJsonObject();
+        } catch (IOException e) {
+            throw new RuntimeException("Missing default configuration file");
+        }
+    }
+
+    public Optional<JsonObject> loadFileToJson() {
+        Path configPath = getConfigFile();
+        if (Files.isRegularFile(configPath)) {
+            try (Reader reader = Files.newBufferedReader(configPath, TerasologyConstants.CHARSET)) {
+                JsonElement userConfig = new JsonParser().parse(reader);
+                if (userConfig.isJsonObject()) {
+                    return Optional.of(userConfig.getAsJsonObject());
+                }
+            } catch (IOException e) {
+                logger.error("Failed to load config file {}, falling back on default config");
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * @return The default configuration file location
      */
-    public static Path getConfigFile() {
+    private Path getConfigFile() {
         return PathManager.getInstance().getHomePath().resolve("config.cfg");
-    }
-
-    /**
-     * Saves a Config to a file, in a JSON format
-     *
-     * @param toFile
-     * @param config
-     * @throws IOException
-     */
-    public static void save(Path toFile, Config config) throws IOException {
-        try (BufferedWriter writer = Files.newBufferedWriter(toFile, TerasologyConstants.CHARSET)) {
-            createGson().toJson(config, writer);
-        }
-    }
-
-    /**
-     * Loads a JSON format configuration file as a new Config
-     *
-     * @param fromFile
-     * @return The loaded configuration
-     * @throws IOException
-     */
-    public static Config load(Path fromFile) throws IOException {
-        logger.info("Reading config file {}", fromFile);
-        try (Reader reader = Files.newBufferedReader(fromFile, TerasologyConstants.CHARSET)) {
-            Gson gson = createGson();
-            JsonElement baseConfig = gson.toJsonTree(new Config());
-            JsonParser parser = new JsonParser();
-            JsonElement config = parser.parse(reader);
-            if (!config.isJsonObject()) {
-                return new Config();
-            } else {
-                merge(baseConfig.getAsJsonObject(), config.getAsJsonObject());
-                return gson.fromJson(baseConfig, Config.class);
-            }
-        } catch (JsonParseException e) {
-            throw new IOException("Failed to load config", e);
-        }
     }
 
     protected static Gson createGson() {
@@ -185,6 +180,7 @@ public final class Config {
                 .registerTypeAdapter(SetMultimap.class, new SetMultimapTypeAdapter<>(Input.class))
                 .registerTypeAdapter(SecurityConfig.class, new SecurityConfig.Handler())
                 .registerTypeAdapter(Input.class, new InputHandler())
+
                 .registerTypeAdapter(PixelFormat.class, new PixelFormatHandler())
                 .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())
                 .registerTypeAdapterFactory(new UriTypeAdapterFactory())
@@ -219,7 +215,7 @@ public final class Config {
      * @return a set that contains all keys for that uri, never <code>null</code>
      */
     public Set<String> getModuleConfigKeys(SimpleUri uri) {
-        Map<String, JsonElement> map = moduleConfigs.get(uri);
+        Map<String, JsonElement> map = config.getModuleConfigs().get(uri);
         if (map == null) {
             return Collections.emptySet();
         }
@@ -233,7 +229,7 @@ public final class Config {
      * @return a config component for the given uri and class or <code>null</code>
      */
     public <T extends Component> T getModuleConfig(SimpleUri uri, String key, Class<T> clazz) {
-        Map<String, JsonElement> map = moduleConfigs.get(uri);
+        Map<String, JsonElement> map = config.getModuleConfigs().get(uri);
         if (map == null) {
             return null;
         }
@@ -254,7 +250,7 @@ public final class Config {
             JsonElement json = gson.toJsonTree(entry.getValue());
             map.put(entry.getKey(), json);
         }
-        this.moduleConfigs.put(generatorUri, map);
+        config.getModuleConfigs().put(generatorUri, map);
     }
 
     private static class PixelFormatHandler implements JsonSerializer<PixelFormat>, JsonDeserializer<PixelFormat> {

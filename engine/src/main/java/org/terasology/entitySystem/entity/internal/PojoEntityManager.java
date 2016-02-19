@@ -20,19 +20,19 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.MapMaker;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.primitives.UnsignedInts;
-import gnu.trove.iterator.TIntIterator;
-import gnu.trove.iterator.TIntObjectIterator;
-import gnu.trove.list.TIntList;
-import gnu.trove.list.array.TIntArrayList;
-import gnu.trove.set.TIntSet;
-import gnu.trove.set.hash.TIntHashSet;
+
+import gnu.trove.iterator.TLongIterator;
+import gnu.trove.iterator.TLongObjectIterator;
+import gnu.trove.list.TLongList;
+import gnu.trove.list.array.TLongArrayList;
+import gnu.trove.set.TLongSet;
+import gnu.trove.set.hash.TLongHashSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityBuilder;
 import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.entitySystem.entity.LowLevelEntityManager;
 import org.terasology.entitySystem.entity.lifecycleEvents.BeforeDeactivateComponent;
 import org.terasology.entitySystem.entity.lifecycleEvents.BeforeEntityCreated;
 import org.terasology.entitySystem.entity.lifecycleEvents.BeforeRemoveComponent;
@@ -41,16 +41,16 @@ import org.terasology.entitySystem.entity.lifecycleEvents.OnAddedComponent;
 import org.terasology.entitySystem.entity.lifecycleEvents.OnChangedComponent;
 import org.terasology.entitySystem.event.internal.EventSystem;
 import org.terasology.entitySystem.metadata.ComponentLibrary;
-import org.terasology.entitySystem.metadata.EntitySystemLibrary;
 import org.terasology.entitySystem.prefab.Prefab;
 import org.terasology.entitySystem.prefab.PrefabManager;
 import org.terasology.logic.location.LocationComponent;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.persistence.typeHandling.TypeSerializationLibrary;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -60,17 +60,15 @@ import java.util.Set;
 /**
  * Prototype entity manager. Not intended for final use, but a stand in for experimentation.
  *
- * @author Immortius <immortius@gmail.com>
  */
-public class PojoEntityManager implements LowLevelEntityManager, EngineEntityManager {
-    public static final int NULL_ID = 0;
+public class PojoEntityManager implements EngineEntityManager {
+    public static final long NULL_ID = 0;
 
     private static final Logger logger = LoggerFactory.getLogger(PojoEntityManager.class);
 
-    private int nextEntityId = 1;
-    private TIntSet loadedIds = new TIntHashSet();
-    private TIntSet freedIds = new TIntHashSet();
-    private Map<Integer, BaseEntityRef> entityCache = new MapMaker().weakValues().concurrencyLevel(4).initialCapacity(1000).makeMap();
+    private long nextEntityId = 1;
+    private TLongSet loadedIds = new TLongHashSet();
+    private Map<Long, BaseEntityRef> entityCache = new MapMaker().weakValues().concurrencyLevel(4).initialCapacity(1000).makeMap();
     private ComponentTable store = new ComponentTable();
 
     private Set<EntityChangeSubscriber> subscribers = Sets.newLinkedHashSet();
@@ -90,8 +88,8 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
         this.typeSerializerLibrary = serializerLibrary;
     }
 
-    public void setEntitySystemLibrary(EntitySystemLibrary entitySystemLibrary) {
-        componentLibrary = entitySystemLibrary.getComponentLibrary();
+    public void setComponentLibrary(ComponentLibrary componentLibrary) {
+        this.componentLibrary = componentLibrary;
     }
 
     public void setPrefabManager(PrefabManager prefabManager) {
@@ -100,13 +98,10 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
 
     @Override
     public void clear() {
-        for (BaseEntityRef entityRef : entityCache.values()) {
-            entityRef.invalidate();
-        }
+        entityCache.values().forEach(BaseEntityRef::invalidate);
         store.clear();
         nextEntityId = 1;
         loadedIds.clear();
-        freedIds.clear();
         entityCache.clear();
     }
 
@@ -135,24 +130,23 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
             for (Component component : prefab.iterateComponents()) {
                 builder.addComponent(componentLibrary.copy(component));
             }
-            builder.addComponent(new EntityInfoComponent(prefab.getName(), prefab.isPersisted(), prefab.isAlwaysRelevant()));
+            builder.addComponent(new EntityInfoComponent(prefab, prefab.isPersisted(), prefab.isAlwaysRelevant()));
         }
         return builder;
     }
 
     @Override
     public EntityRef create() {
-        return createEntityRef(createEntity());
+        EntityRef entityRef = createEntityRef(createEntity());
+        /*
+         * The entity change listener are also used to detect new entities. By adding one component we inform those
+         * listeners about the new entity.
+         */
+        entityRef.addComponent(new EntityInfoComponent());
+        return entityRef;
     }
 
-    private int createEntity() {
-        if (!freedIds.isEmpty()) {
-            TIntIterator iterator = freedIds.iterator();
-            int id = iterator.next();
-            iterator.remove();
-            loadedIds.add(id);
-            return id;
-        }
+    private long createEntity() {
         if (nextEntityId == NULL_ID) {
             nextEntityId++;
         }
@@ -172,21 +166,25 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
             eventSystem.send(entity, OnAddedComponent.newInstance());
             eventSystem.send(entity, OnActivatedComponent.newInstance());
         }
+        for (Component component: components) {
+            notifyComponentAdded(entity, component.getClass());
+        }
         return entity;
     }
 
+    @Override
     public void setEntityRefStrategy(RefStrategy strategy) {
         this.refStrategy = strategy;
     }
 
     private EntityRef createEntity(Iterable<Component> components) {
-        int entityId = createEntity();
+        long entityId = createEntity();
 
         Prefab prefab = null;
         for (Component component : components) {
             if (component instanceof EntityInfoComponent) {
                 EntityInfoComponent comp = (EntityInfoComponent) component;
-                prefab = prefabManager.getPrefab(comp.parentPrefab);
+                prefab = comp.parentPrefab;
                 break;
             }
         }
@@ -242,12 +240,12 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
                 loc.setWorldRotation(rotation);
             }
         }
-        components.add(new EntityInfoComponent(prefab.getName(), prefab.isPersisted(), prefab.isAlwaysRelevant()));
+        components.add(new EntityInfoComponent(prefab, prefab.isPersisted(), prefab.isAlwaysRelevant()));
         return create(components);
     }
 
     @Override
-    public EntityRef getEntity(int id) {
+    public EntityRef getEntity(long id) {
         return createEntityRef(id);
     }
 
@@ -262,7 +260,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
                 loc.setWorldPosition(position);
             }
         }
-        components.add(new EntityInfoComponent(prefab.getName(), prefab.isPersisted(), prefab.isAlwaysRelevant()));
+        components.add(new EntityInfoComponent(prefab, prefab.isPersisted(), prefab.isAlwaysRelevant()));
         return create(components);
     }
 
@@ -272,7 +270,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
         for (Component component : prefab.iterateComponents()) {
             components.add(componentLibrary.copy(component));
         }
-        components.add(new EntityInfoComponent(prefab.getName(), prefab.isPersisted(), prefab.isAlwaysRelevant()));
+        components.add(new EntityInfoComponent(prefab, prefab.isPersisted(), prefab.isAlwaysRelevant()));
         return create(components);
     }
 
@@ -299,11 +297,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
 
     @Override
     public Iterable<EntityRef> getAllEntities() {
-        return new Iterable<EntityRef>() {
-            public Iterator<EntityRef> iterator() {
-                return new EntityIterator(store.entityIdIterator());
-            }
-        };
+        return () -> new EntityIterator(store.entityIdIterator());
     }
 
     @SafeVarargs
@@ -315,15 +309,15 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
         if (componentClasses.length == 1) {
             return iterateEntities(componentClasses[0]);
         }
-        TIntList idList = new TIntArrayList();
-        TIntObjectIterator<? extends Component> primeIterator = store.componentIterator(componentClasses[0]);
+        TLongList idList = new TLongArrayList();
+        TLongObjectIterator<? extends Component> primeIterator = store.componentIterator(componentClasses[0]);
         if (primeIterator == null) {
             return Collections.emptyList();
         }
 
         while (primeIterator.hasNext()) {
             primeIterator.advance();
-            int id = primeIterator.key();
+            long id = primeIterator.key();
             boolean discard = false;
             for (int i = 1; i < componentClasses.length; ++i) {
                 if (store.get(id, componentClasses[i]) == null) {
@@ -339,15 +333,15 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
     }
 
     private Iterable<EntityRef> iterateEntities(Class<? extends Component> componentClass) {
-        TIntList idList = new TIntArrayList();
-        TIntObjectIterator<? extends Component> primeIterator = store.componentIterator(componentClass);
+        TLongList idList = new TLongArrayList();
+        TLongObjectIterator<? extends Component> primeIterator = store.componentIterator(componentClass);
         if (primeIterator == null) {
             return Collections.emptyList();
         }
 
         while (primeIterator.hasNext()) {
             primeIterator.advance();
-            int id = primeIterator.key();
+            long id = primeIterator.key();
             idList.add(primeIterator.key());
         }
         return new EntityIterable(idList);
@@ -379,7 +373,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      */
 
     @Override
-    public EntityRef createEntityRefWithId(int id) {
+    public EntityRef createEntityRefWithId(long id) {
         if (isExistingEntity(id)) {
             return createEntityRef(id);
         }
@@ -403,7 +397,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
             for (Component component : prefab.iterateComponents()) {
                 components.add(componentLibrary.copy(component));
             }
-            components.add(new EntityInfoComponent(prefab.getName(), prefab.isPersisted(), prefab.isAlwaysRelevant()));
+            components.add(new EntityInfoComponent(prefab, prefab.isPersisted(), prefab.isAlwaysRelevant()));
 
             return createEntityWithoutLifecycleEvents(components);
         } else {
@@ -419,28 +413,32 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
     }
 
     @Override
-    public EntityRef createEntityWithId(int id, Iterable<Component> components) {
-        if (!freedIds.contains(id)) {
-            for (Component c : components) {
-                store.put(id, c);
-            }
-            loadedIds.add(id);
-            EntityRef entity = createEntityRef(id);
-            if (eventSystem != null) {
-                eventSystem.send(entity, OnActivatedComponent.newInstance());
-            }
-            return entity;
+    public EntityRef createEntityWithId(long id, Iterable<Component> components) {
+        if (id >= nextEntityId) {
+            logger.error("Prevented attempt to create entity with an invalid id.");
+            return EntityRef.NULL;
         }
-        return EntityRef.NULL;
+        for (Component c : components) {
+            store.put(id, c);
+        }
+        loadedIds.add(id);
+        EntityRef entity = createEntityRef(id);
+        if (eventSystem != null) {
+            eventSystem.send(entity, OnActivatedComponent.newInstance());
+        }
+        for (Component component: components) {
+            notifyComponentAdded(entity, component.getClass());
+        }
+        return entity;
     }
 
     @Override
-    public void subscribe(EntityChangeSubscriber subscriber) {
+    public void subscribeForChanges(EntityChangeSubscriber subscriber) {
         subscribers.add(subscriber);
     }
 
     @Override
-    public void subscribe(EntityDestroySubscriber subscriber) {
+    public void subscribeForDestruction(EntityDestroySubscriber subscriber) {
         destroySubscribers.add(subscriber);
     }
 
@@ -462,29 +460,30 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
     @Override
     public void deactivateForStorage(EntityRef entity) {
         if (entity.exists()) {
-            int entityId = entity.getId();
+            long entityId = entity.getId();
             if (eventSystem != null) {
                 eventSystem.send(entity, BeforeDeactivateComponent.newInstance());
             }
+            List<Component> components = store.getComponentsInNewList(entityId);
+            components = Collections.unmodifiableList(components);
+            notifyBeforeDeactivation(entity, components);
+            for (Component component: components) {
+                store.remove(entityId, component.getClass());
+            }
             loadedIds.remove(entityId);
-            store.remove(entityId);
         }
     }
 
     @Override
-    public int getNextId() {
+    public long getNextId() {
         return nextEntityId;
     }
 
     @Override
-    public void setNextId(int id) {
+    public void setNextId(long id) {
         nextEntityId = id;
     }
 
-    @Override
-    public TIntSet getFreedIds() {
-        return freedIds;
-    }
 
     /*
      * For use by Entity Refs
@@ -496,13 +495,13 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @return Whether the entity has a component of the given type
      */
     @Override
-    public boolean hasComponent(int entityId, Class<? extends Component> componentClass) {
+    public boolean hasComponent(long entityId, Class<? extends Component> componentClass) {
         return store.get(entityId, componentClass) != null;
     }
 
     @Override
-    public boolean isExistingEntity(int id) {
-        return freedIds.contains(id) || UnsignedInts.toLong(nextEntityId) > UnsignedInts.toLong(id);
+    public boolean isExistingEntity(long id) {
+        return nextEntityId > id;
     }
 
     /**
@@ -510,7 +509,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @return Whether the entity is currently active
      */
     @Override
-    public boolean isActiveEntity(int id) {
+    public boolean isActiveEntity(long id) {
         return loadedIds.contains(id);
     }
 
@@ -519,7 +518,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @return An iterable over the components of the given entity
      */
     @Override
-    public Iterable<Component> iterateComponents(int entityId) {
+    public Iterable<Component> iterateComponents(long entityId) {
         return store.iterateComponents(entityId);
     }
 
@@ -529,7 +528,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @param entityId
      */
     @Override
-    public void destroy(int entityId) {
+    public void destroy(long entityId) {
         // Don't allow the destruction of unloaded entities.
         if (!loadedIds.contains(entityId)) {
             return;
@@ -542,18 +541,17 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
         for (Component comp : store.iterateComponents(entityId)) {
             notifyComponentRemoved(ref, comp.getClass());
         }
-        destroy(ref);
         for (EntityDestroySubscriber destroySubscriber : destroySubscribers) {
-            destroySubscriber.onEntityDestroyed(entityId);
+            destroySubscriber.onEntityDestroyed(ref);
         }
+        destroy(ref);
     }
 
     private void destroy(EntityRef ref) {
         // Don't allow the destruction of unloaded entities.
-        int entityId = ref.getId();
+        long entityId = ref.getId();
         entityCache.remove(entityId);
         loadedIds.remove(entityId);
-        freedIds.add(entityId);
         if (ref instanceof PojoEntityRef) {
             ((PojoEntityRef) ref).invalidate();
         }
@@ -567,7 +565,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @return The component of that type owned by the given entity, or null if it doesn't have that component
      */
     @Override
-    public <T extends Component> T getComponent(int entityId, Class<T> componentClass) {
+    public <T extends Component> T getComponent(long entityId, Class<T> componentClass) {
         //return componentLibrary.copy(store.get(entityId, componentClass));
         return store.get(entityId, componentClass);
     }
@@ -581,11 +579,16 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @return The added component
      */
     @Override
-    public <T extends Component> T addComponent(int entityId, T component) {
+    public <T extends Component> T addComponent(long entityId, T component) {
         Preconditions.checkNotNull(component);
         Component oldComponent = store.put(entityId, component);
         if (oldComponent != null) {
             logger.error("Adding a component ({}) over an existing component for entity {}", component.getClass(), entityId);
+        }
+        if (oldComponent == null) {
+            notifyComponentAdded(getEntity(entityId), component.getClass());
+        } else {
+            notifyComponentChanged(getEntity(entityId), component.getClass());
         }
         if (eventSystem != null) {
             EntityRef entityRef = createEntityRef(entityId);
@@ -595,11 +598,6 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
             } else {
                 eventSystem.send(entityRef, OnChangedComponent.newInstance(), component);
             }
-        }
-        if (oldComponent == null) {
-            notifyComponentAdded(getEntity(entityId), component.getClass());
-        } else {
-            notifyComponentChanged(getEntity(entityId), component.getClass());
         }
         return component;
     }
@@ -611,7 +609,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @param componentClass
      */
     @Override
-    public <T extends Component> T removeComponent(int entityId, Class<T> componentClass) {
+    public <T extends Component> T removeComponent(long entityId, Class<T> componentClass) {
         T component = store.get(entityId, componentClass);
         if (component != null) {
             if (eventSystem != null) {
@@ -632,7 +630,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * @param component
      */
     @Override
-    public void saveComponent(int entityId, Component component) {
+    public void saveComponent(long entityId, Component component) {
         Component oldComponent = store.put(entityId, component);
         if (oldComponent == null) {
             logger.error("Saving a component ({}) that doesn't belong to this entity {}", component.getClass(), entityId);
@@ -657,7 +655,7 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
      * Implementation
      */
 
-    private EntityRef createEntityRef(int entityId) {
+    private EntityRef createEntityRef(long entityId) {
         if (entityId == NULL_ID) {
             return EntityRef.NULL;
         }
@@ -688,6 +686,25 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
         }
     }
 
+    /**
+     * This method gets called when the entity gets reactivated. e.g. after storage an entity needs to be reactivated.
+     */
+    private void notifyReactivation(EntityRef entity, Collection<Component> components) {
+        for (EntityChangeSubscriber subscriber : subscribers) {
+            subscriber.onReactivation(entity, components);
+        }
+    }
+
+
+    /**
+     * This method gets called before an entity gets deactivated (e.g. for storage).
+     */
+    private void notifyBeforeDeactivation(EntityRef entity, Collection<Component> components) {
+        for (EntityChangeSubscriber subscriber : subscribers) {
+            subscriber.onBeforeDeactivation(entity, components);
+        }
+    }
+
     // For testing
     @Override
     @SafeVarargs
@@ -703,12 +720,12 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
     }
 
     public <T extends Component> Iterable<Map.Entry<EntityRef, T>> listComponents(Class<T> componentClass) {
-        TIntObjectIterator<T> iterator = store.componentIterator(componentClass);
+        TLongObjectIterator<T> iterator = store.componentIterator(componentClass);
         if (iterator != null) {
-            List<Map.Entry<EntityRef, T>> list = new ArrayList<Map.Entry<EntityRef, T>>();
+            List<Map.Entry<EntityRef, T>> list = new ArrayList<>();
             while (iterator.hasNext()) {
                 iterator.advance();
-                list.add(new EntityEntry<T>(createEntityRef(iterator.key()), iterator.value()));
+                list.add(new EntityEntry<>(createEntityRef(iterator.key()), iterator.value()));
             }
             return list;
         }
@@ -724,46 +741,53 @@ public class PojoEntityManager implements LowLevelEntityManager, EngineEntityMan
             this.value = value;
         }
 
+        @Override
         public EntityRef getKey() {
             return key;
         }
 
+        @Override
         public T getValue() {
             return value;
         }
 
+        @Override
         public T setValue(T newValue) {
             throw new UnsupportedOperationException();
         }
     }
 
     private class EntityIterable implements Iterable<EntityRef> {
-        private TIntList list;
+        private TLongList list;
 
-        public EntityIterable(TIntList list) {
+        public EntityIterable(TLongList list) {
             this.list = list;
         }
 
+        @Override
         public Iterator<EntityRef> iterator() {
             return new EntityIterator(list.iterator());
         }
     }
 
     private class EntityIterator implements Iterator<EntityRef> {
-        private TIntIterator idIterator;
+        private TLongIterator idIterator;
 
-        public EntityIterator(TIntIterator idIterator) {
+        public EntityIterator(TLongIterator idIterator) {
             this.idIterator = idIterator;
         }
 
+        @Override
         public boolean hasNext() {
             return idIterator.hasNext();
         }
 
+        @Override
         public EntityRef next() {
             return createEntityRef(idIterator.next());
         }
 
+        @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }

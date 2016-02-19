@@ -15,12 +15,10 @@
  */
 package org.terasology.engine.subsystem.lwjgl;
 
+import org.terasology.context.Context;
 import org.terasology.engine.subsystem.RenderingSubsystemFactory;
-import org.terasology.logic.players.LocalPlayerSystem;
 import org.terasology.rendering.world.WorldRenderer;
-import org.terasology.rendering.world.WorldRendererLwjgl;
-import org.terasology.world.WorldProvider;
-import org.terasology.world.chunks.ChunkProvider;
+import org.terasology.rendering.world.WorldRendererImpl;
 
 public class LwjglRenderingSubsystemFactory implements RenderingSubsystemFactory {
 
@@ -31,7 +29,7 @@ public class LwjglRenderingSubsystemFactory implements RenderingSubsystemFactory
     }
 
     @Override
-    public WorldRenderer createWorldRenderer(WorldProvider worldProvider, ChunkProvider chunkProvider, LocalPlayerSystem localPlayerSystem) {
-        return new WorldRendererLwjgl(worldProvider, chunkProvider, localPlayerSystem, bufferPool);
+    public WorldRenderer createWorldRenderer(Context context) {
+        return new WorldRendererImpl(context, bufferPool);
     }
 }

@@ -31,21 +31,20 @@ import gnu.trove.set.hash.TIntHashSet;
 import org.jboss.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.terasology.logic.common.DisplayNameComponent;
-import org.terasology.registry.CoreRegistry;
 import org.terasology.engine.Time;
 import org.terasology.entitySystem.Component;
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.event.Event;
-import org.terasology.entitySystem.metadata.EntitySystemLibrary;
+import org.terasology.entitySystem.metadata.EventLibrary;
 import org.terasology.entitySystem.metadata.EventMetadata;
 import org.terasology.entitySystem.metadata.NetworkEventType;
 import org.terasology.identity.PublicIdentityCertificate;
 import org.terasology.logic.characters.PredictionSystem;
+import org.terasology.logic.common.DisplayNameComponent;
 import org.terasology.logic.location.LocationComponent;
-import org.terasology.math.TeraMath;
-import org.terasology.math.Vector3i;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.network.Client;
 import org.terasology.network.ClientComponent;
 import org.terasology.network.ColorComponent;
@@ -54,18 +53,23 @@ import org.terasology.network.NetworkComponent;
 import org.terasology.network.serialization.ServerComponentFieldCheck;
 import org.terasology.persistence.serializers.EventSerializer;
 import org.terasology.persistence.serializers.NetworkEntitySerializer;
+import org.terasology.persistence.typeHandling.DeserializationException;
+import org.terasology.persistence.typeHandling.SerializationException;
 import org.terasology.protobuf.EntityData;
 import org.terasology.protobuf.NetData;
+import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.nui.Color;
-import org.terasology.rendering.world.ViewDistance;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
 import org.terasology.world.WorldChangeListener;
 import org.terasology.world.WorldProvider;
+import org.terasology.world.biomes.Biome;
+import org.terasology.world.biomes.BiomeManager;
 import org.terasology.world.block.Block;
 import org.terasology.world.block.BlockComponent;
 import org.terasology.world.block.family.BlockFamily;
-import org.terasology.world.chunks.internal.ChunkImpl;
-import org.terasology.world.chunks.Chunks;
+import org.terasology.world.chunks.Chunk;
 
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -77,7 +81,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * A remote client.
  *
- * @author Immortius
  */
 public class NetClient extends AbstractClient implements WorldChangeListener {
     private static final Logger logger = LoggerFactory.getLogger(NetClient.class);
@@ -88,8 +91,9 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
     private Channel channel;
     private NetworkEntitySerializer entitySerializer;
     private EventSerializer eventSerializer;
-    private EntitySystemLibrary entitySystemLibrary;
+    private EventLibrary eventLibrary;
     private NetMetricSource metricSource;
+    private BiomeManager biomeManager;
 
     // Relevance
     private Set<Vector3i> relevantChunks = Sets.newHashSet();
@@ -103,7 +107,7 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
     private SetMultimap<Integer, Class<? extends Component>> addedComponents = LinkedHashMultimap.create();
     private SetMultimap<Integer, Class<? extends Component>> removedComponents = LinkedHashMultimap.create();
 
-    private String name = "Unknown";
+    private String preferredName = "Player";
     private long lastReceivedTime;
     private ViewDistance viewDistance = ViewDistance.NEAR;
     private float chunkSendCounter = 1.0f;
@@ -114,10 +118,11 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
 
     // Outgoing messages
     private BlockingQueue<NetData.BlockChangeMessage> queuedOutgoingBlockChanges = Queues.newLinkedBlockingQueue();
+    private BlockingQueue<NetData.BiomeChangeMessage> queuedOutgoingBiomeChanges = Queues.newLinkedBlockingQueue();
     private List<NetData.EventMessage> queuedOutgoingEvents = Lists.newArrayList();
-    private List<BlockFamily> newlyRegisteredFamilies = Lists.newArrayList();
+    private final List<BlockFamily> newlyRegisteredFamilies = Lists.newArrayList();
 
-    private Map<Vector3i, ChunkImpl> readyChunks = Maps.newLinkedHashMap();
+    private Map<Vector3i, Chunk> readyChunks = Maps.newLinkedHashMap();
     private Set<Vector3i> invalidatedChunks = Sets.newLinkedHashSet();
 
 
@@ -137,6 +142,7 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
         this.networkSystem = networkSystem;
         this.time = CoreRegistry.get(Time.class);
         this.identity = identity;
+        this.biomeManager = CoreRegistry.get(BiomeManager.class);
         WorldProvider worldProvider = CoreRegistry.get(WorldProvider.class);
         if (worldProvider != null) {
             worldProvider.registerListener(this);
@@ -152,7 +158,7 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
                 return displayInfo.name;
             }
         }
-        return name;
+        return "Unknown Player";
     }
 
     @Override
@@ -166,7 +172,7 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
         }
         return color;
     }
-    
+
     @Override
     public String getId() {
         return identity.getId();
@@ -183,29 +189,24 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
                 client.clientInfo.saveComponent(colorInfo);
             }
         }
-        
+
     }
-    
-    public void setName(String name) {
-        this.name = name;
-        ClientComponent client = getEntity().getComponent(ClientComponent.class);
-        if (client != null) {
-            DisplayNameComponent displayInfo = client.clientInfo.getComponent(DisplayNameComponent.class);
-            if (displayInfo != null) {
-                displayInfo.name = name;
-                client.clientInfo.saveComponent(displayInfo);
-            }
-        }
+
+    /**
+     * @param preferredName the name the player would like to use.
+     */
+    public void setPreferredName(String preferredName) {
+        this.preferredName = preferredName;
     }
 
     @Override
     public void disconnect() {
         super.disconnect();
-        
+
         if (channel.isOpen()) {
             channel.close().awaitUninterruptibly();
         }
-        
+
         WorldProvider worldProvider = CoreRegistry.get(WorldProvider.class);
         if (worldProvider != null) {
             worldProvider.unregisterListener(this);
@@ -230,15 +231,17 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
     }
 
     private void sendRegisteredBlocks(NetData.NetMessage.Builder message) {
-        for (BlockFamily family : newlyRegisteredFamilies) {
-            NetData.BlockFamilyRegisteredMessage.Builder blockRegMessage = NetData.BlockFamilyRegisteredMessage.newBuilder();
-            for (Block block : family.getBlocks()) {
-                blockRegMessage.addBlockUri(block.getURI().toString());
-                blockRegMessage.addBlockId(block.getId());
+        synchronized (newlyRegisteredFamilies) {
+            for (BlockFamily family : newlyRegisteredFamilies) {
+                NetData.BlockFamilyRegisteredMessage.Builder blockRegMessage = NetData.BlockFamilyRegisteredMessage.newBuilder();
+                for (Block block : family.getBlocks()) {
+                    blockRegMessage.addBlockUri(block.getURI().toString());
+                    blockRegMessage.addBlockId(block.getId());
+                }
+                message.addBlockFamilyRegistered(blockRegMessage);
             }
-            message.addBlockFamilyRegistered(blockRegMessage);
+            newlyRegisteredFamilies.clear();
         }
-        newlyRegisteredFamilies.clear();
     }
 
     private void sendNewChunks(NetData.NetMessage.Builder message) {
@@ -249,7 +252,7 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
                 Vector3i center = new Vector3i();
                 LocationComponent loc = getEntity().getComponent(ClientComponent.class).character.getComponent(LocationComponent.class);
                 if (loc != null) {
-                    center.set(TeraMath.calcChunkPos(new Vector3i(loc.getWorldPosition(), 0.5f)));
+                    center.set(ChunkMath.calcChunkPos(new Vector3i(loc.getWorldPosition(), RoundingMode.HALF_UP)));
                 }
                 Vector3i pos = null;
                 int distance = Integer.MAX_VALUE;
@@ -260,9 +263,9 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
                         distance = chunkDistance;
                     }
                 }
-                ChunkImpl chunk = readyChunks.remove(pos);
+                Chunk chunk = readyChunks.remove(pos);
                 relevantChunks.add(pos);
-                message.addChunkInfo(Chunks.getInstance().encode(chunk, true)).build();
+                message.addChunkInfo(chunk.encode());
             }
         } else {
             chunkSendCounter = 1.0f;
@@ -325,32 +328,36 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
     }
 
     public void connected(EntityManager entityManager, NetworkEntitySerializer newEntitySerializer,
-                          EventSerializer newEventSerializer, EntitySystemLibrary newSystemLibrary) {
+                          EventSerializer newEventSerializer, EventLibrary newEventLibrary) {
         this.entitySerializer = newEntitySerializer;
         this.eventSerializer = newEventSerializer;
-        this.entitySystemLibrary = newSystemLibrary;
+        this.eventLibrary = newEventLibrary;
 
-        createEntity(name, color, entityManager);
+        createEntity(preferredName, color, entityManager);
     }
 
     @Override
     public void send(Event event, EntityRef target) {
-        BlockComponent blockComp = target.getComponent(BlockComponent.class);
-        if (blockComp != null) {
-            if (relevantChunks.contains(TeraMath.calcChunkPos(blockComp.getPosition()))) {
-                queuedOutgoingEvents.add(NetData.EventMessage.newBuilder()
-                        .setTargetBlockPos(NetMessageUtil.convert(blockComp.getPosition()))
-                        .setEvent(eventSerializer.serialize(event)).build());
-            }
-        } else {
-            NetworkComponent networkComponent = target.getComponent(NetworkComponent.class);
-            if (networkComponent != null) {
-                if (netRelevant.contains(networkComponent.getNetworkId()) || netInitial.contains(networkComponent.getNetworkId())) {
+        try {
+            BlockComponent blockComp = target.getComponent(BlockComponent.class);
+            if (blockComp != null) {
+                if (relevantChunks.contains(ChunkMath.calcChunkPos(blockComp.getPosition()))) {
                     queuedOutgoingEvents.add(NetData.EventMessage.newBuilder()
-                            .setTargetId(networkComponent.getNetworkId())
+                            .setTargetBlockPos(NetMessageUtil.convert(blockComp.getPosition()))
                             .setEvent(eventSerializer.serialize(event)).build());
                 }
+            } else {
+                NetworkComponent networkComponent = target.getComponent(NetworkComponent.class);
+                if (networkComponent != null) {
+                    if (netRelevant.contains(networkComponent.getNetworkId()) || netInitial.contains(networkComponent.getNetworkId())) {
+                        queuedOutgoingEvents.add(NetData.EventMessage.newBuilder()
+                                .setTargetId(networkComponent.getNetworkId())
+                                .setEvent(eventSerializer.serialize(event)).build());
+                    }
+                }
             }
+        } catch (SerializationException e) {
+            logger.error("Failed to serialize event", e);
         }
     }
 
@@ -372,7 +379,7 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
     }
 
     @Override
-    public void onChunkRelevant(Vector3i pos, ChunkImpl chunk) {
+    public void onChunkRelevant(Vector3i pos, Chunk chunk) {
         invalidatedChunks.remove(pos);
         readyChunks.put(pos, chunk);
     }
@@ -385,11 +392,22 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
 
     @Override
     public void onBlockChanged(Vector3i pos, Block newBlock, Block originalBlock) {
-        Vector3i chunkPos = TeraMath.calcChunkPos(pos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(pos);
         if (relevantChunks.contains(chunkPos)) {
             queuedOutgoingBlockChanges.add(NetData.BlockChangeMessage.newBuilder()
                     .setPos(NetMessageUtil.convert(pos))
                     .setNewBlock(newBlock.getId())
+                    .build());
+        }
+    }
+
+    @Override
+    public void onBiomeChanged(Vector3i pos, Biome newBiome, Biome originalBiome) {
+        Vector3i chunkPos = ChunkMath.calcChunkPos(pos);
+        if (relevantChunks.contains(chunkPos)) {
+            queuedOutgoingBiomeChanges.add(NetData.BiomeChangeMessage.newBuilder()
+                    .setPos(NetMessageUtil.convert(pos))
+                    .setNewBiome(biomeManager.getBiomeShortId(newBiome))
                     .build());
         }
     }
@@ -411,6 +429,10 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
         List<NetData.BlockChangeMessage> blockChanges = Lists.newArrayListWithExpectedSize(queuedOutgoingBlockChanges.size());
         queuedOutgoingBlockChanges.drainTo(blockChanges);
         message.addAllBlockChange(blockChanges);
+
+        List<NetData.BiomeChangeMessage> biomeChanges = Lists.newArrayListWithExpectedSize(queuedOutgoingBiomeChanges.size());
+        queuedOutgoingBiomeChanges.drainTo(biomeChanges);
+        message.addAllBiomeChange(biomeChanges);
 
         message.addAllEvent(queuedOutgoingEvents);
         queuedOutgoingEvents.clear();
@@ -456,7 +478,6 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
     }
 
     private void sendInitialEntities(NetData.NetMessage.Builder message) {
-        TIntIterator initialIterator = netInitial.iterator();
         int[] initial = netInitial.toArray();
         netInitial.clear();
         Arrays.sort(initial);
@@ -484,28 +505,34 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
         boolean lagCompensated = false;
         PredictionSystem predictionSystem = CoreRegistry.get(PredictionSystem.class);
         for (NetData.EventMessage eventMessage : message.getEventList()) {
-            Event event = eventSerializer.deserialize(eventMessage.getEvent());
-            EventMetadata<?> metadata = entitySystemLibrary.getEventLibrary().getMetadata(event.getClass());
-            if (metadata.getNetworkEventType() != NetworkEventType.SERVER) {
-                logger.warn("Received non-server event '{}' from client '{}'", metadata, getName());
-                continue;
-            }
-            if (!lagCompensated && metadata.isLagCompensated()) {
-                if (predictionSystem != null) {
-                    predictionSystem.lagCompensate(getEntity(), lastReceivedTime);
+            try {
+                Event event = eventSerializer.deserialize(eventMessage.getEvent());
+                EventMetadata<?> metadata = eventLibrary.getMetadata(event.getClass());
+                if (metadata.getNetworkEventType() != NetworkEventType.SERVER) {
+                    logger.warn("Received non-server event '{}' from client '{}'", metadata, getName());
+                    continue;
                 }
-                lagCompensated = true;
-            }
-            EntityRef target = EntityRef.NULL;
-            if (eventMessage.hasTargetId()) {
-                target = networkSystem.getEntity(eventMessage.getTargetId());
-            }
-            if (target.exists()) {
-                if (Objects.equal(networkSystem.getOwner(target), this)) {
-                    target.send(event);
-                } else {
-                    logger.warn("Received event {} for non-owned entity {} from {}", event, target, this);
+                if (!lagCompensated && metadata.isLagCompensated()) {
+                    if (predictionSystem != null) {
+                        predictionSystem.lagCompensate(getEntity(), lastReceivedTime);
+                    }
+                    lagCompensated = true;
                 }
+                EntityRef target = EntityRef.NULL;
+                if (eventMessage.hasTargetId()) {
+                    target = networkSystem.getEntity(eventMessage.getTargetId());
+                }
+                if (target.exists()) {
+                    if (Objects.equal(networkSystem.getOwner(target), this)) {
+                        target.send(event);
+                    } else {
+                        logger.warn("Received event {} for non-owned entity {} from {}", event, target, this);
+                    }
+                }
+            } catch (DeserializationException e) {
+                logger.error("Failed to deserialize event", e);
+            } catch (RuntimeException e) {
+                logger.error("Error processing event", e);
             }
         }
         if (lagCompensated && predictionSystem != null) {
@@ -524,11 +551,14 @@ public class NetClient extends AbstractClient implements WorldChangeListener {
         return metricSource;
     }
 
+    @Override
     public void setViewDistanceMode(ViewDistance distanceMode) {
         this.viewDistance = distanceMode;
     }
 
     public void blockFamilyRegistered(BlockFamily family) {
-        newlyRegisteredFamilies.add(family);
+        synchronized (newlyRegisteredFamilies) {
+            newlyRegisteredFamilies.add(family);
+        }
     }
 }

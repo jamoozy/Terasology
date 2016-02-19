@@ -17,8 +17,10 @@ package org.terasology.persistence;
 
 import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.terasology.engine.TerasologyConstants;
 import org.terasology.persistence.serializers.EntityDataJSONFormat;
 import org.terasology.protobuf.EntityData;
 
@@ -34,7 +36,6 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 /**
- * @author Immortius <immortius@gmail.com>
  */
 public class EntityDataJSONFormatTest {
 
@@ -63,19 +64,6 @@ public class EntityDataJSONFormatTest {
     @Test
     public void testPersistNextId() throws Exception {
         worldBuilder.setNextEntityId(413);
-        assertPersist(worldBuilder);
-    }
-
-    @Test
-    public void testPersistFreedIds() throws Exception {
-        worldBuilder.addFreedEntityId(1);
-        assertPersist(worldBuilder);
-    }
-
-    @Test
-    public void testPersistMultipleFreedIds() throws Exception {
-        worldBuilder.addFreedEntityId(1);
-        worldBuilder.addFreedEntityId(2);
         assertPersist(worldBuilder);
     }
 
@@ -299,11 +287,11 @@ public class EntityDataJSONFormatTest {
 
     private EntityData.GlobalStore persistAndRetrieve(EntityData.GlobalStore world) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(baos));
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(baos, TerasologyConstants.CHARSET));
         EntityDataJSONFormat.write(world, writer);
         writer.flush();
         ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
-        return EntityDataJSONFormat.readWorld(new BufferedReader(new InputStreamReader(bais)));
+        return EntityDataJSONFormat.readWorld(new BufferedReader(new InputStreamReader(bais, TerasologyConstants.CHARSET)));
     }
 
 }

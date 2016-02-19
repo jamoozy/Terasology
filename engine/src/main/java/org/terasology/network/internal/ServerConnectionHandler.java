@@ -30,7 +30,7 @@ import org.terasology.naming.Name;
 import org.terasology.protobuf.NetData;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.nui.Color;
-import org.terasology.rendering.world.ViewDistance;
+import org.terasology.rendering.world.viewDistance.ViewDistance;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -40,7 +40,6 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * @author Immortius
  */
 public class ServerConnectionHandler extends SimpleChannelUpstreamHandler {
 
@@ -130,7 +129,7 @@ public class ServerConnectionHandler extends SimpleChannelUpstreamHandler {
     private void receivedConnect(NetData.JoinMessage message) {
         logger.info("Received Start Join");
         NetClient client = new NetClient(channelHandlerContext.getChannel(), networkSystem, identity);
-        client.setName(message.getName());
+        client.setPreferredName(message.getName());
         client.setColor(new Color(message.getColor().getRgba()));
         client.setViewDistanceMode(ViewDistance.forIndex(message.getViewDistanceLevel()));
         channelHandlerContext.getPipeline().remove(this);

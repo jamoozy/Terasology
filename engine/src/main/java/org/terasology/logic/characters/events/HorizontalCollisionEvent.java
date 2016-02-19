@@ -15,11 +15,9 @@
  */
 package org.terasology.logic.characters.events;
 
-import javax.vecmath.Vector3f;
+import org.terasology.math.geom.Vector3f;
 
 /**
- * @author Immortius <immortius@gmail.com>
- * @author Esa-Petri Tirkkonen <esereja@yahoo.co.uk>
  */
 public class HorizontalCollisionEvent extends CollisionEvent {
 

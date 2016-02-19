@@ -15,16 +15,15 @@
  */
 package org.terasology.math;
 
-import com.bulletphysics.linearmath.QuaternionUtil;
 import org.junit.Test;
+import org.terasology.math.geom.Quat4f;
+import org.terasology.math.geom.Vector3f;
 
-import javax.vecmath.Quat4f;
-import javax.vecmath.Vector3f;
+import com.google.common.collect.Iterables;
 
 import static org.junit.Assert.assertEquals;
 
 /**
- * @author Immortius
  */
 public class RotationTest {
 
@@ -37,7 +36,7 @@ public class RotationTest {
     public void rotateSideYaw() {
         Rotation rotation = Rotation.rotate(Yaw.CLOCKWISE_90);
         Quat4f rot = rotation.getQuat4f();
-        Vector3f dir = QuaternionUtil.quatRotate(rot, Side.FRONT.toDirection().getVector3f(), new Vector3f());
+        Vector3f dir = rot.rotate(Side.FRONT.toDirection().getVector3f(), new Vector3f());
         assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.FRONT));
 
         assertEquals(Side.LEFT, Rotation.rotate(Yaw.CLOCKWISE_90).rotate(Side.FRONT));
@@ -48,7 +47,7 @@ public class RotationTest {
     public void rotateSidePitch() {
         Rotation rotation = Rotation.rotate(Pitch.CLOCKWISE_90);
         Quat4f rot = rotation.getQuat4f();
-        Vector3f dir = QuaternionUtil.quatRotate(rot, Side.FRONT.toDirection().getVector3f(), new Vector3f());
+        Vector3f dir = rot.rotate(Side.FRONT.toDirection().getVector3f(), new Vector3f());
         assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.FRONT));
 
         assertEquals(Side.TOP, Rotation.rotate(Pitch.CLOCKWISE_90).rotate(Side.FRONT));
@@ -59,7 +58,7 @@ public class RotationTest {
     public void rotateSideRoll() {
         Rotation rotation = Rotation.rotate(Roll.CLOCKWISE_90);
         Quat4f rot = rotation.getQuat4f();
-        Vector3f dir = QuaternionUtil.quatRotate(rot, Side.TOP.toDirection().getVector3f(), new Vector3f());
+        Vector3f dir = rot.rotate(Side.TOP.toDirection().getVector3f(), new Vector3f());
         assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.TOP));
 
         assertEquals(Side.LEFT, Rotation.rotate(Roll.CLOCKWISE_90).rotate(Side.TOP));
@@ -70,7 +69,23 @@ public class RotationTest {
     public void rotateMixed() {
         Rotation rotation = Rotation.rotate(Yaw.CLOCKWISE_180, Pitch.CLOCKWISE_90, Roll.CLOCKWISE_90);
         Quat4f rot = rotation.getQuat4f();
-        Vector3f dir = QuaternionUtil.quatRotate(rot, Side.FRONT.toDirection().getVector3f(), new Vector3f());
+        Vector3f dir = rot.rotate(Side.FRONT.toDirection().getVector3f(), new Vector3f());
         assertEquals(Direction.inDirection(dir).toSide(), rotation.rotate(Side.FRONT));
+    }
+
+    @Test
+    public void allRotations() {
+        assertEquals(24, Iterables.size(Rotation.values()));
+        assertEquals(64, Iterables.size(Rotation.allValues()));
+    }
+
+    @Test
+    public void reverseRotation() {
+        for (Rotation rotation : Rotation.allValues()) {
+            Rotation reverseRotation = Rotation.findReverse(rotation);
+            for (Side side : Side.values()) {
+                assertEquals(side, reverseRotation.rotate(rotation.rotate(side)));
+            }
+        }
     }
 }

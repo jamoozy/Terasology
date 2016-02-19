@@ -29,26 +29,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author synopia
  */
 public class SelectorTest {
     @Test
     public void testTwoChildrenSucceeds() {
         final Task[] spies = new Task[2];
         Interpreter interpreter = new Interpreter(null);
-        Node one = create(new Mocker() {
-            @Override
-            public void mock(Task spy) {
-                when(spy.update(anyInt())).thenReturn(Status.RUNNING, Status.SUCCESS);
-                spies[0] = spy;
-            }
+        Node one = create(spy -> {
+            when(spy.update(anyInt())).thenReturn(Status.RUNNING, Status.SUCCESS);
+            spies[0] = spy;
         });
-        Node two = create(new Mocker() {
-            @Override
-            public void mock(Task spy) {
-                spies[1] = spy;
-            }
-        });
+        Node two = create(spy -> spies[1] = spy);
         SelectorNode node = new SelectorNode();
         node.children().add(one);
         node.children().add(two);
@@ -66,19 +57,13 @@ public class SelectorTest {
     public void testTwoContinues() {
         final Task[] spies = new Task[2];
         Interpreter interpreter = new Interpreter(null);
-        Node one = create(new Mocker() {
-            @Override
-            public void mock(Task spy) {
-                when(spy.update(anyInt())).thenReturn(Status.RUNNING, Status.FAILURE);
-                spies[0] = spy;
-            }
+        Node one = create(spy -> {
+            when(spy.update(anyInt())).thenReturn(Status.RUNNING, Status.FAILURE);
+            spies[0] = spy;
         });
-        Node two = create(new Mocker() {
-            @Override
-            public void mock(Task spy) {
-                when(spy.update(anyInt())).thenReturn(Status.RUNNING);
-                spies[1] = spy;
-            }
+        Node two = create(spy -> {
+            when(spy.update(anyInt())).thenReturn(Status.RUNNING);
+            spies[1] = spy;
         });
         SelectorNode node = new SelectorNode();
         node.children().add(one);
@@ -102,12 +87,9 @@ public class SelectorTest {
         Status[] stats = new Status[]{Status.SUCCESS, Status.FAILURE};
         for (final Status status : stats) {
             Interpreter interpreter = new Interpreter(null);
-            Node mock = create(new Mocker() {
-                @Override
-                public void mock(Task spy) {
-                    when(spy.update(0)).thenReturn(Status.RUNNING, status);
-                    spies[0] = spy;
-                }
+            Node mock = create(spy -> {
+                when(spy.update(0)).thenReturn(Status.RUNNING, status);
+                spies[0] = spy;
             });
             SelectorNode node = new SelectorNode();
 

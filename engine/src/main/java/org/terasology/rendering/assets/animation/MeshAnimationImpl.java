@@ -15,20 +15,22 @@
  */
 package org.terasology.rendering.assets.animation;
 
-import org.terasology.asset.AbstractAsset;
-import org.terasology.asset.AssetUri;
+import org.terasology.assets.Asset;
+import org.terasology.assets.AssetType;
+import org.terasology.assets.ResourceUrn;
 import org.terasology.rendering.assets.skeletalmesh.Bone;
 import org.terasology.rendering.assets.skeletalmesh.SkeletalMesh;
 
+import java.util.Optional;
+
 /**
- * @author Immortius
  */
-public class MeshAnimationImpl extends AbstractAsset<MeshAnimationData> implements MeshAnimation {
+public class MeshAnimationImpl extends MeshAnimation {
 
     private MeshAnimationData data;
 
-    public MeshAnimationImpl(AssetUri uri, MeshAnimationData data) {
-        super(uri);
+    public MeshAnimationImpl(ResourceUrn urn, AssetType<?, MeshAnimationData> assetType, MeshAnimationData data) {
+        super(urn, assetType);
         reload(data);
     }
 
@@ -72,16 +74,12 @@ public class MeshAnimationImpl extends AbstractAsset<MeshAnimationData> implemen
     }
 
     @Override
-    public void reload(MeshAnimationData newData) {
+    protected void doReload(MeshAnimationData newData) {
         this.data = newData;
     }
 
     @Override
-    public void dispose() {
-    }
-
-    @Override
-    public boolean isDisposed() {
-        return false;
+    protected Optional<? extends Asset<MeshAnimationData>> doCreateCopy(ResourceUrn copyUrn, AssetType<?, MeshAnimationData> parentAssetType) {
+        return Optional.of(new MeshAnimationImpl(copyUrn, parentAssetType, data));
     }
 }

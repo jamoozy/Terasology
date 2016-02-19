@@ -4,6 +4,6 @@
     },
     "Client" : {},
     "Network" : {
-        "replicateMode" : "OWNER"
-    }
+    },
+    "AutoMountCamera": {}
 }

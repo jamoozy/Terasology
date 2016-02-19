@@ -16,11 +16,9 @@
 package org.terasology.persistence;
 
 import org.terasology.entitySystem.entity.EntityRef;
-
-import javax.vecmath.Vector3f;
+import org.terasology.math.geom.Vector3f;
 
 /**
- * @author Immortius
  */
 public interface PlayerStore {
 
@@ -28,19 +26,6 @@ public interface PlayerStore {
      * @return The id of this store
      */
     String getId();
-
-    /**
-     * Saves the store - call this when you have finished setting up the store. When this is called all entities
-     * in the store will be deactivated.
-     */
-    void save();
-
-    /**
-     * Saves the store - call this when you have finished setting up the store.
-     *
-     * @param deactivateEntities Whether the stored entities should be deactivated
-     */
-    void save(boolean deactivateEntities);
 
     /**
      * Restores all entities contained in this store, activating them.
@@ -63,7 +48,7 @@ public interface PlayerStore {
 
     /**
      * Sets the location which should be loaded for the player when they rejoin the game.
-     * <p/>
+     * <br><br>
      * This is set automatically to the character's location if a character is stored.
      *
      * @param location

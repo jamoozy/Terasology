@@ -15,17 +15,21 @@
  */
 package org.terasology.config;
 
-/**
- * @author Immortius
- */
+import org.terasology.context.Context;
+
 public class InputConfig {
 
     private BindsConfig binds = new BindsConfig();
-    private float mouseSensitivity = 0.075f;
+    private ControllerConfig controllers = new ControllerConfig();
+    private float mouseSensitivity;
     private boolean mouseYAxisInverted;
 
     public BindsConfig getBinds() {
         return binds;
+    }
+
+    public ControllerConfig getControllers() {
+        return controllers;
     }
 
     public float getMouseSensitivity() {
@@ -36,11 +40,15 @@ public class InputConfig {
         this.mouseSensitivity = mouseSensitivity;
     }
 
-    public void reset() {
-        binds.setBinds(BindsConfig.createDefault());
-        InputConfig defaultConfig = new InputConfig();
-        setMouseSensitivity(defaultConfig.mouseSensitivity);
-        setMouseYAxisInverted(defaultConfig.mouseYAxisInverted);
+    public void reset(Context context) {
+        binds.setBinds(BindsConfig.createDefault(context));
+
+        Config defaultConfig = new Config();
+        defaultConfig.loadDefaults();
+        InputConfig defaultInputConfig = defaultConfig.getInput();
+
+        setMouseSensitivity(defaultInputConfig.mouseSensitivity);
+        setMouseYAxisInverted(defaultInputConfig.mouseYAxisInverted);
     }
 
     public boolean isMouseYAxisInverted() {
@@ -48,9 +56,7 @@ public class InputConfig {
     }
 
     public void setMouseYAxisInverted(boolean mouseYAxisInverted) {
-
         this.mouseYAxisInverted = mouseYAxisInverted;
-
     }
 
 }

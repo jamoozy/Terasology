@@ -17,31 +17,27 @@
 package org.terasology.input.cameraTarget;
 
 import com.google.common.base.Objects;
+import org.terasology.config.Config;
 import org.terasology.entitySystem.entity.EntityRef;
 import org.terasology.entitySystem.systems.BaseComponentSystem;
 import org.terasology.logic.players.LocalPlayer;
 import org.terasology.math.TeraMath;
-import org.terasology.math.Vector3i;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.physics.CollisionGroup;
 import org.terasology.physics.HitResult;
 import org.terasology.physics.Physics;
 import org.terasology.physics.StandardCollisionGroup;
-import org.terasology.registry.CoreRegistry;
 import org.terasology.registry.In;
-import org.terasology.rendering.cameras.Camera;
 import org.terasology.rendering.world.WorldRenderer;
 import org.terasology.world.BlockEntityRegistry;
 
-import javax.vecmath.Vector3f;
+import java.math.RoundingMode;
 import java.util.Arrays;
 
 /**
- * @author Immortius
  */
 public class CameraTargetSystem extends BaseComponentSystem {
-
-    // TODO: This should come from somewhere, probably player entity?
-    public static final float TARGET_DISTANCE = 5f;
 
     @In
     private LocalPlayer localPlayer;
@@ -49,12 +45,30 @@ public class CameraTargetSystem extends BaseComponentSystem {
     @In
     private BlockEntityRegistry blockRegistry;
 
+    @In
+    private Config config;
+
+    @In
+    private WorldRenderer worldRenderer;
+
+    @In
+    private Physics physics;
+
+    private float targetDistance;
     private EntityRef target = EntityRef.NULL;
     private Vector3i targetBlockPos;
     private Vector3f hitPosition = new Vector3f();
     private Vector3f hitNormal = new Vector3f();
     private CollisionGroup[] filter = {StandardCollisionGroup.DEFAULT, StandardCollisionGroup.WORLD};
     private float focalDistance;
+
+    @Override
+    public void initialise() {
+        super.initialise();
+        targetDistance = config.getRendering().getViewDistance().getChunkDistance().x * 8.0f;
+        // TODO: This should come from somewhere, probably player entity
+        //set the target distance to as far as the player can see. Used to get the focal distance for effects such as DOF.
+    }
 
     public boolean isTargetAvailable() {
         return target.exists() || targetBlockPos != null;
@@ -94,11 +108,9 @@ public class CameraTargetSystem extends BaseComponentSystem {
             lostTarget = true;
         }
 
-        // TODO: This will change when camera are handled better (via a component)
-        Camera camera = CoreRegistry.get(WorldRenderer.class).getActiveCamera();
 
-        Physics physicsRenderer = CoreRegistry.get(Physics.class);
-        HitResult hitInfo = physicsRenderer.rayTrace(new Vector3f(camera.getPosition()), new Vector3f(camera.getViewingDirection()), TARGET_DISTANCE, filter);
+        HitResult hitInfo = physics.rayTrace(new Vector3f(localPlayer.getViewPosition()),
+                new Vector3f(localPlayer.getViewDirection()), targetDistance, filter);
         updateFocalDistance(hitInfo, delta);
         Vector3i newBlockPos = null;
 
@@ -122,30 +134,31 @@ public class CameraTargetSystem extends BaseComponentSystem {
     }
 
     private void updateFocalDistance(HitResult hitInfo, float delta) {
+        float focusRate = 4.0f; //how fast the focus distance is updated
+        //if the hit result from a trace has a recorded a hit
         if (hitInfo.isHit()) {
             Vector3f playerToTargetRay = new Vector3f();
-            playerToTargetRay.sub(hitInfo.getHitPoint(), localPlayer.getPosition());
-
-            if (focalDistance == Float.MAX_VALUE) {
-                focalDistance = playerToTargetRay.length();
-            } else {
-                focalDistance = TeraMath.lerpf(focalDistance, playerToTargetRay.length(), delta * 20.0f);
-            }
+            //calculate the distance from the player to the hit point
+            playerToTargetRay.sub(hitInfo.getHitPoint(), localPlayer.getViewPosition());
+            //gradually adjust focalDistance from it's current value to the hit point distance
+            focalDistance = TeraMath.lerp(focalDistance, playerToTargetRay.length(), delta * focusRate);
+            //if nothing was hit, gradually adjust the focusDistance to the maximum length of the update function trace
         } else {
-            focalDistance = Float.MAX_VALUE;
+            focalDistance = TeraMath.lerp(focalDistance, targetDistance, delta * focusRate);
         }
     }
 
+    @Override
     public String toString() {
-        Camera camera = CoreRegistry.get(WorldRenderer.class).getActiveCamera();
+
         if (targetBlockPos != null) {
             return String.format("From: %f %f %f, Dir: %f %f %f, Hit %d %d %d %f %f %f",
-                    camera.getPosition().x,
-                    camera.getPosition().y,
-                    camera.getPosition().z,
-                    camera.getViewingDirection().x,
-                    camera.getViewingDirection().y,
-                    camera.getViewingDirection().z,
+                    localPlayer.getViewPosition().x,
+                    localPlayer.getViewPosition().y,
+                    localPlayer.getViewPosition().z,
+                    localPlayer.getViewDirection().x,
+                    localPlayer.getViewDirection().y,
+                    localPlayer.getViewDirection().z,
                     targetBlockPos.x,
                     targetBlockPos.y,
                     targetBlockPos.z,
@@ -160,7 +173,7 @@ public class CameraTargetSystem extends BaseComponentSystem {
         if (targetBlockPos != null) {
             return new Vector3i(targetBlockPos);
         }
-        return new Vector3i(hitPosition, 0.5f);
+        return new Vector3i(hitPosition, RoundingMode.HALF_UP);
     }
 
     /**
@@ -175,3 +188,4 @@ public class CameraTargetSystem extends BaseComponentSystem {
         return focalDistance;
     }
 }
+

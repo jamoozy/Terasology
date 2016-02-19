@@ -16,37 +16,38 @@
 package org.terasology.rendering.shader;
 
 import org.lwjgl.opengl.GL13;
-import org.terasology.editor.EditorRange;
+import org.terasology.math.geom.Vector3f;
+import org.terasology.math.geom.Vector4f;
 import org.terasology.registry.CoreRegistry;
 import org.terasology.rendering.assets.material.Material;
+import org.terasology.rendering.backdrop.BackdropProvider;
 import org.terasology.rendering.cameras.Camera;
-import org.terasology.rendering.opengl.DefaultRenderingProcess;
+import org.terasology.rendering.nui.properties.Range;
+import org.terasology.rendering.opengl.FBO;
+import org.terasology.rendering.opengl.FrameBuffersManager;
 import org.terasology.rendering.world.WorldRenderer;
-
-import javax.vecmath.Vector3f;
-import javax.vecmath.Vector4f;
 
 /**
  * Shader parameters for the Light Shaft shader program.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public class ShaderParametersLightShaft extends ShaderParametersBase {
 
-    @EditorRange(min = 0.0f, max = 10.0f)
+    @Range(min = 0.0f, max = 10.0f)
     private float density = 1.0f;
-    @EditorRange(min = 0.0f, max = 0.01f)
+    @Range(min = 0.0f, max = 0.01f)
     private float exposure = 0.0075f;
-    @EditorRange(min = 0.0f, max = 10.0f)
+    @Range(min = 0.0f, max = 10.0f)
     private float weight = 8.0f;
-    @EditorRange(min = 0.0f, max = 0.99f)
+    @Range(min = 0.0f, max = 0.99f)
     private float decay = 0.95f;
 
     @Override
     public void applyParameters(Material program) {
         super.applyParameters(program);
 
-        DefaultRenderingProcess.FBO scene = DefaultRenderingProcess.getInstance().getFBO("sceneOpaque");
+        FrameBuffersManager buffersManager = CoreRegistry.get(FrameBuffersManager.class);
+        FBO scene = buffersManager.getFBO("sceneOpaque");
 
         int texId = 0;
 
@@ -65,14 +66,16 @@ public class ShaderParametersLightShaft extends ShaderParametersBase {
         program.setFloat("decay", decay, true);
 
         WorldRenderer worldRenderer = CoreRegistry.get(WorldRenderer.class);
-        if (worldRenderer != null) {
-            Vector3f sunDirection = worldRenderer.getSkysphere().getSunDirection(true);
+        BackdropProvider backdropProvider = CoreRegistry.get(BackdropProvider.class);
 
-            Camera activeCamera = CoreRegistry.get(WorldRenderer.class).getActiveCamera();
+        if (worldRenderer != null) {
+            Vector3f sunDirection = backdropProvider.getSunDirection(true);
+
+            Camera activeCamera = worldRenderer.getActiveCamera();
 
             Vector4f sunPositionWorldSpace4 = new Vector4f(sunDirection.x * 10000.0f, sunDirection.y * 10000.0f, sunDirection.z * 10000.0f, 1.0f);
-            Vector4f sunPositionScreenSpace = new Vector4f();
-            activeCamera.getViewProjectionMatrix().transform(sunPositionWorldSpace4, sunPositionScreenSpace);
+            Vector4f sunPositionScreenSpace = new Vector4f(sunPositionWorldSpace4);
+            activeCamera.getViewProjectionMatrix().transform(sunPositionScreenSpace);
 
             sunPositionScreenSpace.x /= sunPositionScreenSpace.w;
             sunPositionScreenSpace.y /= sunPositionScreenSpace.w;

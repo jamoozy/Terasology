@@ -16,8 +16,9 @@
 package org.terasology.engine;
 
 /**
- * @author Immortius
+ * An interface for subscribers to engine state changes
  */
+@FunctionalInterface
 public interface StateChangeSubscriber {
 
     void onStateChange();

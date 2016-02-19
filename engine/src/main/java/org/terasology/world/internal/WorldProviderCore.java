@@ -16,16 +16,19 @@
 package org.terasology.world.internal;
 
 import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.math.Vector3i;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.WorldChangeListener;
+import org.terasology.world.biomes.Biome;
 import org.terasology.world.block.Block;
 import org.terasology.world.liquid.LiquidData;
 import org.terasology.world.time.WorldTime;
 
+import java.util.Collection;
+
 /**
  * Provides the basic interface for all world providers.
  *
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public interface WorldProviderCore {
 
@@ -90,6 +93,8 @@ public interface WorldProviderCore {
      */
     boolean isBlockRelevant(int x, int y, int z);
 
+    boolean isRegionRelevant(Region3i region);
+
     /**
      * Places a block of a specific type at a given position
      *
@@ -98,6 +103,23 @@ public interface WorldProviderCore {
      * @return The previous block type. Null if the change failed (because the necessary chunk was not loaded)
      */
     Block setBlock(Vector3i pos, Block type);
+
+    /**
+     * Changes the biome at the given position.
+     *
+     * @param pos   The world position to change
+     * @param biome The biome to set
+     * @return The previous biome type at the position. Null if the change failed (because the necessary chunk was not loaded)
+     */
+    Biome setBiome(Vector3i pos, Biome biome);
+
+    /**
+     * Returns the biome at a specific world position.
+     *
+     * @param pos The position
+     * @return The biome at the given position.
+     */
+    Biome getBiome(Vector3i pos);
 
     /**
      * @param x
@@ -158,9 +180,8 @@ public interface WorldProviderCore {
 
     WorldTime getTime();
 
-    float getFog(float x, float y, float z);
-
-    float getTemperature(float x, float y, float z);
-
-    float getHumidity(float x, float y, float z);
+    /**
+     * @return an unmodifiable view on the generated relevant regions
+     */
+    Collection<Region3i> getRelevantRegions();
 }

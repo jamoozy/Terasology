@@ -16,46 +16,55 @@
 
 package org.terasology.world.internal;
 
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.terasology.registry.CoreRegistry;
+import org.terasology.context.Context;
 import org.terasology.engine.SimpleUri;
 import org.terasology.entitySystem.entity.EntityManager;
 import org.terasology.entitySystem.entity.EntityRef;
-import org.terasology.math.TeraMath;
-import org.terasology.math.Vector3i;
-import org.terasology.utilities.procedural.BrownianNoise3D;
-import org.terasology.utilities.procedural.Noise3D;
-import org.terasology.utilities.procedural.PerlinNoise;
+import org.terasology.math.ChunkMath;
+import org.terasology.math.Region3i;
+import org.terasology.math.geom.Vector3i;
 import org.terasology.world.WorldChangeListener;
 import org.terasology.world.WorldComponent;
+import org.terasology.world.biomes.Biome;
+import org.terasology.world.biomes.BiomeManager;
 import org.terasology.world.block.Block;
-import org.terasology.world.block.BlockManager;
-import org.terasology.world.chunks.ChunkConstants;
+import org.terasology.world.chunks.Chunk;
 import org.terasology.world.chunks.ChunkProvider;
-import org.terasology.world.chunks.internal.ChunkImpl;
+import org.terasology.world.chunks.CoreChunk;
+import org.terasology.world.chunks.LitChunk;
+import org.terasology.world.chunks.ManagedChunk;
+import org.terasology.world.chunks.RenderableChunk;
 import org.terasology.world.chunks.internal.GeneratingChunkProvider;
 import org.terasology.world.liquid.LiquidData;
 import org.terasology.world.propagation.BatchPropagator;
+import org.terasology.world.propagation.BiomeChange;
 import org.terasology.world.propagation.BlockChange;
+import org.terasology.world.propagation.PropagationRules;
+import org.terasology.world.propagation.PropagatorWorldView;
+import org.terasology.world.propagation.StandardBatchPropagator;
+import org.terasology.world.propagation.SunlightRegenBatchPropagator;
 import org.terasology.world.propagation.light.LightPropagationRules;
 import org.terasology.world.propagation.light.LightWorldView;
 import org.terasology.world.propagation.light.SunlightPropagationRules;
+import org.terasology.world.propagation.light.SunlightRegenPropagationRules;
+import org.terasology.world.propagation.light.SunlightRegenWorldView;
 import org.terasology.world.propagation.light.SunlightWorldView;
 import org.terasology.world.time.WorldTime;
 import org.terasology.world.time.WorldTimeImpl;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 /**
- * @author Immortius
  */
 public class WorldProviderCoreImpl implements WorldProviderCore {
-    private static final Logger logger = LoggerFactory.getLogger(WorldProviderCoreImpl.class);
 
     private String title;
     private String seed = "";
@@ -63,35 +72,47 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
 
     private GeneratingChunkProvider chunkProvider;
     private WorldTime worldTime;
-
-    private Noise3D fogNoise;
+    private EntityManager entityManager;
 
     private final List<WorldChangeListener> listeners = Lists.newArrayList();
 
     private Map<Vector3i, BlockChange> blockChanges = Maps.newHashMap();
+    private Map<Vector3i, BiomeChange> biomeChanges = Maps.newHashMap();
     private List<BatchPropagator> propagators = Lists.newArrayList();
 
-    public WorldProviderCoreImpl(String title, String seed, long time, SimpleUri worldGenerator, GeneratingChunkProvider chunkProvider) {
+    private Block unloadedBlock;
+
+    public WorldProviderCoreImpl(String title, String seed, long time, SimpleUri worldGenerator,
+                                 GeneratingChunkProvider chunkProvider, Block unloadedBlock, Context context) {
         this.title = (title == null) ? seed : title;
         this.seed = seed;
         this.worldGenerator = worldGenerator;
         this.chunkProvider = chunkProvider;
-        this.fogNoise = new BrownianNoise3D(new PerlinNoise(seed.hashCode() + 42 * 42), 8);
-        CoreRegistry.put(ChunkProvider.class, chunkProvider);
+        this.unloadedBlock = unloadedBlock;
+        this.entityManager = context.get(EntityManager.class);
+        context.put(ChunkProvider.class, chunkProvider);
+
         this.worldTime = new WorldTimeImpl();
         worldTime.setMilliseconds(time);
 
-        propagators.add(new BatchPropagator(new LightPropagationRules(), new LightWorldView(chunkProvider)));
-        propagators.add(new BatchPropagator(new SunlightPropagationRules(), new SunlightWorldView(chunkProvider)));
+        propagators.add(new StandardBatchPropagator(new LightPropagationRules(), new LightWorldView(chunkProvider)));
+        PropagatorWorldView regenWorldView = new SunlightRegenWorldView(chunkProvider);
+        PropagationRules sunlightRules = new SunlightPropagationRules(regenWorldView);
+        PropagatorWorldView sunlightWorldView = new SunlightWorldView(chunkProvider);
+        BatchPropagator sunlightPropagator = new StandardBatchPropagator(sunlightRules, sunlightWorldView);
+        propagators.add(new SunlightRegenBatchPropagator(new SunlightRegenPropagationRules(), regenWorldView, sunlightPropagator, sunlightWorldView));
+        propagators.add(sunlightPropagator);
     }
 
-    public WorldProviderCoreImpl(WorldInfo info, GeneratingChunkProvider chunkProvider) {
-        this(info.getTitle(), info.getSeed(), info.getTime(), info.getWorldGenerator(), chunkProvider);
+    public WorldProviderCoreImpl(WorldInfo info, GeneratingChunkProvider chunkProvider, Block unloadedBlock,
+                                 Context context) {
+        this(info.getTitle(), info.getSeed(), info.getTime(), info.getWorldGenerator(), chunkProvider,
+                unloadedBlock, context);
     }
 
     @Override
     public EntityRef getWorldEntity() {
-        Iterator<EntityRef> iterator = CoreRegistry.get(EntityManager.class).getEntitiesWith(WorldComponent.class).iterator();
+        Iterator<EntityRef> iterator = entityManager.getEntitiesWith(WorldComponent.class).iterator();
         if (iterator.hasNext()) {
             return iterator.next();
         }
@@ -147,16 +168,28 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
 
     @Override
     public boolean isBlockRelevant(int x, int y, int z) {
-        return chunkProvider.isChunkReady(TeraMath.calcChunkPos(x, y, z));
+        return chunkProvider.isChunkReady(ChunkMath.calcChunkPos(x, y, z));
+    }
+
+    @Override
+    public boolean isRegionRelevant(Region3i region) {
+        for (Vector3i chunkPos : ChunkMath.calcChunkPos(region)) {
+            if (!chunkProvider.isChunkReady(chunkPos)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
     public Block setBlock(Vector3i worldPos, Block type) {
-        Vector3i chunkPos = TeraMath.calcChunkPos(worldPos);
-        ChunkImpl chunk = chunkProvider.getChunk(chunkPos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(worldPos);
+        CoreChunk chunk = chunkProvider.getChunk(chunkPos);
         if (chunk != null) {
-            Vector3i blockPos = TeraMath.calcBlockPos(worldPos);
+            Vector3i blockPos = ChunkMath.calcBlockPos(worldPos);
+            chunk.writeLock();
             Block oldBlockType = chunk.setBlock(blockPos, type);
+            chunk.writeUnlock();
             if (oldBlockType != type) {
                 BlockChange oldChange = blockChanges.get(worldPos);
                 if (oldChange == null) {
@@ -164,8 +197,8 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
                 } else {
                     oldChange.setTo(type);
                 }
-                for (Vector3i pos : TeraMath.getChunkRegionAroundWorldPos(worldPos, 1)) {
-                    ChunkImpl dirtiedChunk = chunkProvider.getChunk(pos);
+                for (Vector3i pos : ChunkMath.getChunkRegionAroundWorldPos(worldPos, 1)) {
+                    RenderableChunk dirtiedChunk = chunkProvider.getChunk(pos);
                     if (dirtiedChunk != null) {
                         dirtiedChunk.setDirty(true);
                     }
@@ -173,12 +206,13 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
                 notifyBlockChanged(worldPos, type, oldBlockType);
             }
             return oldBlockType;
+
         }
         return null;
     }
 
     private void notifyBlockChanged(Vector3i pos, Block type, Block oldType) {
-        // TODO: Could use a read/write lock.
+        // TODO: Could use a read/write writeLock.
         // TODO: Review, should only happen on main thread (as should changes to listeners)
         synchronized (listeners) {
             for (WorldChangeListener listener : listeners) {
@@ -187,21 +221,31 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
         }
     }
 
+    private void notifyBiomeChanged(Vector3i pos, Biome newBiome, Biome originalBiome) {
+        // TODO: Could use a read/write writeLock.
+        // TODO: Review, should only happen on main thread (as should changes to listeners)
+        synchronized (listeners) {
+            for (WorldChangeListener listener : listeners) {
+                listener.onBiomeChanged(pos, newBiome, originalBiome);
+            }
+        }
+    }
+
     @Override
     public boolean setLiquid(int x, int y, int z, LiquidData newState, LiquidData oldState) {
-        Vector3i chunkPos = TeraMath.calcChunkPos(x, y, z);
-        ChunkImpl chunk = chunkProvider.getChunk(chunkPos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(x, y, z);
+        CoreChunk chunk = chunkProvider.getChunk(chunkPos);
         if (chunk != null) {
-            chunk.lock();
+            chunk.writeLock();
             try {
-                Vector3i blockPos = TeraMath.calcBlockPos(x, y, z);
+                Vector3i blockPos = ChunkMath.calcBlockPos(x, y, z);
                 LiquidData liquidState = chunk.getLiquid(blockPos);
                 if (liquidState.equals(oldState)) {
                     chunk.setLiquid(blockPos, newState);
                     return true;
                 }
             } finally {
-                chunk.unlock();
+                chunk.writeUnlock();
             }
         }
         return false;
@@ -209,85 +253,97 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
 
     @Override
     public LiquidData getLiquid(int x, int y, int z) {
-        if (y >= ChunkConstants.SIZE_Y || y < 0) {
-            return new LiquidData();
-        }
-
-        Vector3i chunkPos = TeraMath.calcChunkPos(x, y, z);
-        ChunkImpl chunk = chunkProvider.getChunk(chunkPos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(x, y, z);
+        CoreChunk chunk = chunkProvider.getChunk(chunkPos);
         if (chunk != null) {
-            Vector3i blockPos = TeraMath.calcBlockPos(x, y, z);
+            Vector3i blockPos = ChunkMath.calcBlockPos(x, y, z);
             return chunk.getLiquid(blockPos);
         }
-        logger.warn("Attempted to access unavailable chunk via liquid data at {}, {}, {}", x, y, z);
         return new LiquidData();
     }
 
     @Override
     public Block getBlock(int x, int y, int z) {
-        if (y >= ChunkConstants.SIZE_Y || y < 0) {
-            // Happens if you are moving around above the world
-            return BlockManager.getAir();
-        }
-
-        Vector3i chunkPos = TeraMath.calcChunkPos(x, y, z);
-        ChunkImpl chunk = chunkProvider.getChunk(chunkPos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(x, y, z);
+        CoreChunk chunk = chunkProvider.getChunk(chunkPos);
         if (chunk != null) {
-            Vector3i blockPos = TeraMath.calcBlockPos(x, y, z);
+            Vector3i blockPos = ChunkMath.calcBlockPos(x, y, z);
             return chunk.getBlock(blockPos);
         }
-        logger.warn("Attempted to access unavailable chunk via block at {}, {}, {}", x, y, z);
-        return BlockManager.getAir();
+        return unloadedBlock;
+    }
+
+    @Override
+    public Biome getBiome(Vector3i pos) {
+        Vector3i chunkPos = ChunkMath.calcChunkPos(pos);
+        CoreChunk chunk = chunkProvider.getChunk(chunkPos);
+        if (chunk != null) {
+            Vector3i blockPos = ChunkMath.calcBlockPos(pos);
+            return chunk.getBiome(blockPos.x, blockPos.y, blockPos.z);
+        }
+        return BiomeManager.getUnknownBiome();
+    }
+
+    @Override
+    public Biome setBiome(Vector3i worldPos, Biome biome) {
+        Vector3i chunkPos = ChunkMath.calcChunkPos(worldPos);
+        CoreChunk chunk = chunkProvider.getChunk(chunkPos);
+        if (chunk != null) {
+            Vector3i blockPos = ChunkMath.calcBlockPos(worldPos);
+            chunk.writeLock();
+            Biome oldBiomeType = chunk.setBiome(blockPos.x, blockPos.y, blockPos.z, biome);
+            chunk.writeUnlock();
+            if (oldBiomeType != biome) {
+                BiomeChange oldChange = biomeChanges.get(worldPos);
+                if (oldChange == null) {
+                    biomeChanges.put(worldPos, new BiomeChange(worldPos, oldBiomeType, biome));
+                } else {
+                    oldChange.setTo(biome);
+                }
+                for (Vector3i pos : ChunkMath.getChunkRegionAroundWorldPos(worldPos, 1)) {
+                    RenderableChunk dirtiedChunk = chunkProvider.getChunk(pos);
+                    if (dirtiedChunk != null) {
+                        dirtiedChunk.setDirty(true);
+                    }
+                }
+                notifyBiomeChanged(worldPos, biome, oldBiomeType);
+            }
+            return oldBiomeType;
+
+        }
+        return null;
     }
 
     @Override
     public byte getLight(int x, int y, int z) {
-        if (y >= ChunkConstants.SIZE_Y || y < 0) {
-            logger.warn("Accessed light value outside of the height range");
-            return 0;
-        }
-
-        Vector3i chunkPos = TeraMath.calcChunkPos(x, y, z);
-        ChunkImpl chunk = chunkProvider.getChunk(chunkPos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(x, y, z);
+        LitChunk chunk = chunkProvider.getChunk(chunkPos);
         if (chunk != null) {
-            Vector3i blockPos = TeraMath.calcBlockPos(x, y, z);
+            Vector3i blockPos = ChunkMath.calcBlockPos(x, y, z);
             return chunk.getLight(blockPos);
         }
-        logger.warn("Attempted to access unavailable chunk via light at {}, {}, {}", x, y, z);
         return 0;
     }
 
     @Override
     public byte getSunlight(int x, int y, int z) {
-        if (y >= ChunkConstants.SIZE_Y || y < 0) {
-            logger.warn("Accessed sunlight value outside of the height range");
-            return 0;
-        }
-
-        Vector3i chunkPos = TeraMath.calcChunkPos(x, y, z);
-        ChunkImpl chunk = chunkProvider.getChunk(chunkPos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(x, y, z);
+        LitChunk chunk = chunkProvider.getChunk(chunkPos);
         if (chunk != null) {
-            Vector3i blockPos = TeraMath.calcBlockPos(x, y, z);
+            Vector3i blockPos = ChunkMath.calcBlockPos(x, y, z);
             return chunk.getSunlight(blockPos);
         }
-        logger.warn("Attempted to access unavailable chunk via sunlight at {}, {}, {}", x, y, z);
         return 0;
     }
 
     @Override
     public byte getTotalLight(int x, int y, int z) {
-        if (y >= ChunkConstants.SIZE_Y || y < 0) {
-            logger.warn("Accessed total light value outside of the height range");
-            return 0;
-        }
-
-        Vector3i chunkPos = TeraMath.calcChunkPos(x, y, z);
-        ChunkImpl chunk = chunkProvider.getChunk(chunkPos);
+        Vector3i chunkPos = ChunkMath.calcChunkPos(x, y, z);
+        LitChunk chunk = chunkProvider.getChunk(chunkPos);
         if (chunk != null) {
-            Vector3i blockPos = TeraMath.calcBlockPos(x, y, z);
+            Vector3i blockPos = ChunkMath.calcBlockPos(x, y, z);
             return (byte) Math.max(chunk.getSunlight(blockPos), chunk.getLight(blockPos));
         }
-        logger.warn("Attempted to access unavailable chunk via total light at {}, {}, {}", x, y, z);
         return 0;
     }
 
@@ -303,17 +359,12 @@ public class WorldProviderCoreImpl implements WorldProviderCore {
     }
 
     @Override
-    public float getFog(float x, float y, float z) {
-        return (float) TeraMath.clamp(TeraMath.fastAbs(fogNoise.noise(getTime().getDays() * 0.1f, 0.01f, 0.01f) * 2.0f)) * chunkProvider.getWorldGenerator().getFog(x, y, z);
-    }
+    public Collection<Region3i> getRelevantRegions() {
+        Collection<Chunk> chunks = chunkProvider.getAllChunks();
+        Function<Chunk, Region3i> mapping = CoreChunk::getRegion;
 
-    @Override
-    public float getTemperature(float x, float y, float z) {
-        return chunkProvider.getWorldGenerator().getTemperature(x, y, z);
-    }
+        Predicate<Chunk> isReady = ManagedChunk::isReady;
 
-    @Override
-    public float getHumidity(float x, float y, float z) {
-        return chunkProvider.getWorldGenerator().getHumidity(x, y, z);
+        return FluentIterable.from(chunks).filter(isReady).transform(mapping).toList();
     }
 }

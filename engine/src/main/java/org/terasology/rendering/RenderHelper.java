@@ -16,14 +16,12 @@
 package org.terasology.rendering;
 
 import org.terasology.asset.Assets;
+import org.terasology.math.geom.Vector2f;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.rendering.opengl.GLSLMaterial;
 import org.terasology.rendering.shader.ShaderParametersChunk;
 
-import javax.vecmath.Vector2f;
-import javax.vecmath.Vector3f;
-
 /**
- * @author Benjamin Glatzel <benjamin.glatzel@me.com>
  */
 public final class RenderHelper {
 
@@ -74,7 +72,7 @@ public final class RenderHelper {
     public static float evaluateOceanHeightAtPosition(Vector3f position, float days) {
         float height = 0.0f;
 
-        GLSLMaterial chunkMaterial = (GLSLMaterial) Assets.getMaterial("engine:prog.chunk");
+        GLSLMaterial chunkMaterial = (GLSLMaterial) Assets.getMaterial("engine:prog.chunk").get();
         ShaderParametersChunk chunkParameters = (ShaderParametersChunk) chunkMaterial.getShaderParameters();
 
         float size = chunkParameters.waveSize;

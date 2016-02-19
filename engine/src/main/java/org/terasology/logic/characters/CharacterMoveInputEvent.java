@@ -16,15 +16,11 @@
 
 package org.terasology.logic.characters;
 
-import org.terasology.engine.Time;
+import org.terasology.math.geom.Vector3f;
 import org.terasology.network.NetworkEvent;
 import org.terasology.network.ServerEvent;
-import org.terasology.registry.CoreRegistry;
-
-import javax.vecmath.Vector3f;
 
 /**
- * @author Immortius
  */
 @ServerEvent
 public class CharacterMoveInputEvent extends NetworkEvent {
@@ -38,10 +34,6 @@ public class CharacterMoveInputEvent extends NetworkEvent {
     private boolean firstRun = true;
 
     protected CharacterMoveInputEvent() {
-    }
-
-    public CharacterMoveInputEvent(int sequence, float pitch, float yaw, Vector3f movementDirection, boolean running, boolean jumpRequested) {
-        this(sequence, pitch, yaw, movementDirection, running, jumpRequested, CoreRegistry.get(Time.class).getDeltaInMs());
     }
 
     public CharacterMoveInputEvent(int sequence, float pitch, float yaw, Vector3f movementDirection, boolean running, boolean jumpRequested, long delta) {
